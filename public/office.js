@@ -1,5 +1,5 @@
-var OSFPerformance =
-function (OSFPerformance) {
+var OSFPerformance;
+(function (OSFPerformance) {
     OSFPerformance.officeExecuteStartDate = 0;
     OSFPerformance.officeExecuteStart = 0;
     OSFPerformance.officeExecuteEnd = 0;
@@ -49,7 +49,7 @@ function (OSFPerformance) {
         }
     }
     OSFPerformance.getJSHeapSizeLimit = getJSHeapSizeLimit;
-}(OSFPerformance || (OSFPerformance = {}));
+})(OSFPerformance || (OSFPerformance = {}));
 OSFPerformance.officeExecuteStartDate = Date.now();
 OSFPerformance.officeExecuteStart = OSFPerformance.now();
 
