@@ -11,9 +11,9 @@
   <Description DefaultValue="A template to get started."/>
   <IconUrl DefaultValue="https://www.vahedmafi.ir/icon-64.png"/>
   <HighResolutionIconUrl DefaultValue="https://www.vahedmafi.ir/icon-128.png"/>
-  <SupportUrl DefaultValue="https://www.contoso.com/help"/>
+  <SupportUrl DefaultValue="https://www.vahedmafi.ir/help.html"/>
   <AppDomains>
-    <AppDomain>https://www.contoso.com</AppDomain>
+    <AppDomain>https://www.vahedmafi.ir</AppDomain>
   </AppDomains>
   <Hosts>
     <Host Name="Mailbox" />
@@ -97,12 +97,12 @@
         <bt:Url id="Taskpane.Url" DefaultValue="https://www.vahedmafi.ir/taskpane.html" />
       </bt:Urls>
       <bt:ShortStrings>
-        <bt:String id="GroupLabel" DefaultValue="Contoso Add-in"/>
-        <bt:String id="TaskpaneButton.Label" DefaultValue="Show Taskpane"/>
+        <bt:String id="GroupLabel" DefaultValue="Workflow Engine Add-in"/>
+        <bt:String id="TaskpaneButton.Label" DefaultValue="Show Workflow Pane"/>
         <bt:String id="ActionButton.Label" DefaultValue="Perform an action"/>
       </bt:ShortStrings>
       <bt:LongStrings>
-        <bt:String id="TaskpaneButton.Tooltip" DefaultValue="Opens a pane displaying all available properties."/>
+        <bt:String id="TaskpaneButton.Tooltip" DefaultValue="Opens a pane displaying all available workflow management properties."/>
         <bt:String id="ActionButton.Tooltip" DefaultValue="Perform an action when clicked."/>
       </bt:LongStrings>
     </Resources>
