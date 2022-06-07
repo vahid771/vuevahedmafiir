@@ -1,11 +1,9 @@
-Office.onReady(() => {
-  // If needed, Office.js is ready to be called
-});
+setTimeout(function(){
+  Office.onReady(() => {
+    // If needed, Office.js is ready to be called
+  });  
+},1000)
 
-/**
- * Shows a notification when the add-in command is executed.
- * @param event {Office.AddinCommands.Event}
- */
 function action(event) {
   const message = {
     type: Office.MailboxEnums.ItemNotificationMessageType.InformationalMessage,
