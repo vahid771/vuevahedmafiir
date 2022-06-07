@@ -49,30 +49,10 @@ function (OSFPerformance) {
         }
     }
     OSFPerformance.getJSHeapSizeLimit = getJSHeapSizeLimit;
-})(OSFPerformance || (OSFPerformance = {}));
-;
+}(OSFPerformance || (OSFPerformance = {}));
 OSFPerformance.officeExecuteStartDate = Date.now();
 OSFPerformance.officeExecuteStart = OSFPerformance.now();
 
-
-
-/* Office JavaScript API library */
-
-/*
-	Copyright (c) Microsoft Corporation.  All rights reserved.
-*/
-
-
-/*
-    Your use of this file is governed by the Microsoft Services Agreement http://go.microsoft.com/fwlink/?LinkId=266419.
-
-    This file also contains the following Promise implementation (with a few small modifications):
-        * @overview es6-promise - a tiny implementation of Promises/A+.
-        * @copyright Copyright (c) 2014 Yehuda Katz, Tom Dale, Stefan Penner and contributors (Conversion to ES6 API by Jake Archibald)
-        * @license   Licensed under MIT license
-        *            See https://raw.githubusercontent.com/jakearchibald/es6-promise/master/LICENSE
-        * @version   2.3.0
-*/
 var OSF = OSF || {};
 OSF.HostSpecificFileVersionDefault = "16.00";
 OSF.HostSpecificFileVersionMap = {
@@ -1554,7 +1534,7 @@ OSF._OfficeAppFactory = function() {
                             a = {}
                         }
                     }
-                    var g = k + OSF.getSupportedLocale(f, OSF.ConstantNames.OfficeStringJS;
+                    var g = k + OSF.getSupportedLocale(f, OSF.ConstantNames.OfficeStringJS);
                     h.loadScript(g, OSF.ConstantNames.OfficeStringsId, c, d, OSF.ConstantNames.LocaleStringLoadingTimeout)
                 },
                 s = function(s) {
