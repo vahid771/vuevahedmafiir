@@ -5,10 +5,10 @@
   xmlns:mailappor="http://schemas.microsoft.com/office/mailappversionoverrides/1.0" xsi:type="MailApp">
   <Id>05c2e1c9-3e1d-406e-9a91-e9ac64854143</Id>
   <Version>1.0.0.0</Version>
-  <ProviderName>Consoto Python Division</ProviderName>
-  <DefaultLocale>en-US</DefaultLocale>
+  <ProviderName>MCI</ProviderName>
+  <DefaultLocale>fa-IR</DefaultLocale>
   <DisplayName DefaultValue="MCI Workflow Engine Application"/>
-  <Description DefaultValue="A template to get started."/>
+  <Description DefaultValue="Workflow Engine"/>
   <IconUrl DefaultValue="https://www.vahedmafi.ir/icon-64.png"/>
   <HighResolutionIconUrl DefaultValue="https://www.vahedmafi.ir/icon-128.png"/>
   <SupportUrl DefaultValue="https://www.vahedmafi.ir/help.html"/>
