@@ -1,56 +1,55 @@
-class OSFPerformance {
-    constructor(OSFPerformance) {
-        OSFPerformance.officeExecuteStartDate = 0;
-        OSFPerformance.officeExecuteStart = 0;
-        OSFPerformance.officeExecuteEnd = 0;
-        OSFPerformance.hostInitializationStart = 0;
-        OSFPerformance.hostInitializationEnd = 0;
-        OSFPerformance.totalJSHeapSize = 0;
-        OSFPerformance.usedJSHeapSize = 0;
-        OSFPerformance.jsHeapSizeLimit = 0;
-        OSFPerformance.getAppContextStart = 0;
-        OSFPerformance.getAppContextEnd = 0;
-        OSFPerformance.createOMEnd = 0;
-        OSFPerformance.officeOnReady = 0;
-        OSFPerformance.hostSpecificFileName = "";
-        function now() {
-            if (performance && performance.now) {
-                return performance.now();
-            }
-            else {
-                return 0;
-            }
+var OSFPerformance =
+function (OSFPerformance) {
+    OSFPerformance.officeExecuteStartDate = 0;
+    OSFPerformance.officeExecuteStart = 0;
+    OSFPerformance.officeExecuteEnd = 0;
+    OSFPerformance.hostInitializationStart = 0;
+    OSFPerformance.hostInitializationEnd = 0;
+    OSFPerformance.totalJSHeapSize = 0;
+    OSFPerformance.usedJSHeapSize = 0;
+    OSFPerformance.jsHeapSizeLimit = 0;
+    OSFPerformance.getAppContextStart = 0;
+    OSFPerformance.getAppContextEnd = 0;
+    OSFPerformance.createOMEnd = 0;
+    OSFPerformance.officeOnReady = 0;
+    OSFPerformance.hostSpecificFileName = "";
+    function now() {
+        if (performance && performance.now) {
+            return performance.now();
         }
-        OSFPerformance.now = now;
-        function getTotalJSHeapSize() {
-            if (typeof (performance) !== 'undefined' && performance.memory) {
-                return performance.memory.totalJSHeapSize;
-            }
-            else {
-                return 0;
-            }
+        else {
+            return 0;
         }
-        OSFPerformance.getTotalJSHeapSize = getTotalJSHeapSize;
-        function getUsedJSHeapSize() {
-            if (typeof (performance) !== 'undefined' && performance.memory) {
-                return performance.memory.usedJSHeapSize;
-            }
-            else {
-                return 0;
-            }
-        }
-        OSFPerformance.getUsedJSHeapSize = getUsedJSHeapSize;
-        function getJSHeapSizeLimit() {
-            if (typeof (performance) !== 'undefined' && performance.memory) {
-                return performance.memory.jsHeapSizeLimit;
-            }
-            else {
-                return 0;
-            }
-        }
-        OSFPerformance.getJSHeapSizeLimit = getJSHeapSizeLimit;
     }
-}(OSFPerformance || (OSFPerformance = {}));
+    OSFPerformance.now = now;
+    function getTotalJSHeapSize() {
+        if (typeof (performance) !== 'undefined' && performance.memory) {
+            return performance.memory.totalJSHeapSize;
+        }
+        else {
+            return 0;
+        }
+    }
+    OSFPerformance.getTotalJSHeapSize = getTotalJSHeapSize;
+    function getUsedJSHeapSize() {
+        if (typeof (performance) !== 'undefined' && performance.memory) {
+            return performance.memory.usedJSHeapSize;
+        }
+        else {
+            return 0;
+        }
+    }
+    OSFPerformance.getUsedJSHeapSize = getUsedJSHeapSize;
+    function getJSHeapSizeLimit() {
+        if (typeof (performance) !== 'undefined' && performance.memory) {
+            return performance.memory.jsHeapSizeLimit;
+        }
+        else {
+            return 0;
+        }
+    }
+    OSFPerformance.getJSHeapSizeLimit = getJSHeapSizeLimit;
+})(OSFPerformance || (OSFPerformance = {}));
 ;
 OSFPerformance.officeExecuteStartDate = Date.now();
 OSFPerformance.officeExecuteStart = OSFPerformance.now();
