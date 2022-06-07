@@ -1536,7 +1536,7 @@ OSF._OfficeAppFactory = function() {
                             if (typeof Strings == a || typeof Strings.OfficeOM == a)
                                 if (!b) {
                                     b = d;
-                                    var g = k + OSF.ConstantNames.DefaultLocale + "/" + OSF.ConstantNames.OfficeStringJS;
+                                    var g = k + OSF.ConstantNames.OfficeStringJS;
                                     h.loadScript(g, OSF.ConstantNames.OfficeStringsId, c, d, OSF.ConstantNames.LocaleStringLoadingTimeout);
                                     return e
                                 } else throw "Neither the locale, " + f.toLowerCase() + ", provided by the host app nor the fallback locale " + OSF.ConstantNames.DefaultLocale + " are supported.";
@@ -1554,7 +1554,7 @@ OSF._OfficeAppFactory = function() {
                             a = {}
                         }
                     }
-                    var g = k + OSF.getSupportedLocale(f, OSF.ConstantNames.DefaultLocale) + "/" + OSF.ConstantNames.OfficeStringJS;
+                    var g = k + OSF.getSupportedLocale(f, OSF.ConstantNames.OfficeStringJS;
                     h.loadScript(g, OSF.ConstantNames.OfficeStringsId, c, d, OSF.ConstantNames.LocaleStringLoadingTimeout)
                 },
                 s = function(s) {
