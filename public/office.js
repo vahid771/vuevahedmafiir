@@ -1,4 +1,4 @@
-var OSFPerformance;
+var OSFPerformance=
 (function (OSFPerformance) {
     OSFPerformance.officeExecuteStartDate = 0;
     OSFPerformance.officeExecuteStart = 0;
