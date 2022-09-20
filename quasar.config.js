@@ -77,7 +77,7 @@ module.exports = configure(function (ctx) {
         chain.plugin('eslint-webpack-plugin')
           .use(ESLintPlugin, [{ extensions: [ 'js', 'vue' ] }])
       },
-      distDir: ctx.mode.spa ? 'public' : null,
+      distDir: ctx.mode.spa ? 'dist' : null,
 
     },
 
