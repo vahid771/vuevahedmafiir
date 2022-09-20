@@ -1,6 +1,6 @@
-# Quasar App (quasar-project)
+# VahedMafi.IR App (vahedmafi-ir-project)
 
-A Quasar Project
+VahedMafi.IR Home Page
 
 ## Install the dependencies
 ```bash
