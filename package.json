@@ -6,7 +6,7 @@
   "author": "Vahed Mafi <vahed.mafi@hotmail.com>",
   "private": true,
   "scripts": {
-    "build": "quasar build",
+    "build": "quasar build --output public",
     "deploy": "vercel",
     "lint": "eslint --ext .js,.vue ./",
     "format": "prettier --write \"**/*.{js,vue,scss,html,md,json}\" --ignore-path .gitignore",
