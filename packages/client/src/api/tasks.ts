@@ -1,3 +1,5 @@
+import { apiUrl } from './base';
+
 const BASE = '/api/tasks';
 
 export interface Task {
@@ -27,13 +29,13 @@ function authHeaders(token: string): HeadersInit {
 
 export async function getTasks(token: string, status?: 'open' | 'done'): Promise<Task[]> {
   const url = status ? `${BASE}?status=${status}` : BASE;
-  const res = await fetch(url, { headers: authHeaders(token) });
+  const res = await fetch(apiUrl(url), { headers: authHeaders(token) });
   if (!res.ok) throw new Error('Failed to fetch tasks');
   return res.json() as Promise<Task[]>;
 }
 
 export async function createTask(token: string, data: CreateTaskData): Promise<Task> {
-  const res = await fetch(BASE, {
+  const res = await fetch(apiUrl(BASE), {
     method: 'POST',
     headers: authHeaders(token),
     body: JSON.stringify(data),
@@ -43,7 +45,7 @@ export async function createTask(token: string, data: CreateTaskData): Promise<T
 }
 
 export async function updateTask(token: string, id: number, data: UpdateTaskData): Promise<Task> {
-  const res = await fetch(`${BASE}/${id}`, {
+  const res = await fetch(apiUrl(`${BASE}/${id}`), {
     method: 'PATCH',
     headers: authHeaders(token),
     body: JSON.stringify(data),
@@ -53,7 +55,7 @@ export async function updateTask(token: string, id: number, data: UpdateTaskData
 }
 
 export async function deleteTask(token: string, id: number): Promise<void> {
-  const res = await fetch(`${BASE}/${id}`, {
+  const res = await fetch(apiUrl(`${BASE}/${id}`), {
     method: 'DELETE',
     headers: authHeaders(token),
   });

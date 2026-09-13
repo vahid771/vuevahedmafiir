@@ -44,6 +44,8 @@ export type UpdateSubscriptionData = Partial<CreateSubscriptionData>;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+import { apiUrl } from './base';
+
 function authHeaders(token: string): HeadersInit {
   return { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
 }
@@ -51,13 +53,13 @@ function authHeaders(token: string): HeadersInit {
 // ─── Bills ────────────────────────────────────────────────────────────────────
 
 export async function getBills(token: string): Promise<Bill[]> {
-  const res = await fetch('/api/bills', { headers: authHeaders(token) });
+  const res = await fetch(apiUrl('/api/bills'), { headers: authHeaders(token) });
   if (!res.ok) throw new Error('Failed to fetch bills');
   return res.json() as Promise<Bill[]>;
 }
 
 export async function createBill(token: string, data: CreateBillData): Promise<Bill> {
-  const res = await fetch('/api/bills', {
+  const res = await fetch(apiUrl('/api/bills'), {
     method: 'POST',
     headers: authHeaders(token),
     body: JSON.stringify(data),
@@ -67,7 +69,7 @@ export async function createBill(token: string, data: CreateBillData): Promise<B
 }
 
 export async function updateBill(token: string, id: number, data: UpdateBillData): Promise<Bill> {
-  const res = await fetch(`/api/bills/${id}`, {
+  const res = await fetch(apiUrl(`/api/bills/${id}`), {
     method: 'PATCH',
     headers: authHeaders(token),
     body: JSON.stringify(data),
@@ -77,7 +79,7 @@ export async function updateBill(token: string, id: number, data: UpdateBillData
 }
 
 export async function deleteBill(token: string, id: number): Promise<void> {
-  const res = await fetch(`/api/bills/${id}`, {
+  const res = await fetch(apiUrl(`/api/bills/${id}`), {
     method: 'DELETE',
     headers: authHeaders(token),
   });
@@ -87,7 +89,7 @@ export async function deleteBill(token: string, id: number): Promise<void> {
 // ─── Subscriptions ────────────────────────────────────────────────────────────
 
 export async function getSubscriptions(token: string): Promise<Subscription[]> {
-  const res = await fetch('/api/subscriptions', { headers: authHeaders(token) });
+  const res = await fetch(apiUrl('/api/subscriptions'), { headers: authHeaders(token) });
   if (!res.ok) throw new Error('Failed to fetch subscriptions');
   return res.json() as Promise<Subscription[]>;
 }
@@ -96,7 +98,7 @@ export async function createSubscription(
   token: string,
   data: CreateSubscriptionData
 ): Promise<Subscription> {
-  const res = await fetch('/api/subscriptions', {
+  const res = await fetch(apiUrl('/api/subscriptions'), {
     method: 'POST',
     headers: authHeaders(token),
     body: JSON.stringify(data),
@@ -110,7 +112,7 @@ export async function updateSubscription(
   id: number,
   data: UpdateSubscriptionData
 ): Promise<Subscription> {
-  const res = await fetch(`/api/subscriptions/${id}`, {
+  const res = await fetch(apiUrl(`/api/subscriptions/${id}`), {
     method: 'PATCH',
     headers: authHeaders(token),
     body: JSON.stringify(data),
@@ -120,7 +122,7 @@ export async function updateSubscription(
 }
 
 export async function deleteSubscription(token: string, id: number): Promise<void> {
-  const res = await fetch(`/api/subscriptions/${id}`, {
+  const res = await fetch(apiUrl(`/api/subscriptions/${id}`), {
     method: 'DELETE',
     headers: authHeaders(token),
   });

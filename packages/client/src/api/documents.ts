@@ -9,11 +9,13 @@ export interface Document {
   uploaded_at: string;
 }
 
+import { apiUrl } from './base';
+
 const authHeader = (token: string) => ({ Authorization: `Bearer ${token}` });
 
 export async function getDocuments(token: string, tag?: string): Promise<Document[]> {
   const url = tag ? `/api/documents?tag=${encodeURIComponent(tag)}` : '/api/documents';
-  const res = await fetch(url, { headers: authHeader(token) });
+  const res = await fetch(apiUrl(url), { headers: authHeader(token) });
   if (!res.ok) throw new Error('Failed to fetch documents');
   return res.json();
 }
@@ -28,7 +30,7 @@ export async function uploadDocument(
   form.append('file', file);
   form.append('title', title);
   form.append('tags', JSON.stringify(tags));
-  const res = await fetch('/api/documents/upload', {
+  const res = await fetch(apiUrl('/api/documents/upload'), {
     method: 'POST',
     headers: authHeader(token),
     body: form,
@@ -38,7 +40,7 @@ export async function uploadDocument(
 }
 
 export async function downloadDocument(token: string, id: number, title: string): Promise<void> {
-  const res = await fetch(`/api/documents/${id}/download`, { headers: authHeader(token) });
+  const res = await fetch(apiUrl(`/api/documents/${id}/download`), { headers: authHeader(token) });
   if (!res.ok) throw new Error('Failed to download document');
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);
@@ -50,6 +52,6 @@ export async function downloadDocument(token: string, id: number, title: string)
 }
 
 export async function deleteDocument(token: string, id: number): Promise<void> {
-  const res = await fetch(`/api/documents/${id}`, { method: 'DELETE', headers: authHeader(token) });
+  const res = await fetch(apiUrl(`/api/documents/${id}`), { method: 'DELETE', headers: authHeader(token) });
   if (!res.ok) throw new Error('Failed to delete document');
 }
