@@ -1,0 +1,7 @@
+{
+  "buildCommand": "npm run build --workspace=packages/client",
+  "outputDirectory": "packages/client/dist",
+  "installCommand": "npm install",
+  "framework": null,
+  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+}
