@@ -1,0 +1,18 @@
+{
+  "name": "personal-life-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "packages/server",
+    "packages/client"
+  ],
+  "scripts": {
+    "dev": "concurrently --kill-others-on-fail --names \"server,client\" --prefix-colors \"blue,green\" \"npm run dev --workspace=packages/server\" \"npm run dev --workspace=packages/client\""
+  },
+  "devDependencies": {
+    "concurrently": "^8.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
