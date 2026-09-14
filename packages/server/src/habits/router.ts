@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { InValue } from '@libsql/client';
 import { db } from '../db';
 import { authenticateToken } from '../middleware/authenticate';
 
@@ -17,10 +18,11 @@ function getWeekBounds(): { monday: string; sunday: string } {
   return { monday: fmt(monday), sunday: fmt(sunday) };
 }
 
-function computeStreak(habitId: number, userId: number): number {
-  const logs = db
-    .prepare('SELECT logged_date FROM habit_logs WHERE habit_id = ? AND user_id = ? ORDER BY logged_date DESC')
-    .all(habitId, userId) as { logged_date: string }[];
+async function computeStreak(habitId: number, userId: number): Promise<number> {
+  const logs = (await db.execute({
+    sql: 'SELECT logged_date FROM habit_logs WHERE habit_id = ? AND user_id = ? ORDER BY logged_date DESC',
+    args: [habitId, userId],
+  })).rows as unknown as { logged_date: string }[];
 
   if (logs.length === 0) return 0;
 
@@ -51,9 +53,12 @@ function computeStreak(habitId: number, userId: number): number {
 }
 
 // GET /api/habits
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   const userId = req.user!.id;
-  const habits = db.prepare('SELECT * FROM habits WHERE user_id = ? ORDER BY created_at ASC').all(userId) as {
+  const habits = (await db.execute({
+    sql: 'SELECT * FROM habits WHERE user_id = ? ORDER BY created_at ASC',
+    args: [userId],
+  })).rows as unknown as {
     id: number;
     user_id: number;
     name: string;
@@ -64,23 +69,24 @@ router.get('/', (req, res) => {
 
   const { monday, sunday } = getWeekBounds();
 
-  const result = habits.map(h => {
-    const logs = db
-      .prepare('SELECT logged_date FROM habit_logs WHERE habit_id = ? AND user_id = ? AND logged_date BETWEEN ? AND ?')
-      .all(h.id, userId, monday, sunday) as { logged_date: string }[];
+  const result = await Promise.all(habits.map(async h => {
+    const logs = (await db.execute({
+      sql: 'SELECT logged_date FROM habit_logs WHERE habit_id = ? AND user_id = ? AND logged_date BETWEEN ? AND ?',
+      args: [h.id, userId, monday, sunday],
+    })).rows as unknown as { logged_date: string }[];
 
     return {
       ...h,
       logs_this_week: logs.map(l => l.logged_date),
-      current_streak: computeStreak(h.id, userId),
+      current_streak: await computeStreak(Number(h.id), userId),
     };
-  });
+  }));
 
   res.json(result);
 });
 
 // POST /api/habits
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   const userId = req.user!.id;
   const { name, frequency = 'daily', target_days = '[]' } = req.body as {
     name?: string;
@@ -93,20 +99,21 @@ router.post('/', (req, res) => {
     return;
   }
 
-  const result = db
-    .prepare('INSERT INTO habits (user_id, name, frequency, target_days) VALUES (?, ?, ?, ?)')
-    .run(userId, name, frequency, target_days);
+  const result = await db.execute({
+    sql: 'INSERT INTO habits (user_id, name, frequency, target_days) VALUES (?, ?, ?, ?)',
+    args: [userId, name, frequency, target_days],
+  });
 
-  const habit = db.prepare('SELECT * FROM habits WHERE id = ?').get(result.lastInsertRowid);
+  const habit = (await db.execute({ sql: 'SELECT * FROM habits WHERE id = ?', args: [result.lastInsertRowid!] })).rows[0];
   res.status(201).json(habit);
 });
 
 // PATCH /api/habits/:id
-router.patch('/:id', (req, res) => {
+router.patch('/:id', async (req, res) => {
   const userId = req.user!.id;
   const id = Number(req.params.id);
 
-  const existing = db.prepare('SELECT id FROM habits WHERE id = ? AND user_id = ?').get(id, userId);
+  const existing = (await db.execute({ sql: 'SELECT id FROM habits WHERE id = ? AND user_id = ?', args: [id, userId] })).rows[0];
   if (!existing) { res.status(404).json({ error: 'Habit not found' }); return; }
 
   const { name, frequency, target_days } = req.body as {
@@ -116,7 +123,7 @@ router.patch('/:id', (req, res) => {
   };
 
   const fields: string[] = [];
-  const values: unknown[] = [];
+  const values: InValue[] = [];
 
   if (name !== undefined) { fields.push('name = ?'); values.push(name); }
   if (frequency !== undefined) { fields.push('frequency = ?'); values.push(frequency); }
@@ -125,53 +132,55 @@ router.patch('/:id', (req, res) => {
   if (fields.length === 0) { res.status(400).json({ error: 'No fields to update' }); return; }
 
   values.push(id, userId);
-  db.prepare(`UPDATE habits SET ${fields.join(', ')} WHERE id = ? AND user_id = ?`).run(...values);
+  await db.execute({ sql: `UPDATE habits SET ${fields.join(', ')} WHERE id = ? AND user_id = ?`, args: values });
 
-  const updated = db.prepare('SELECT * FROM habits WHERE id = ?').get(id);
+  const updated = (await db.execute({ sql: 'SELECT * FROM habits WHERE id = ?', args: [id] })).rows[0];
   res.json(updated);
 });
 
 // DELETE /api/habits/:id
-router.delete('/:id', (req, res) => {
+router.delete('/:id', async (req, res) => {
   const userId = req.user!.id;
   const id = Number(req.params.id);
 
-  const existing = db.prepare('SELECT id FROM habits WHERE id = ? AND user_id = ?').get(id, userId);
+  const existing = (await db.execute({ sql: 'SELECT id FROM habits WHERE id = ? AND user_id = ?', args: [id, userId] })).rows[0];
   if (!existing) { res.status(404).json({ error: 'Habit not found' }); return; }
 
-  db.prepare('DELETE FROM habits WHERE id = ? AND user_id = ?').run(id, userId);
+  await db.execute({ sql: 'DELETE FROM habits WHERE id = ? AND user_id = ?', args: [id, userId] });
   res.status(204).send();
 });
 
 // POST /api/habits/:id/log
-router.post('/:id/log', (req, res) => {
+router.post('/:id/log', async (req, res) => {
   const userId = req.user!.id;
   const habitId = Number(req.params.id);
 
-  const existing = db.prepare('SELECT id FROM habits WHERE id = ? AND user_id = ?').get(habitId, userId);
+  const existing = (await db.execute({ sql: 'SELECT id FROM habits WHERE id = ? AND user_id = ?', args: [habitId, userId] })).rows[0];
   if (!existing) { res.status(404).json({ error: 'Habit not found' }); return; }
 
   const today = new Date().toISOString().slice(0, 10);
 
   // Idempotent insert
-  db.prepare(
-    'INSERT OR IGNORE INTO habit_logs (habit_id, user_id, logged_date) VALUES (?, ?, ?)'
-  ).run(habitId, userId, today);
+  await db.execute({
+    sql: 'INSERT OR IGNORE INTO habit_logs (habit_id, user_id, logged_date) VALUES (?, ?, ?)',
+    args: [habitId, userId, today],
+  });
 
   res.status(201).json({ logged_date: today });
 });
 
 // DELETE /api/habits/:id/log/:date
-router.delete('/:id/log/:date', (req, res) => {
+router.delete('/:id/log/:date', async (req, res) => {
   const userId = req.user!.id;
   const habitId = Number(req.params.id);
   const date = req.params.date;
 
-  const result = db
-    .prepare('DELETE FROM habit_logs WHERE habit_id = ? AND user_id = ? AND logged_date = ?')
-    .run(habitId, userId, date);
+  const result = await db.execute({
+    sql: 'DELETE FROM habit_logs WHERE habit_id = ? AND user_id = ? AND logged_date = ?',
+    args: [habitId, userId, date],
+  });
 
-  if (result.changes === 0) {
+  if (result.rowsAffected === 0) {
     res.status(404).json({ error: 'Log not found' });
     return;
   }

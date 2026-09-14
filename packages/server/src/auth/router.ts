@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { db } from '../db';
 
@@ -21,18 +21,19 @@ router.post('/register', async (req, res) => {
     return;
   }
 
-  const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
+  const existing = (await db.execute({ sql: 'SELECT id FROM users WHERE email = ?', args: [email] })).rows[0];
   if (existing) {
     res.status(409).json({ error: 'Email already registered' });
     return;
   }
 
   const password_hash = await bcrypt.hash(password, SALT_ROUNDS);
-  const result = db
-    .prepare('INSERT INTO users (email, password_hash) VALUES (?, ?)')
-    .run(email, password_hash);
+  const result = await db.execute({
+    sql: 'INSERT INTO users (email, password_hash) VALUES (?, ?)',
+    args: [email, password_hash],
+  });
 
-  const user = { id: result.lastInsertRowid as number, email };
+  const user = { id: Number(result.lastInsertRowid!), email };
   const token = signToken(user);
   res.status(201).json({ token, user });
 });
@@ -46,9 +47,10 @@ router.post('/login', async (req, res) => {
     return;
   }
 
-  const row = db
-    .prepare('SELECT id, email, password_hash FROM users WHERE email = ?')
-    .get(email) as { id: number; email: string; password_hash: string } | undefined;
+  const row = (await db.execute({
+    sql: 'SELECT id, email, password_hash FROM users WHERE email = ?',
+    args: [email],
+  })).rows[0] as unknown as { id: number; email: string; password_hash: string } | undefined;
 
   if (!row) {
     res.status(401).json({ error: 'Invalid credentials' });
@@ -61,7 +63,7 @@ router.post('/login', async (req, res) => {
     return;
   }
 
-  const user = { id: row.id, email: row.email };
+  const user = { id: Number(row.id), email: row.email };
   const token = signToken(user);
   res.json({ token, user });
 });

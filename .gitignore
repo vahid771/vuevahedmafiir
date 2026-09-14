@@ -7,3 +7,5 @@ packages/server/uploads/
 *.db-shm
 *.db-wal
 
+.vercel
+.env*

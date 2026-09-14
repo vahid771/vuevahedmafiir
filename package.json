@@ -7,9 +7,11 @@
     "packages/client"
   ],
   "scripts": {
-    "dev": "concurrently --kill-others-on-fail --names \"server,client\" --prefix-colors \"blue,green\" \"npm run dev --workspace=packages/server\" \"npm run dev --workspace=packages/client\""
+    "dev": "concurrently --kill-others-on-fail --names \"server,client\" --prefix-colors \"blue,green\" \"npm run dev --workspace=packages/server\" \"npm run dev --workspace=packages/client\"",
+    "build": "npm run build --workspace=packages/server && npx esbuild packages/server/src/app.ts packages/server/src/db.ts --bundle --platform=node --target=node18 --outdir=api --format=cjs && npm run build --workspace=packages/client"
   },
   "devDependencies": {
+    "@vercel/node": "^13.0.0",
     "concurrently": "^8.0.0"
   },
   "engines": {

@@ -6,10 +6,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { db } from '../db';
 import { authenticateToken } from '../middleware/authenticate';
 
-const UPLOADS_DIR = process.env.UPLOADS_DIR ?? './uploads';
-
-// Ensure uploads directory exists
-fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+const UPLOADS_DIR = process.env.UPLOADS_DIR ?? '/tmp/uploads';
 
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, UPLOADS_DIR),
@@ -27,23 +24,26 @@ const upload = multer({
 const router = Router();
 router.use(authenticateToken);
 
+type DocumentRow = {
+  id: number;
+  user_id: number;
+  title: string;
+  filename: string;
+  mimetype: string;
+  size: number;
+  tags: string;
+  uploaded_at: string;
+};
+
 // GET /api/documents
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   const userId = req.user!.id;
   const { tag } = req.query;
 
-  let rows = db
-    .prepare('SELECT * FROM documents WHERE user_id = ? ORDER BY uploaded_at DESC')
-    .all(userId) as {
-      id: number;
-      user_id: number;
-      title: string;
-      filename: string;
-      mimetype: string;
-      size: number;
-      tags: string;
-      uploaded_at: string;
-    }[];
+  let rows = (await db.execute({
+    sql: 'SELECT * FROM documents WHERE user_id = ? ORDER BY uploaded_at DESC',
+    args: [userId],
+  })).rows as unknown as DocumentRow[];
 
   if (tag && typeof tag === 'string') {
     rows = rows.filter(r => {
@@ -60,8 +60,9 @@ router.get('/', (req, res) => {
 });
 
 // POST /api/documents/upload
-router.post('/upload', upload.single('file'), (req, res) => {
+router.post('/upload', upload.single('file'), async (req, res) => {
   const userId = req.user!.id;
+  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
   if (!req.file) {
     res.status(400).json({ error: 'file is required' });
@@ -87,31 +88,24 @@ router.post('/upload', upload.single('file'), (req, res) => {
     }
   }
 
-  const result = db
-    .prepare(
-      'INSERT INTO documents (user_id, title, filename, mimetype, size, tags) VALUES (?, ?, ?, ?, ?, ?)'
-    )
-    .run(
-      userId,
-      title,
-      req.file.filename,
-      req.file.mimetype,
-      req.file.size,
-      JSON.stringify(tagsArray)
-    );
+  const result = await db.execute({
+    sql: 'INSERT INTO documents (user_id, title, filename, mimetype, size, tags) VALUES (?, ?, ?, ?, ?, ?)',
+    args: [userId, title, req.file.filename, req.file.mimetype, req.file.size, JSON.stringify(tagsArray)],
+  });
 
-  const doc = db.prepare('SELECT * FROM documents WHERE id = ?').get(result.lastInsertRowid);
+  const doc = (await db.execute({ sql: 'SELECT * FROM documents WHERE id = ?', args: [result.lastInsertRowid!] })).rows[0];
   res.status(201).json(doc);
 });
 
 // GET /api/documents/:id/download
-router.get('/:id/download', (req, res) => {
+router.get('/:id/download', async (req, res) => {
   const userId = req.user!.id;
   const id = Number(req.params.id);
 
-  const doc = db
-    .prepare('SELECT * FROM documents WHERE id = ? AND user_id = ?')
-    .get(id, userId) as { filename: string; title: string } | undefined;
+  const doc = (await db.execute({
+    sql: 'SELECT * FROM documents WHERE id = ? AND user_id = ?',
+    args: [id, userId],
+  })).rows[0] as unknown as { filename: string; title: string } | undefined;
 
   if (!doc) {
     res.status(404).json({ error: 'Document not found' });
@@ -129,20 +123,21 @@ router.get('/:id/download', (req, res) => {
 });
 
 // DELETE /api/documents/:id
-router.delete('/:id', (req, res) => {
+router.delete('/:id', async (req, res) => {
   const userId = req.user!.id;
   const id = Number(req.params.id);
 
-  const doc = db
-    .prepare('SELECT * FROM documents WHERE id = ? AND user_id = ?')
-    .get(id, userId) as { filename: string } | undefined;
+  const doc = (await db.execute({
+    sql: 'SELECT * FROM documents WHERE id = ? AND user_id = ?',
+    args: [id, userId],
+  })).rows[0] as unknown as { filename: string } | undefined;
 
   if (!doc) {
     res.status(404).json({ error: 'Document not found' });
     return;
   }
 
-  db.prepare('DELETE FROM documents WHERE id = ? AND user_id = ?').run(id, userId);
+  await db.execute({ sql: 'DELETE FROM documents WHERE id = ? AND user_id = ?', args: [id, userId] });
 
   const filePath = path.resolve(UPLOADS_DIR, doc.filename);
   fs.unlink(filePath, () => {}); // best-effort delete

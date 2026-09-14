@@ -1,23 +1,14 @@
-import Database from 'better-sqlite3';
-import fs from 'fs';
-import path from 'path';
+import { createClient } from '@libsql/client';
 
-const DB_PATH = process.env.DATABASE_PATH ?? './data/dashboard.db';
+const url = process.env.TURSO_DATABASE_URL;
+const authToken = process.env.TURSO_AUTH_TOKEN;
 
-// Ensure the directory exists before opening the file
-const dbDir = path.dirname(DB_PATH);
-if (!fs.existsSync(dbDir)) {
-  fs.mkdirSync(dbDir, { recursive: true });
-}
+if (!url) throw new Error('TURSO_DATABASE_URL is not set');
 
-export const db = new Database(DB_PATH);
+export const db = createClient({ url, authToken });
 
-// Enable WAL mode for better concurrent read performance
-db.pragma('journal_mode = WAL');
-db.pragma('foreign_keys = ON');
-
-export function runMigrations(): void {
-  db.exec(`
+export async function runMigrations(): Promise<void> {
+  await db.executeMultiple(`
     CREATE TABLE IF NOT EXISTS users (
       id            INTEGER PRIMARY KEY AUTOINCREMENT,
       email         TEXT    UNIQUE NOT NULL,
@@ -107,12 +98,12 @@ export function runMigrations(): void {
       uploaded_at TEXT    DEFAULT (datetime('now'))
     );
 
-    CREATE INDEX IF NOT EXISTS idx_tasks_user_id          ON tasks(user_id);
-    CREATE INDEX IF NOT EXISTS idx_bills_user_id          ON bills(user_id);
-    CREATE INDEX IF NOT EXISTS idx_reminders_user_id      ON reminders(user_id);
-    CREATE INDEX IF NOT EXISTS idx_habits_user_id         ON habits(user_id);
-    CREATE INDEX IF NOT EXISTS idx_habit_logs_habit_id    ON habit_logs(habit_id);
+    CREATE INDEX IF NOT EXISTS idx_tasks_user_id           ON tasks(user_id);
+    CREATE INDEX IF NOT EXISTS idx_bills_user_id           ON bills(user_id);
+    CREATE INDEX IF NOT EXISTS idx_reminders_user_id       ON reminders(user_id);
+    CREATE INDEX IF NOT EXISTS idx_habits_user_id          ON habits(user_id);
+    CREATE INDEX IF NOT EXISTS idx_habit_logs_habit_id     ON habit_logs(habit_id);
     CREATE INDEX IF NOT EXISTS idx_important_dates_user_id ON important_dates(user_id);
-    CREATE INDEX IF NOT EXISTS idx_documents_user_id      ON documents(user_id);
+    CREATE INDEX IF NOT EXISTS idx_documents_user_id       ON documents(user_id);
   `);
 }
