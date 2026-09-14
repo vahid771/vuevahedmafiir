@@ -12,24 +12,7 @@ import googleRouter from './google/router';
 
 const app = express();
 
-// On Vercel the Rust runtime defines req.body as a lazy getter on IncomingMessage.
-// For multipart requests that getter throws "Invalid JSON" when anything reads req.body.
-// Solution: shadow the getter on this specific req instance BEFORE anything reads it,
-// capturing the raw bytes via the stream instead, which busboy can consume directly.
-app.use((req, _res, next) => {
-  if (req.headers['content-type']?.startsWith('multipart/form-data')) {
-    // Shadow the prototype getter with a plain undefined value — do NOT read req.body first
-    Object.defineProperty(req, 'body', { configurable: true, writable: true, value: undefined });
-  }
-  next();
-});
-app.use((req, res, next) => {
-  if (req.headers['content-type']?.startsWith('multipart/form-data')) return next();
-  express.json()(req, res, (err) => {
-    if (err) return next();
-    next();
-  });
-});
+app.use(express.json());
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok' });
