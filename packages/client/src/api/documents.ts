@@ -30,7 +30,7 @@ export async function uploadDocument(
   form.append('tags', JSON.stringify(tags));
   const res = await fetch(apiUrl('/api/documents/upload'), {
     method: 'POST',
-    headers: authHeaders(token),
+    headers: { Authorization: `Bearer ${token}` }, // no Content-Type — browser sets multipart boundary
     body: form,
   });
   if (!res.ok) throw new Error('Failed to upload document');
