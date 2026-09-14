@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useCalendar } from '../context/CalendarContext';
 import {
   getTasks,
   createTask,
@@ -9,6 +10,7 @@ import {
   type CreateTaskData,
 } from '../api/tasks';
 import { formatDate } from '../utils/format';
+import DateInput from '../components/DateInput';
 
 const PRIORITY_BADGE: Record<Task['priority'], string> = {
   low: 'bg-green-100 text-green-800',
@@ -71,10 +73,9 @@ function TaskForm({ initial = EMPTY_FORM, onSave, onCancel, saving }: TaskFormPr
       <div className="flex gap-3">
         <div className="flex-1">
           <label className="block text-sm font-medium text-gray-700 mb-1">Due Date</label>
-          <input
-            type="date"
+          <DateInput
             value={form.due_date}
-            onChange={e => set('due_date', e.target.value)}
+            onChange={v => set('due_date', v)}
             className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
@@ -125,6 +126,7 @@ interface TaskRowProps {
 
 function TaskRow({ task, onToggle, onDelete, onEdit, editingId, onSaveEdit, onCancelEdit, saving }: TaskRowProps) {
   const isDone = task.status === 'done';
+  const { calendar } = useCalendar();
 
   return (
     <li className="space-y-2">
@@ -157,7 +159,7 @@ function TaskRow({ task, onToggle, onDelete, onEdit, editingId, onSaveEdit, onCa
               {task.priority}
             </span>
             {task.due_date && (
-              <span className="text-xs text-gray-500">{formatDate(task.due_date)}</span>
+              <span className="text-xs text-gray-500">{formatDate(task.due_date, calendar)}</span>
             )}
           </div>
           {task.description && (

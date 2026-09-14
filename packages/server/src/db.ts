@@ -98,6 +98,14 @@ export async function runMigrations(): Promise<void> {
       uploaded_at TEXT    DEFAULT (datetime('now'))
     );
 
+    CREATE TABLE IF NOT EXISTS user_preferences (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id    INTEGER UNIQUE NOT NULL REFERENCES users(id),
+      calendar   TEXT    NOT NULL DEFAULT 'miladi',
+      created_at TEXT    DEFAULT (datetime('now')),
+      updated_at TEXT    DEFAULT (datetime('now'))
+    );
+
     CREATE INDEX IF NOT EXISTS idx_tasks_user_id           ON tasks(user_id);
     CREATE INDEX IF NOT EXISTS idx_bills_user_id           ON bills(user_id);
     CREATE INDEX IF NOT EXISTS idx_reminders_user_id       ON reminders(user_id);

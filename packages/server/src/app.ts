@@ -7,6 +7,7 @@ import habitsRouter from './habits/router';
 import datesRouter from './dates/router';
 import documentsRouter from './documents/router';
 import aiRouter from './ai/router';
+import preferencesRouter from './preferences/router';
 
 const app = express();
 
@@ -25,6 +26,7 @@ app.use('/api/habits', habitsRouter);
 app.use('/api/dates', datesRouter);
 app.use('/api/documents', documentsRouter);
 app.use('/api/ai', aiRouter);
+app.use('/api/preferences', preferencesRouter);
 
 // 404 handler for unknown API routes
 app.use('/api/*', (_req, res) => {

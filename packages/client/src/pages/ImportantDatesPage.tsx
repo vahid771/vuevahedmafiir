@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useCalendar } from '../context/CalendarContext';
 import {
   getDates,
   createDate,
@@ -7,17 +8,14 @@ import {
   deleteDate,
   type ImportantDate,
 } from '../api/dates';
+import { formatDate } from '../utils/format';
+import DateInput from '../components/DateInput';
 
 function daysUntil(dateStr: string): number {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const d = new Date(dateStr + 'T00:00:00');
   return Math.round((d.getTime() - today.getTime()) / 86400000);
-}
-
-function formatDate(dateStr: string): string {
-  const d = new Date(dateStr + 'T00:00:00');
-  return d.toLocaleDateString(undefined, { month: 'long', day: 'numeric' });
 }
 
 function daysLabel(n: number): string {
@@ -32,6 +30,7 @@ const EMPTY: FormState = { title: '', date: '', recurs_yearly: false, notes: '' 
 
 export default function ImportantDatesPage() {
   const { token } = useAuth();
+  const { calendar } = useCalendar();
   const [dates, setDates] = useState<ImportantDate[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -109,7 +108,7 @@ export default function ImportantDatesPage() {
           <h2 className="font-semibold text-gray-800 mb-3">{editId ? 'Edit Date' : 'New Date'}</h2>
           <div className="space-y-3">
             <input className="w-full border border-gray-300 rounded px-3 py-2 text-sm" placeholder="Title *" value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} />
-            <input type="date" className="w-full border border-gray-300 rounded px-3 py-2 text-sm" value={form.date} onChange={e => setForm(p => ({ ...p, date: e.target.value }))} />
+            <DateInput value={form.date} onChange={v => setForm(p => ({ ...p, date: v }))} className="w-full border border-gray-300 rounded px-3 py-2 text-sm" />
             <label className="flex items-center gap-2 text-sm text-gray-700">
               <input type="checkbox" checked={form.recurs_yearly} onChange={e => setForm(p => ({ ...p, recurs_yearly: e.target.checked }))} />
               Recurs yearly
@@ -148,7 +147,7 @@ export default function ImportantDatesPage() {
                     {d.recurs_yearly ? <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">Yearly</span> : null}
                     {isSoon && <span className="text-xs bg-amber-200 text-amber-800 px-2 py-0.5 rounded-full">Soon</span>}
                   </div>
-                  <p className="text-sm text-gray-500 mt-0.5">{formatDate(d.date)} — <span className={isSoon ? 'text-amber-600 font-medium' : 'text-gray-500'}>{daysLabel(days)}</span></p>
+                  <p className="text-sm text-gray-500 mt-0.5">{formatDate(d.date, calendar)} — <span className={isSoon ? 'text-amber-600 font-medium' : 'text-gray-500'}>{daysLabel(days)}</span></p>
                   {d.notes && <p className="text-xs text-gray-400 mt-0.5 truncate">{d.notes}</p>}
                 </div>
                 <div className="flex items-center gap-2 ml-3 shrink-0">

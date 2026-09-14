@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useCalendar } from '../context/CalendarContext';
+import DateInput from '../components/DateInput';
 import {
   getBills,
   createBill,
@@ -93,10 +95,9 @@ function BillForm({
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Due Date</label>
-          <input
-            type="date"
+          <DateInput
             value={form.due_date}
-            onChange={e => set('due_date', e.target.value)}
+            onChange={v => set('due_date', v)}
             className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
@@ -164,6 +165,7 @@ function BillRow({
   const days = daysFromToday(bill.due_date);
   const isOverdue = bill.paid === 0 && days !== null && days < 0;
   const isDueSoon = bill.paid === 0 && days !== null && days >= 0 && days <= 7;
+  const { calendar } = useCalendar();
 
   let rowBg = 'bg-white border-gray-200';
   if (isOverdue) rowBg = 'bg-red-50 border-red-200';
@@ -208,7 +210,7 @@ function BillRow({
           </div>
           <div className="flex items-center gap-3 mt-0.5 text-xs text-gray-500">
             <span>{formatCurrency(bill.amount)}</span>
-            {bill.due_date && <span>Due {formatDate(bill.due_date)}</span>}
+            {bill.due_date && <span>Due {formatDate(bill.due_date, calendar)}</span>}
             <span className={bill.paid ? 'text-green-600' : 'text-gray-400'}>{bill.paid ? 'Paid' : 'Unpaid'}</span>
           </div>
         </div>
@@ -327,10 +329,9 @@ function SubForm({
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Next Billing Date</label>
-          <input
-            type="date"
+          <DateInput
             value={form.next_billing_date}
-            onChange={e => set('next_billing_date', e.target.value)}
+            onChange={v => set('next_billing_date', v)}
             className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
@@ -385,6 +386,7 @@ function SubRow({
 }) {
   const days = daysFromToday(sub.next_billing_date);
   const isDueSoon = sub.active === 1 && days !== null && days >= 0 && days <= 7;
+  const { calendar } = useCalendar();
 
   const rowBg = isDueSoon ? 'bg-amber-50 border-amber-200' : 'bg-white border-gray-200';
 
@@ -429,7 +431,7 @@ function SubRow({
           </div>
           <div className="flex items-center gap-3 mt-0.5 text-xs text-gray-500">
             <span>{formatCurrency(sub.amount)}</span>
-            {sub.next_billing_date && <span>Next {formatDate(sub.next_billing_date)}</span>}
+            {sub.next_billing_date && <span>Next {formatDate(sub.next_billing_date, calendar)}</span>}
           </div>
         </div>
 

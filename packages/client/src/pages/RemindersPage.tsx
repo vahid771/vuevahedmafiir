@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useCalendar } from '../context/CalendarContext';
 import {
   getReminders,
   createReminder,
@@ -8,6 +9,7 @@ import {
   type Reminder,
 } from '../api/reminders';
 import { formatDateTime } from '../utils/format';
+import DateTimeInput from '../components/DateTimeInput';
 
 interface FormState { title: string; remind_at: string; notes: string; }
 const EMPTY: FormState = { title: '', remind_at: '', notes: '' };
@@ -23,6 +25,7 @@ function reminderToForm(r: Reminder): FormState {
 
 export default function RemindersPage() {
   const { token } = useAuth();
+  const { calendar } = useCalendar();
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -97,7 +100,7 @@ export default function RemindersPage() {
       <div className={`flex items-start justify-between p-3 rounded-lg border ${isOverdue ? 'border-l-4 border-l-red-500 bg-red-50' : 'bg-white border-gray-200'}`}>
         <div className="flex-1 min-w-0">
           <p className={`font-medium text-gray-900 ${r.done ? 'line-through text-gray-400' : ''}`}>{r.title}</p>
-          <p className={`text-sm mt-0.5 ${isOverdue ? 'text-red-600' : 'text-gray-500'}`}>{formatDateTime(r.remind_at)}</p>
+          <p className={`text-sm mt-0.5 ${isOverdue ? 'text-red-600' : 'text-gray-500'}`}>{formatDateTime(r.remind_at, calendar)}</p>
           {r.notes && <p className="text-sm text-gray-400 mt-0.5 truncate">{r.notes}</p>}
         </div>
         <div className="flex items-center gap-2 ml-3 shrink-0">
@@ -130,7 +133,7 @@ export default function RemindersPage() {
           <h2 className="font-semibold text-gray-800 mb-3">{editId ? 'Edit Reminder' : 'New Reminder'}</h2>
           <div className="space-y-3">
             <input className="w-full border border-gray-300 rounded px-3 py-2 text-sm" placeholder="Title *" value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} />
-            <input type="datetime-local" className="w-full border border-gray-300 rounded px-3 py-2 text-sm" value={form.remind_at} onChange={e => setForm(p => ({ ...p, remind_at: e.target.value }))} />
+            <DateTimeInput value={form.remind_at} onChange={v => setForm(p => ({ ...p, remind_at: v }))} className="w-full border border-gray-300 rounded px-3 py-2 text-sm" />
             <textarea className="w-full border border-gray-300 rounded px-3 py-2 text-sm" rows={2} placeholder="Notes (optional)" value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} />
           </div>
           <div className="flex gap-2 mt-3">
