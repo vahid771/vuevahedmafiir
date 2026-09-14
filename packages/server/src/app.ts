@@ -12,7 +12,24 @@ import googleRouter from './google/router';
 
 const app = express();
 
-app.use(express.json());
+// On Vercel, the Rust runtime pre-reads the body into req.body as a Buffer before Express runs.
+// For multipart requests this causes express.json() to throw "Invalid JSON".
+// We intercept early: clear req.body for multipart so json() skips it, then catch any stray errors.
+app.use((req, _res, next) => {
+  if (req.headers['content-type']?.startsWith('multipart/form-data')) {
+    // Store the raw buffer so our busboy parser can use it, then clear req.body
+    (req as any)._rawBody = req.body;
+    (req as any).body = undefined;
+  }
+  next();
+});
+app.use((req, res, next) => {
+  if (req.headers['content-type']?.startsWith('multipart/form-data')) return next();
+  express.json()(req, res, (err) => {
+    if (err) return next(); // swallow JSON parse errors for non-multipart too, just in case
+    next();
+  });
+});
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok' });

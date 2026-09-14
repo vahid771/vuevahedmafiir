@@ -28,11 +28,12 @@ function parseMultipart(req: Request): Promise<{ file: { buffer: Buffer; origina
     bb.on('finish', () => resolve({ file, fields }));
     bb.on('error', reject);
 
-    // Vercel pre-reads the body into req.body as a Buffer; pipe it back into busboy
-    if (Buffer.isBuffer(req.body)) {
-      Readable.from(req.body).pipe(bb);
-    } else if (req.body instanceof Uint8Array) {
-      Readable.from(Buffer.from(req.body)).pipe(bb);
+    // Vercel pre-reads the body into req.body (or _rawBody after our middleware clears it)
+    const raw = (req as any)._rawBody ?? req.body;
+    if (Buffer.isBuffer(raw)) {
+      Readable.from(raw).pipe(bb);
+    } else if (raw instanceof Uint8Array) {
+      Readable.from(Buffer.from(raw)).pipe(bb);
     } else {
       // Body not pre-read — pipe the raw request stream
       req.pipe(bb);
