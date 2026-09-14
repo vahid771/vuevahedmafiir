@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { getSummary } from '../api/ai';
+import CalendarWidget from '../components/CalendarWidget';
 
 function renderSummary(text: string) {
   // Simple markdown-ish: split on double newlines for paragraphs, bold **text**
@@ -89,6 +90,10 @@ export default function DashboardPage() {
             Click "Summarize my week" to get a personalized briefing powered by GPT-4o-mini.
           </p>
         )}
+      </div>
+
+      <div className="mt-6">
+        <CalendarWidget />
       </div>
 
       <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3">
