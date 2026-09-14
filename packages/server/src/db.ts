@@ -128,4 +128,18 @@ export async function runMigrations(): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_documents_user_id       ON documents(user_id);
     CREATE UNIQUE INDEX IF NOT EXISTS idx_google_tokens_user_id ON google_tokens(user_id);
   `);
+
+  // ALTER TABLE migrations — run individually, ignore "duplicate column" errors for idempotency
+  const alterStatements = [
+    'ALTER TABLE documents ADD COLUMN drive_file_id TEXT',
+    'ALTER TABLE documents ADD COLUMN drive_view_link TEXT',
+  ];
+  for (const sql of alterStatements) {
+    try {
+      await db.execute(sql);
+    } catch (e: any) {
+      // Ignore "duplicate column" — means migration already ran
+      if (!String(e).includes('duplicate column')) throw e;
+    }
+  }
 }
