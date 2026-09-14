@@ -12,11 +12,7 @@ import googleRouter from './google/router';
 
 const app = express();
 
-// Skip JSON body parsing for multipart uploads — multer handles those directly
-app.use((req, res, next) => {
-  if (req.headers['content-type']?.startsWith('multipart/form-data')) return next();
-  express.json()(req, res, next);
-});
+app.use(express.json());
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok' });

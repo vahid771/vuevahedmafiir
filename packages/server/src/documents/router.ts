@@ -1,15 +1,44 @@
-import { Router } from 'express';
-import multer from 'multer';
+import { Router, Request } from 'express';
+import { Readable } from 'stream';
+import Busboy from 'busboy';
 import { db } from '../db';
 import { authenticateToken } from '../middleware/authenticate';
 import { fetchById } from '../utils/db';
 import { getAuthedClient, uploadFile, downloadFile, deleteFile, getOrCreateFolder } from '../google/drive.service';
 
-// Memory storage only — no disk writes
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 50 * 1024 * 1024 },
-});
+// Parse multipart/form-data manually using busboy so it works on Vercel
+// (Vercel's runtime pre-reads the body; multer's stream approach fails in that env)
+function parseMultipart(req: Request): Promise<{ file: { buffer: Buffer; originalname: string; mimetype: string; size: number } | null; fields: Record<string, string> }> {
+  return new Promise((resolve, reject) => {
+    const fields: Record<string, string> = {};
+    let file: { buffer: Buffer; originalname: string; mimetype: string; size: number } | null = null;
+
+    const bb = Busboy({ headers: req.headers, limits: { fileSize: 50 * 1024 * 1024 } });
+
+    bb.on('file', (fieldname, stream, info) => {
+      const chunks: Buffer[] = [];
+      stream.on('data', (chunk: Buffer) => chunks.push(chunk));
+      stream.on('end', () => {
+        const buffer = Buffer.concat(chunks);
+        file = { buffer, originalname: info.filename, mimetype: info.mimeType, size: buffer.length };
+      });
+    });
+
+    bb.on('field', (name, val) => { fields[name] = val; });
+    bb.on('finish', () => resolve({ file, fields }));
+    bb.on('error', reject);
+
+    // Vercel pre-reads the body into req.body as a Buffer; pipe it back into busboy
+    if (Buffer.isBuffer(req.body)) {
+      Readable.from(req.body).pipe(bb);
+    } else if (req.body instanceof Uint8Array) {
+      Readable.from(Buffer.from(req.body)).pipe(bb);
+    } else {
+      // Body not pre-read — pipe the raw request stream
+      req.pipe(bb);
+    }
+  });
+}
 
 const router = Router();
 router.use(authenticateToken);
@@ -84,15 +113,18 @@ router.get('/', async (req, res) => {
 });
 
 // POST /api/documents/upload
-router.post('/upload', upload.single('file'), async (req, res) => {
+router.post('/upload', async (req, res) => {
   const userId = req.user!.id;
 
-  if (!req.file) {
+  const { file, fields } = await parseMultipart(req);
+
+  if (!file) {
     res.status(400).json({ error: 'file is required' });
     return;
   }
 
-  const { title, tags } = req.body as { title?: string; tags?: string };
+  const title = fields['title'];
+  const tags = fields['tags'];
 
   if (!title) {
     res.status(400).json({ error: 'title is required' });
@@ -117,9 +149,9 @@ router.post('/upload', upload.single('file'), async (req, res) => {
   const { driveFileId, driveViewLink } = await uploadFile(
     drive.auth,
     drive.folderId,
-    req.file.originalname,
-    req.file.mimetype,
-    req.file.buffer,
+    file.originalname,
+    file.mimetype,
+    file.buffer,
   );
 
   const result = await db.execute({
@@ -127,9 +159,9 @@ router.post('/upload', upload.single('file'), async (req, res) => {
     args: [
       userId,
       title,
-      req.file.originalname,
-      req.file.mimetype,
-      req.file.size,
+      file.originalname,
+      file.mimetype,
+      file.size,
       JSON.stringify(tagsArray),
       driveFileId,
       driveViewLink,
