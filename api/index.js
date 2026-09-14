@@ -11,6 +11,9 @@ try {
 
 let migrated = false;
 
+// Disable Vercel's automatic body parsing so multer can read the raw stream
+module.exports.config = { api: { bodyParser: false } };
+
 module.exports = async function handler(req, res) {
   if (loadErr) {
     return res.status(500).json({ stage: 'load', error: String(loadErr), stack: loadErr.stack });
