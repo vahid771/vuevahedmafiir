@@ -12,25 +12,24 @@ import googleRouter from './google/router';
 
 const app = express();
 
-// Use express.raw() to capture the body as a Buffer for ALL requests.
-// This prevents Vercel's runtime from throwing "Invalid JSON" on multipart bodies.
-// Routes that need JSON parse it themselves; multipart routes use the raw buffer directly.
-app.use(express.raw({ type: '*/*', limit: '50mb' }));
-
-// For JSON routes, parse req.body Buffer into an object
-app.use((req, _res, next) => {
+// Vercel's Rust runtime installs a body getter on IncomingMessage that throws for non-JSON.
+// We bypass ALL Express body parsers and handle body reading manually per-route.
+// JSON routes: body parsed in this middleware. Multipart routes: busboy reads req directly.
+app.use((req, res, next) => {
   const ct = req.headers['content-type'] || '';
-  if (
-    Buffer.isBuffer(req.body) &&
-    (ct.includes('application/json') || ct.includes('text/plain'))
-  ) {
-    try {
-      req.body = JSON.parse(req.body.toString('utf8'));
-    } catch {
-      req.body = undefined;
+  // Skip body reading for multipart — busboy handles it in the route
+  if (ct.startsWith('multipart/form-data')) return next();
+  // For everything else, drain the stream into a buffer and parse if JSON
+  const chunks: Buffer[] = [];
+  req.on('data', (chunk: Buffer) => chunks.push(chunk));
+  req.on('end', () => {
+    const raw = Buffer.concat(chunks);
+    if (ct.includes('application/json') && raw.length > 0) {
+      try { req.body = JSON.parse(raw.toString('utf8')); } catch { req.body = {}; }
     }
-  }
-  next();
+    next();
+  });
+  req.on('error', () => next());
 });
 
 app.get('/api/health', (_req, res) => {
