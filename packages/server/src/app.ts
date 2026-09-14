@@ -12,7 +12,26 @@ import googleRouter from './google/router';
 
 const app = express();
 
-app.use(express.json());
+// Use express.raw() to capture the body as a Buffer for ALL requests.
+// This prevents Vercel's runtime from throwing "Invalid JSON" on multipart bodies.
+// Routes that need JSON parse it themselves; multipart routes use the raw buffer directly.
+app.use(express.raw({ type: '*/*', limit: '50mb' }));
+
+// For JSON routes, parse req.body Buffer into an object
+app.use((req, _res, next) => {
+  const ct = req.headers['content-type'] || '';
+  if (
+    Buffer.isBuffer(req.body) &&
+    (ct.includes('application/json') || ct.includes('text/plain'))
+  ) {
+    try {
+      req.body = JSON.parse(req.body.toString('utf8'));
+    } catch {
+      req.body = undefined;
+    }
+  }
+  next();
+});
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok' });

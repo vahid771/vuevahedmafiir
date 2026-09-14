@@ -32,9 +32,9 @@ function parseMultipart(req: Request): Promise<{
     bb.on('finish', () => resolve({ file, fields }));
     bb.on('error', reject);
 
-    // Use the pre-read buffer stored by api/index.js (Vercel), or fall back to raw stream (local)
-    const rawBody: Buffer | undefined = (req as any)._rawBody;
-    if (rawBody instanceof Buffer && rawBody.length > 0) {
+    // express.raw() gives us req.body as a Buffer for all requests (local + Vercel)
+    const rawBody = req.body;
+    if (Buffer.isBuffer(rawBody) && rawBody.length > 0) {
       Readable.from(rawBody).pipe(bb);
     } else {
       req.pipe(bb);
