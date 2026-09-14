@@ -3,7 +3,7 @@ import multer from 'multer';
 import { db } from '../db';
 import { authenticateToken } from '../middleware/authenticate';
 import { fetchById } from '../utils/db';
-import { getAuthedClient, uploadFile, downloadFile, deleteFile } from '../google/drive.service';
+import { getAuthedClient, uploadFile, downloadFile, deleteFile, getOrCreateFolder } from '../google/drive.service';
 
 // Memory storage only — no disk writes
 const upload = multer({
@@ -34,6 +34,8 @@ type GoogleTokenRow = {
   drive_folder_id: string;
 };
 
+const DRIVE_FOLDER_NAME = 'Personal Life Dashboard';
+
 async function getDriveAuth(userId: number) {
   const row = (await db.execute({
     sql: 'SELECT access_token, refresh_token, expiry, drive_folder_id FROM google_tokens WHERE user_id = ?',
@@ -41,7 +43,20 @@ async function getDriveAuth(userId: number) {
   })).rows[0] as unknown as GoogleTokenRow | undefined;
 
   if (!row) return null;
-  return { auth: getAuthedClient(row), folderId: row.drive_folder_id };
+
+  const auth = getAuthedClient(row);
+
+  // Lazily resolve folder ID on first use after connect
+  let folderId = row.drive_folder_id;
+  if (!folderId) {
+    folderId = await getOrCreateFolder(auth, DRIVE_FOLDER_NAME);
+    await db.execute({
+      sql: `UPDATE google_tokens SET drive_folder_id = ?, updated_at = datetime('now') WHERE user_id = ?`,
+      args: [folderId, userId],
+    });
+  }
+
+  return { auth, folderId };
 }
 
 // GET /api/documents

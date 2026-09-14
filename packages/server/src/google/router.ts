@@ -4,11 +4,8 @@ import { authenticateToken } from '../middleware/authenticate';
 import {
   getAuthUrl,
   exchangeCode,
-  getAuthedClient,
-  getOrCreateFolder,
 } from './drive.service';
 
-const DRIVE_FOLDER_NAME = 'Personal Life Dashboard';
 const router = Router();
 
 // GET /api/google/connect
@@ -29,6 +26,7 @@ router.get('/connect', (req, res) => {
 });
 
 // GET /api/google/callback
+// Only exchanges the code and saves tokens — folder creation is deferred to first upload
 router.get('/callback', async (req, res) => {
   const { code, state } = req.query as { code?: string; state?: string };
 
@@ -47,19 +45,17 @@ router.get('/callback', async (req, res) => {
   }
 
   const tokens = await exchangeCode(code);
-  const auth = getAuthedClient(tokens);
-  const folderId = await getOrCreateFolder(auth, DRIVE_FOLDER_NAME);
 
+  // Save tokens — drive_folder_id resolved lazily on first upload
   await db.execute({
-    sql: `INSERT INTO google_tokens (user_id, access_token, refresh_token, expiry, drive_folder_id, updated_at)
-          VALUES (?, ?, ?, ?, ?, datetime('now'))
+    sql: `INSERT INTO google_tokens (user_id, access_token, refresh_token, expiry, updated_at)
+          VALUES (?, ?, ?, ?, datetime('now'))
           ON CONFLICT(user_id) DO UPDATE SET
-            access_token    = excluded.access_token,
-            refresh_token   = COALESCE(excluded.refresh_token, refresh_token),
-            expiry          = excluded.expiry,
-            drive_folder_id = excluded.drive_folder_id,
-            updated_at      = datetime('now')`,
-    args: [userId, tokens.access_token, tokens.refresh_token, tokens.expiry, folderId],
+            access_token  = excluded.access_token,
+            refresh_token = COALESCE(excluded.refresh_token, refresh_token),
+            expiry        = excluded.expiry,
+            updated_at    = datetime('now')`,
+    args: [userId, tokens.access_token, tokens.refresh_token, tokens.expiry],
   });
 
   // Redirect back to the client settings page
