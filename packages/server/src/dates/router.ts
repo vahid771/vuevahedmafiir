@@ -2,21 +2,10 @@ import { Router } from 'express';
 import { db } from '../db';
 import { authenticateToken } from '../middleware/authenticate';
 import { assertOwnership, buildPatch, fetchById } from '../utils/db';
+import { nextOccurrence } from '../utils/dates';
 
 const router = Router();
 router.use(authenticateToken);
-
-function nextOccurrence(dateStr: string, recurs_yearly: number): string {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  const d = new Date(dateStr + 'T00:00:00');
-  if (!recurs_yearly) return dateStr;
-
-  d.setFullYear(today.getFullYear());
-  if (d < today) d.setFullYear(today.getFullYear() + 1);
-  return d.toISOString().slice(0, 10);
-}
 
 type ImportantDateRow = {
   id: number;

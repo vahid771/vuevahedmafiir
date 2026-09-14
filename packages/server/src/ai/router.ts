@@ -1,8 +1,7 @@
 import { Router } from 'express';
-import { InValue } from '@libsql/client';
 import Groq from 'groq-sdk';
-import { db } from '../db';
 import { authenticateToken } from '../middleware/authenticate';
+import { gatherUserData } from './service';
 
 const router = Router();
 router.use(authenticateToken);
@@ -10,74 +9,18 @@ router.use(authenticateToken);
 // POST /api/ai/summary
 router.post('/summary', async (req, res) => {
   const userId = req.user!.id;
-  const today = new Date();
-  const todayStr = today.toISOString().slice(0, 10);
-  const in14 = new Date(today.getTime() + 14 * 86400000).toISOString().slice(0, 10);
-  const in30 = new Date(today.getTime() + 30 * 86400000).toISOString().slice(0, 10);
 
-  // Gather data from all modules
-  const openTasks = (await db.execute({
-    sql: "SELECT title, due_date, priority FROM tasks WHERE user_id = ? AND status = 'open' ORDER BY due_date ASC, priority DESC LIMIT 20",
-    args: [userId],
-  })).rows as unknown as { title: string; due_date: string | null; priority: string }[];
-
-  const upcomingBills = (await db.execute({
-    sql: 'SELECT name, amount, due_date, recurrence FROM bills WHERE user_id = ? AND paid = 0 AND due_date <= ? ORDER BY due_date ASC',
-    args: [userId, in14],
-  })).rows as unknown as { name: string; amount: number | null; due_date: string; recurrence: string }[];
-
-  const activeSubscriptions = (await db.execute({
-    sql: 'SELECT name, amount, billing_cycle, next_billing_date FROM subscriptions WHERE user_id = ? AND active = 1 AND next_billing_date <= ? ORDER BY next_billing_date ASC',
-    args: [userId, in14],
-  })).rows as unknown as { name: string; amount: number | null; billing_cycle: string; next_billing_date: string }[];
-
-  const pendingReminders = (await db.execute({
-    sql: 'SELECT title, remind_at, notes FROM reminders WHERE user_id = ? AND done = 0 AND remind_at <= ? ORDER BY remind_at ASC',
-    args: [userId, new Date(today.getTime() + 7 * 86400000).toISOString()],
-  })).rows as unknown as { title: string; remind_at: string; notes: string | null }[];
-
-  const habits = (await db.execute({
-    sql: 'SELECT id, name, frequency FROM habits WHERE user_id = ?',
-    args: [userId],
-  })).rows as unknown as { id: number; name: string; frequency: string }[];
-
-  // Week bounds
-  const day = today.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  const monday = new Date(today);
-  monday.setDate(today.getDate() + diff);
-  const sunday = new Date(monday);
-  sunday.setDate(monday.getDate() + 6);
-  const mondayStr = monday.toISOString().slice(0, 10);
-  const sundayStr = sunday.toISOString().slice(0, 10);
-
-  const habitsWithLogs = await Promise.all(habits.map(async h => {
-    const args: InValue[] = [h.id, userId, mondayStr, sundayStr];
-    const logs = (await db.execute({
-      sql: 'SELECT logged_date FROM habit_logs WHERE habit_id = ? AND user_id = ? AND logged_date BETWEEN ? AND ?',
-      args,
-    })).rows;
-    const daysSoFar = Math.min(day === 0 ? 7 : day, 7);
-    return { ...h, logsThisWeek: logs.length, daysSoFar };
-  }));
-
-  const upcomingDates = (await db.execute({
-    sql: 'SELECT title, date, recurs_yearly, notes FROM important_dates WHERE user_id = ?',
-    args: [userId],
-  })).rows as unknown as { title: string; date: string; recurs_yearly: number; notes: string | null }[];
-
-  // Compute next_occurrence for each date and filter to within 30 days
-  const nearDates = upcomingDates
-    .map(d => {
-      const base = new Date(d.date + 'T00:00:00');
-      if (d.recurs_yearly) {
-        base.setFullYear(today.getFullYear());
-        if (base < today) base.setFullYear(today.getFullYear() + 1);
-      }
-      return { ...d, next_occurrence: base.toISOString().slice(0, 10) };
-    })
-    .filter(d => d.next_occurrence >= todayStr && d.next_occurrence <= in30)
-    .sort((a, b) => a.next_occurrence.localeCompare(b.next_occurrence));
+  const {
+    today,
+    mondayStr,
+    sundayStr,
+    openTasks,
+    upcomingBills,
+    activeSubscriptions,
+    pendingReminders,
+    habitsWithLogs,
+    nearDates,
+  } = await gatherUserData(userId);
 
   // Build prompt
   const lines: string[] = [

@@ -9,12 +9,9 @@ import {
   type Reminder,
 } from '../api/reminders';
 import { formatDateTime } from '../utils/format';
-import DateTimeInput from '../components/DateTimeInput';
+import ReminderForm, { type ReminderFormState, EMPTY_REMINDER_FORM } from '../components/reminders/ReminderForm';
 
-interface FormState { title: string; remind_at: string; notes: string; }
-const EMPTY: FormState = { title: '', remind_at: '', notes: '' };
-
-function reminderToForm(r: Reminder): FormState {
+function reminderToForm(r: Reminder): ReminderFormState {
   // datetime-local input needs YYYY-MM-DDTHH:MM
   const d = new Date(r.remind_at);
   const local = isNaN(d.getTime())
@@ -30,8 +27,8 @@ export default function RemindersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState<FormState>(EMPTY);
   const [editId, setEditId] = useState<number | null>(null);
+  const [editInitial, setEditInitial] = useState<ReminderFormState>(EMPTY_REMINDER_FORM);
   const [saving, setSaving] = useState(false);
   const [showCompleted, setShowCompleted] = useState(false);
 
@@ -53,11 +50,11 @@ export default function RemindersPage() {
   const upcoming = reminders.filter(r => !r.done && new Date(r.remind_at) >= now);
   const completed = reminders.filter(r => r.done);
 
-  function startAdd() { setEditId(null); setForm(EMPTY); setShowForm(true); }
-  function startEdit(r: Reminder) { setEditId(r.id); setForm(reminderToForm(r)); setShowForm(true); }
-  function cancelForm() { setShowForm(false); setEditId(null); setForm(EMPTY); }
+  function startAdd() { setEditId(null); setEditInitial(EMPTY_REMINDER_FORM); setShowForm(true); }
+  function startEdit(r: Reminder) { setEditId(r.id); setEditInitial(reminderToForm(r)); setShowForm(true); }
+  function cancelForm() { setShowForm(false); setEditId(null); }
 
-  async function handleSave() {
+  async function handleSave(form: ReminderFormState) {
     if (!form.title.trim() || !form.remind_at) return;
     setSaving(true);
     try {
@@ -129,18 +126,15 @@ export default function RemindersPage() {
       )}
 
       {showForm && (
-        <div className="mb-6 bg-white border border-gray-200 rounded-lg p-4">
+        <>
           <h2 className="font-semibold text-gray-800 mb-3">{editId ? 'Edit Reminder' : 'New Reminder'}</h2>
-          <div className="space-y-3">
-            <input className="w-full border border-gray-300 rounded px-3 py-2 text-sm" placeholder="Title *" value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} />
-            <DateTimeInput value={form.remind_at} onChange={v => setForm(p => ({ ...p, remind_at: v }))} className="w-full border border-gray-300 rounded px-3 py-2 text-sm" />
-            <textarea className="w-full border border-gray-300 rounded px-3 py-2 text-sm" rows={2} placeholder="Notes (optional)" value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} />
-          </div>
-          <div className="flex gap-2 mt-3">
-            <button onClick={handleSave} disabled={saving} className="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700 disabled:opacity-50">Save</button>
-            <button onClick={cancelForm} className="px-4 py-2 rounded text-sm border border-gray-300 hover:bg-gray-50">Cancel</button>
-          </div>
-        </div>
+          <ReminderForm
+            initial={editInitial}
+            onSave={handleSave}
+            onCancel={cancelForm}
+            saving={saving}
+          />
+        </>
       )}
 
       {loading ? (

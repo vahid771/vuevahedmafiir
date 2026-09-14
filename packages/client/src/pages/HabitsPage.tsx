@@ -9,21 +9,10 @@ import {
   unlogHabit,
   type Habit,
 } from '../api/habits';
+import { getWeekDates } from '../utils/dates';
+import HabitForm, { type HabitFormState, EMPTY_HABIT_FORM } from '../components/habits/HabitForm';
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-
-function getWeekDates(): string[] {
-  const now = new Date();
-  const day = now.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  const monday = new Date(now);
-  monday.setDate(now.getDate() + diff);
-  return Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(monday);
-    d.setDate(monday.getDate() + i);
-    return d.toISOString().slice(0, 10);
-  });
-}
 
 export default function HabitsPage() {
   const { token } = useAuth();
@@ -32,7 +21,7 @@ export default function HabitsPage() {
   const [error, setError] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
-  const [form, setForm] = useState<{ name: string; frequency: 'daily' | 'weekly' }>({ name: '', frequency: 'daily' });
+  const [editInitial, setEditInitial] = useState<HabitFormState>(EMPTY_HABIT_FORM);
   const [saving, setSaving] = useState(false);
 
   const weekDates = getWeekDates();
@@ -50,11 +39,11 @@ export default function HabitsPage() {
 
   useEffect(() => { load(); }, []);
 
-  function startAdd() { setEditId(null); setForm({ name: '', frequency: 'daily' as const }); setShowForm(true); }
-  function startEdit(h: Habit) { setEditId(h.id); setForm({ name: h.name, frequency: h.frequency }); setShowForm(true); }
+  function startAdd() { setEditId(null); setEditInitial(EMPTY_HABIT_FORM); setShowForm(true); }
+  function startEdit(h: Habit) { setEditId(h.id); setEditInitial({ name: h.name, frequency: h.frequency }); setShowForm(true); }
   function cancelForm() { setShowForm(false); setEditId(null); }
 
-  async function handleSave() {
+  async function handleSave(form: HabitFormState) {
     if (!form.name.trim()) return;
     setSaving(true);
     try {
@@ -111,20 +100,13 @@ export default function HabitsPage() {
       )}
 
       {showForm && (
-        <div className="mb-6 bg-white border border-gray-200 rounded-lg p-4">
-          <h2 className="font-semibold text-gray-800 mb-3">{editId ? 'Edit Habit' : 'New Habit'}</h2>
-          <div className="flex gap-3">
-            <input className="flex-1 border border-gray-300 rounded px-3 py-2 text-sm" placeholder="Habit name *" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} />
-            <select className="border border-gray-300 rounded px-3 py-2 text-sm" value={form.frequency} onChange={e => setForm(p => ({ ...p, frequency: e.target.value as 'daily' | 'weekly' }))}>
-              <option value="daily">Daily</option>
-              <option value="weekly">Weekly</option>
-            </select>
-          </div>
-          <div className="flex gap-2 mt-3">
-            <button onClick={handleSave} disabled={saving} className="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700 disabled:opacity-50">Save</button>
-            <button onClick={cancelForm} className="px-4 py-2 rounded text-sm border border-gray-300 hover:bg-gray-50">Cancel</button>
-          </div>
-        </div>
+        <HabitForm
+          initial={editInitial}
+          onSave={handleSave}
+          onCancel={cancelForm}
+          saving={saving}
+          editId={editId}
+        />
       )}
 
       {loading ? (

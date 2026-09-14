@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useCalendar } from '../context/CalendarContext';
-import DateInput from '../components/DateInput';
+import BillForm, { type BillFormState } from '../components/bills/BillForm';
+import SubscriptionForm, { type SubFormState } from '../components/bills/SubscriptionForm';
 import {
   getBills,
   createBill,
@@ -32,107 +33,6 @@ function daysFromToday(dateStr: string | null): number | null {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   return Math.floor((d.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-}
-
-// ─── Bill form ────────────────────────────────────────────────────────────────
-
-interface BillFormState {
-  name: string;
-  amount: string;
-  due_date: string;
-  recurrence: 'once' | 'monthly' | 'yearly';
-}
-
-const EMPTY_BILL_FORM: BillFormState = {
-  name: '',
-  amount: '',
-  due_date: '',
-  recurrence: 'once',
-};
-
-function BillForm({
-  initial = EMPTY_BILL_FORM,
-  onSave,
-  onCancel,
-  saving,
-}: {
-  initial?: BillFormState;
-  onSave: (data: BillFormState) => void;
-  onCancel: () => void;
-  saving: boolean;
-}) {
-  const [form, setForm] = useState<BillFormState>(initial);
-  function set<K extends keyof BillFormState>(key: K, value: BillFormState[K]) {
-    setForm(prev => ({ ...prev, [key]: value }));
-  }
-
-  return (
-    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-3">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Name <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="text"
-            value={form.name}
-            onChange={e => set('name', e.target.value)}
-            className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Bill name"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Amount</label>
-          <input
-            type="number"
-            min="0"
-            step="0.01"
-            value={form.amount}
-            onChange={e => set('amount', e.target.value)}
-            className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="0.00"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Due Date</label>
-          <DateInput
-            value={form.due_date}
-            onChange={v => set('due_date', v)}
-            className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Recurrence</label>
-          <select
-            value={form.recurrence}
-            onChange={e => set('recurrence', e.target.value as BillFormState['recurrence'])}
-            className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-          >
-            <option value="once">Once</option>
-            <option value="monthly">Monthly</option>
-            <option value="yearly">Yearly</option>
-          </select>
-        </div>
-      </div>
-      <div className="flex gap-2 justify-end">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="px-3 py-1.5 text-sm rounded border border-gray-300 text-gray-700 hover:bg-gray-100"
-        >
-          Cancel
-        </button>
-        <button
-          type="button"
-          onClick={() => onSave(form)}
-          disabled={saving || !form.name.trim()}
-          className="px-3 py-1.5 text-sm rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
-        >
-          {saving ? 'Saving…' : 'Save'}
-        </button>
-      </div>
-    </div>
-  );
 }
 
 // ─── Bill row ─────────────────────────────────────────────────────────────────
@@ -256,107 +156,6 @@ function BillRow({
   );
 }
 
-// ─── Subscription form ────────────────────────────────────────────────────────
-
-interface SubFormState {
-  name: string;
-  amount: string;
-  billing_cycle: 'weekly' | 'monthly' | 'yearly';
-  next_billing_date: string;
-}
-
-const EMPTY_SUB_FORM: SubFormState = {
-  name: '',
-  amount: '',
-  billing_cycle: 'monthly',
-  next_billing_date: '',
-};
-
-function SubForm({
-  initial = EMPTY_SUB_FORM,
-  onSave,
-  onCancel,
-  saving,
-}: {
-  initial?: SubFormState;
-  onSave: (data: SubFormState) => void;
-  onCancel: () => void;
-  saving: boolean;
-}) {
-  const [form, setForm] = useState<SubFormState>(initial);
-  function set<K extends keyof SubFormState>(key: K, value: SubFormState[K]) {
-    setForm(prev => ({ ...prev, [key]: value }));
-  }
-
-  return (
-    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-3">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Name <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="text"
-            value={form.name}
-            onChange={e => set('name', e.target.value)}
-            className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Subscription name"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Amount</label>
-          <input
-            type="number"
-            min="0"
-            step="0.01"
-            value={form.amount}
-            onChange={e => set('amount', e.target.value)}
-            className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="0.00"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Billing Cycle</label>
-          <select
-            value={form.billing_cycle}
-            onChange={e => set('billing_cycle', e.target.value as SubFormState['billing_cycle'])}
-            className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-          >
-            <option value="weekly">Weekly</option>
-            <option value="monthly">Monthly</option>
-            <option value="yearly">Yearly</option>
-          </select>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Next Billing Date</label>
-          <DateInput
-            value={form.next_billing_date}
-            onChange={v => set('next_billing_date', v)}
-            className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-      </div>
-      <div className="flex gap-2 justify-end">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="px-3 py-1.5 text-sm rounded border border-gray-300 text-gray-700 hover:bg-gray-100"
-        >
-          Cancel
-        </button>
-        <button
-          type="button"
-          onClick={() => onSave(form)}
-          disabled={saving || !form.name.trim()}
-          className="px-3 py-1.5 text-sm rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
-        >
-          {saving ? 'Saving…' : 'Save'}
-        </button>
-      </div>
-    </div>
-  );
-}
-
 // ─── Subscription row ─────────────────────────────────────────────────────────
 
 const CYCLE_BADGE: Record<string, string> = {
@@ -460,7 +259,7 @@ function SubRow({
         </div>
       </div>
       {editingId === sub.id && (
-        <SubForm
+        <SubscriptionForm
           initial={{
             name: sub.name,
             amount: sub.amount != null ? String(sub.amount) : '',
@@ -702,7 +501,7 @@ function SubscriptionsSection({ token }: { token: string }) {
       )}
 
       {showAddForm && (
-        <SubForm
+        <SubscriptionForm
           onSave={handleCreate}
           onCancel={() => setShowAddForm(false)}
           saving={addSaving}

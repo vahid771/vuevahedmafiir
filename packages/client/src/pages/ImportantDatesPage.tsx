@@ -9,7 +9,7 @@ import {
   type ImportantDate,
 } from '../api/dates';
 import { formatDate } from '../utils/format';
-import DateInput from '../components/DateInput';
+import DateForm, { type DateFormState, EMPTY_DATE_FORM } from '../components/dates/DateForm';
 
 function daysUntil(dateStr: string): number {
   const today = new Date();
@@ -25,9 +25,6 @@ function daysLabel(n: number): string {
   return `in ${n} days`;
 }
 
-interface FormState { title: string; date: string; recurs_yearly: boolean; notes: string; }
-const EMPTY: FormState = { title: '', date: '', recurs_yearly: false, notes: '' };
-
 export default function ImportantDatesPage() {
   const { token } = useAuth();
   const { calendar } = useCalendar();
@@ -36,7 +33,7 @@ export default function ImportantDatesPage() {
   const [error, setError] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
-  const [form, setForm] = useState<FormState>(EMPTY);
+  const [editInitial, setEditInitial] = useState<DateFormState>(EMPTY_DATE_FORM);
   const [saving, setSaving] = useState(false);
 
   async function load() {
@@ -52,15 +49,15 @@ export default function ImportantDatesPage() {
 
   useEffect(() => { load(); }, []);
 
-  function startAdd() { setEditId(null); setForm(EMPTY); setShowForm(true); }
+  function startAdd() { setEditId(null); setEditInitial(EMPTY_DATE_FORM); setShowForm(true); }
   function startEdit(d: ImportantDate) {
     setEditId(d.id);
-    setForm({ title: d.title, date: d.date, recurs_yearly: !!d.recurs_yearly, notes: d.notes ?? '' });
+    setEditInitial({ title: d.title, date: d.date, recurs_yearly: !!d.recurs_yearly, notes: d.notes ?? '' });
     setShowForm(true);
   }
-  function cancelForm() { setShowForm(false); setEditId(null); setForm(EMPTY); }
+  function cancelForm() { setShowForm(false); setEditId(null); }
 
-  async function handleSave() {
+  async function handleSave(form: DateFormState) {
     if (!form.title.trim() || !form.date) return;
     setSaving(true);
     try {
@@ -104,22 +101,13 @@ export default function ImportantDatesPage() {
       )}
 
       {showForm && (
-        <div className="mb-6 bg-white border border-gray-200 rounded-lg p-4">
-          <h2 className="font-semibold text-gray-800 mb-3">{editId ? 'Edit Date' : 'New Date'}</h2>
-          <div className="space-y-3">
-            <input className="w-full border border-gray-300 rounded px-3 py-2 text-sm" placeholder="Title *" value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} />
-            <DateInput value={form.date} onChange={v => setForm(p => ({ ...p, date: v }))} className="w-full border border-gray-300 rounded px-3 py-2 text-sm" />
-            <label className="flex items-center gap-2 text-sm text-gray-700">
-              <input type="checkbox" checked={form.recurs_yearly} onChange={e => setForm(p => ({ ...p, recurs_yearly: e.target.checked }))} />
-              Recurs yearly
-            </label>
-            <textarea className="w-full border border-gray-300 rounded px-3 py-2 text-sm" rows={2} placeholder="Notes (optional)" value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} />
-          </div>
-          <div className="flex gap-2 mt-3">
-            <button onClick={handleSave} disabled={saving} className="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700 disabled:opacity-50">Save</button>
-            <button onClick={cancelForm} className="px-4 py-2 rounded text-sm border border-gray-300 hover:bg-gray-50">Cancel</button>
-          </div>
-        </div>
+        <DateForm
+          initial={editInitial}
+          onSave={handleSave}
+          onCancel={cancelForm}
+          saving={saving}
+          editId={editId}
+        />
       )}
 
       {loading ? (
