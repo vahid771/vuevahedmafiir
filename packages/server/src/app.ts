@@ -8,6 +8,7 @@ import datesRouter from './dates/router';
 import documentsRouter from './documents/router';
 import aiRouter from './ai/router';
 import preferencesRouter from './preferences/router';
+import googleRouter from './google/router';
 
 const app = express();
 
@@ -27,6 +28,7 @@ app.use('/api/dates', datesRouter);
 app.use('/api/documents', documentsRouter);
 app.use('/api/ai', aiRouter);
 app.use('/api/preferences', preferencesRouter);
+app.use('/api/google', googleRouter);
 
 // 404 handler for unknown API routes
 app.use('/api/*', (_req, res) => {

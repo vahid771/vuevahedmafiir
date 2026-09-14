@@ -1,24 +1,13 @@
 import { Router } from 'express';
 import multer from 'multer';
-import path from 'path';
-import fs from 'fs';
-import { v4 as uuidv4 } from 'uuid';
 import { db } from '../db';
 import { authenticateToken } from '../middleware/authenticate';
 import { fetchById } from '../utils/db';
+import { getAuthedClient, uploadFile, downloadFile, deleteFile } from '../google/drive.service';
 
-const UPLOADS_DIR = process.env.UPLOADS_DIR ?? '/tmp/uploads';
-
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, UPLOADS_DIR),
-  filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    cb(null, `${uuidv4()}${ext}`);
-  },
-});
-
+// Memory storage only — no disk writes
 const upload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 50 * 1024 * 1024 },
 });
 
@@ -33,8 +22,27 @@ type DocumentRow = {
   mimetype: string;
   size: number;
   tags: string;
+  drive_file_id: string | null;
+  drive_view_link: string | null;
   uploaded_at: string;
 };
+
+type GoogleTokenRow = {
+  access_token: string;
+  refresh_token: string | null;
+  expiry: string | null;
+  drive_folder_id: string;
+};
+
+async function getDriveAuth(userId: number) {
+  const row = (await db.execute({
+    sql: 'SELECT access_token, refresh_token, expiry, drive_folder_id FROM google_tokens WHERE user_id = ?',
+    args: [userId],
+  })).rows[0] as unknown as GoogleTokenRow | undefined;
+
+  if (!row) return null;
+  return { auth: getAuthedClient(row), folderId: row.drive_folder_id };
+}
 
 // GET /api/documents
 router.get('/', async (req, res) => {
@@ -63,7 +71,6 @@ router.get('/', async (req, res) => {
 // POST /api/documents/upload
 router.post('/upload', upload.single('file'), async (req, res) => {
   const userId = req.user!.id;
-  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
   if (!req.file) {
     res.status(400).json({ error: 'file is required' });
@@ -73,13 +80,16 @@ router.post('/upload', upload.single('file'), async (req, res) => {
   const { title, tags } = req.body as { title?: string; tags?: string };
 
   if (!title) {
-    // Clean up uploaded file
-    fs.unlink(req.file.path, () => {});
     res.status(400).json({ error: 'title is required' });
     return;
   }
 
-  // Parse tags: accept comma-separated string or JSON array string
+  const drive = await getDriveAuth(userId);
+  if (!drive) {
+    res.status(403).json({ error: 'Google Drive not connected. Please connect from Settings.' });
+    return;
+  }
+
   let tagsArray: string[] = [];
   if (tags) {
     try {
@@ -89,9 +99,26 @@ router.post('/upload', upload.single('file'), async (req, res) => {
     }
   }
 
+  const { driveFileId, driveViewLink } = await uploadFile(
+    drive.auth,
+    drive.folderId,
+    req.file.originalname,
+    req.file.mimetype,
+    req.file.buffer,
+  );
+
   const result = await db.execute({
-    sql: 'INSERT INTO documents (user_id, title, filename, mimetype, size, tags) VALUES (?, ?, ?, ?, ?, ?)',
-    args: [userId, title, req.file.filename, req.file.mimetype, req.file.size, JSON.stringify(tagsArray)],
+    sql: 'INSERT INTO documents (user_id, title, filename, mimetype, size, tags, drive_file_id, drive_view_link) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    args: [
+      userId,
+      title,
+      req.file.originalname,
+      req.file.mimetype,
+      req.file.size,
+      JSON.stringify(tagsArray),
+      driveFileId,
+      driveViewLink,
+    ],
   });
 
   const doc = await fetchById<object>('documents', result.lastInsertRowid!);
@@ -106,21 +133,29 @@ router.get('/:id/download', async (req, res) => {
   const doc = (await db.execute({
     sql: 'SELECT * FROM documents WHERE id = ? AND user_id = ?',
     args: [id, userId],
-  })).rows[0] as unknown as { filename: string; title: string } | undefined;
+  })).rows[0] as unknown as DocumentRow | undefined;
 
   if (!doc) {
     res.status(404).json({ error: 'Document not found' });
     return;
   }
 
-  const filePath = path.resolve(UPLOADS_DIR, doc.filename);
-
-  if (!fs.existsSync(filePath)) {
-    res.status(404).json({ error: 'File not found on disk' });
+  if (!doc.drive_file_id) {
+    res.status(404).json({ error: 'File has no Drive reference' });
     return;
   }
 
-  res.download(filePath, doc.title);
+  const drive = await getDriveAuth(userId);
+  if (!drive) {
+    res.status(403).json({ error: 'Google Drive not connected' });
+    return;
+  }
+
+  const stream = await downloadFile(drive.auth, doc.drive_file_id);
+
+  res.setHeader('Content-Disposition', `attachment; filename="${doc.title}"`);
+  if (doc.mimetype) res.setHeader('Content-Type', doc.mimetype);
+  stream.pipe(res);
 });
 
 // DELETE /api/documents/:id
@@ -131,18 +166,26 @@ router.delete('/:id', async (req, res) => {
   const doc = (await db.execute({
     sql: 'SELECT * FROM documents WHERE id = ? AND user_id = ?',
     args: [id, userId],
-  })).rows[0] as unknown as { filename: string } | undefined;
+  })).rows[0] as unknown as DocumentRow | undefined;
 
   if (!doc) {
     res.status(404).json({ error: 'Document not found' });
     return;
   }
 
+  // Delete from Drive if we have a file ID and Drive is connected
+  if (doc.drive_file_id) {
+    const drive = await getDriveAuth(userId);
+    if (drive) {
+      try {
+        await deleteFile(drive.auth, doc.drive_file_id);
+      } catch {
+        // Non-fatal: proceed with DB delete even if Drive delete fails
+      }
+    }
+  }
+
   await db.execute({ sql: 'DELETE FROM documents WHERE id = ? AND user_id = ?', args: [id, userId] });
-
-  const filePath = path.resolve(UPLOADS_DIR, doc.filename);
-  fs.unlink(filePath, () => {}); // best-effort delete
-
   res.status(204).send();
 });
 

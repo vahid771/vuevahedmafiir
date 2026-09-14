@@ -88,14 +88,16 @@ export async function runMigrations(): Promise<void> {
     );
 
     CREATE TABLE IF NOT EXISTS documents (
-      id          INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id     INTEGER NOT NULL REFERENCES users(id),
-      title       TEXT    NOT NULL,
-      filename    TEXT    NOT NULL,
-      mimetype    TEXT,
-      size        INTEGER,
-      tags        TEXT    DEFAULT '[]',
-      uploaded_at TEXT    DEFAULT (datetime('now'))
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id         INTEGER NOT NULL REFERENCES users(id),
+      title           TEXT    NOT NULL,
+      filename        TEXT    NOT NULL,
+      mimetype        TEXT,
+      size            INTEGER,
+      tags            TEXT    DEFAULT '[]',
+      drive_file_id   TEXT,
+      drive_view_link TEXT,
+      uploaded_at     TEXT    DEFAULT (datetime('now'))
     );
 
     CREATE TABLE IF NOT EXISTS user_preferences (
@@ -106,6 +108,17 @@ export async function runMigrations(): Promise<void> {
       updated_at TEXT    DEFAULT (datetime('now'))
     );
 
+    CREATE TABLE IF NOT EXISTS google_tokens (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id         INTEGER UNIQUE NOT NULL REFERENCES users(id),
+      access_token    TEXT    NOT NULL,
+      refresh_token   TEXT,
+      expiry          TEXT,
+      drive_folder_id TEXT,
+      created_at      TEXT    DEFAULT (datetime('now')),
+      updated_at      TEXT    DEFAULT (datetime('now'))
+    );
+
     CREATE INDEX IF NOT EXISTS idx_tasks_user_id           ON tasks(user_id);
     CREATE INDEX IF NOT EXISTS idx_bills_user_id           ON bills(user_id);
     CREATE INDEX IF NOT EXISTS idx_reminders_user_id       ON reminders(user_id);
@@ -113,5 +126,6 @@ export async function runMigrations(): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_habit_logs_habit_id     ON habit_logs(habit_id);
     CREATE INDEX IF NOT EXISTS idx_important_dates_user_id ON important_dates(user_id);
     CREATE INDEX IF NOT EXISTS idx_documents_user_id       ON documents(user_id);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_google_tokens_user_id ON google_tokens(user_id);
   `);
 }
