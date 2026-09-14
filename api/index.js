@@ -24,33 +24,45 @@ async function handler(req, res) {
     }
   }
 
-  // Vercel's Rust runtime defines req.body as a lazy getter that parses the body as JSON.
-  // For multipart/form-data requests this throws "Invalid JSON".
-  // We intercept here — before Express runs — and replace the getter with a plain Buffer
-  // so busboy can pipe req directly without ever triggering the getter.
+  // Vercel pre-reads the entire body before our code runs.
+  // For multipart/form-data, store the raw buffer on req._rawBody
+  // so our busboy parser can use it, then shadow the getter so express.json() never fires.
   const ct = req.headers['content-type'] || '';
   if (ct.startsWith('multipart/form-data')) {
-    // Collect the raw bytes that Vercel would have parsed, by reading the stream directly.
-    // We replace the throwing getter with undefined so Express/body-parser never fires.
-    try {
-      // Attempt to read raw bytes — on Vercel the stream is still readable at this point
-      const chunks = [];
-      await new Promise((resolve, reject) => {
-        req.on('data', (chunk) => chunks.push(chunk));
-        req.on('end', resolve);
-        req.on('error', reject);
-      });
-      const rawBody = Buffer.concat(chunks);
-      // Replace the getter with a readable stream shim so busboy can consume it
-      const { Readable } = require('stream');
-      const stream = Readable.from(rawBody);
-      // Copy stream methods onto req so busboy's req.pipe(bb) works
-      req.pipe = stream.pipe.bind(stream);
-      req[Symbol.asyncIterator] = stream[Symbol.asyncIterator].bind(stream);
-    } catch (_) {
-      // If stream reading fails, let it fall through — busboy will handle the error
+    let rawBody = null;
+
+    // Try to grab whatever Vercel put in the body descriptor
+    const bodyDescriptor = Object.getOwnPropertyDescriptor(req, 'body')
+      || Object.getOwnPropertyDescriptor(Object.getPrototypeOf(req), 'body');
+
+    if (bodyDescriptor && bodyDescriptor.get) {
+      // It's a getter — call it in a try/catch to get the raw value
+      try {
+        rawBody = bodyDescriptor.get.call(req);
+      } catch (_) {
+        // getter threw — body bytes are already in the underlying socket buffer
+        // We'll collect them below by reading the stream
+      }
+    } else if (bodyDescriptor && bodyDescriptor.value !== undefined) {
+      rawBody = bodyDescriptor.value;
     }
-    // Shadow the getter so express.json() won't throw
+
+    // If we still don't have the bytes, drain the stream
+    if (rawBody === null || rawBody === undefined) {
+      rawBody = await new Promise((resolve) => {
+        const chunks = [];
+        req.on('data', (c) => chunks.push(c));
+        req.on('end', () => resolve(Buffer.concat(chunks)));
+        req.on('error', () => resolve(Buffer.alloc(0)));
+      });
+    }
+
+    // Ensure it's a Buffer
+    if (typeof rawBody === 'string') rawBody = Buffer.from(rawBody);
+    else if (!(rawBody instanceof Buffer)) rawBody = Buffer.from(rawBody || '');
+
+    // Store it for busboy, then shadow the getter with undefined
+    req._rawBody = rawBody;
     Object.defineProperty(req, 'body', { configurable: true, writable: true, value: undefined });
   }
 

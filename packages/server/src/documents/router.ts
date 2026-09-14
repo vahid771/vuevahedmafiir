@@ -1,20 +1,25 @@
 import { Router, Request } from 'express';
+import { Readable } from 'stream';
 import Busboy from 'busboy';
 import { db } from '../db';
 import { authenticateToken } from '../middleware/authenticate';
 import { fetchById } from '../utils/db';
 import { getAuthedClient, uploadFile, downloadFile, deleteFile, getOrCreateFolder } from '../google/drive.service';
 
-// Parse multipart/form-data manually using busboy so it works on Vercel
-// (Vercel's runtime pre-reads the body; multer's stream approach fails in that env)
-function parseMultipart(req: Request): Promise<{ file: { buffer: Buffer; originalname: string; mimetype: string; size: number } | null; fields: Record<string, string> }> {
+// Parse multipart/form-data using busboy.
+// On Vercel the runtime pre-reads the body into req._rawBody (a Buffer we store in api/index.js).
+// Locally the raw stream is available directly.
+function parseMultipart(req: Request): Promise<{
+  file: { buffer: Buffer; originalname: string; mimetype: string; size: number } | null;
+  fields: Record<string, string>;
+}> {
   return new Promise((resolve, reject) => {
     const fields: Record<string, string> = {};
     let file: { buffer: Buffer; originalname: string; mimetype: string; size: number } | null = null;
 
     const bb = Busboy({ headers: req.headers, limits: { fileSize: 50 * 1024 * 1024 } });
 
-    bb.on('file', (fieldname, stream, info) => {
+    bb.on('file', (_fieldname, stream, info) => {
       const chunks: Buffer[] = [];
       stream.on('data', (chunk: Buffer) => chunks.push(chunk));
       stream.on('end', () => {
@@ -27,9 +32,13 @@ function parseMultipart(req: Request): Promise<{ file: { buffer: Buffer; origina
     bb.on('finish', () => resolve({ file, fields }));
     bb.on('error', reject);
 
-    // The req stream is always available — Vercel's body getter is lazy and we blocked it
-    // before it was read, so the underlying TCP stream is still intact.
-    req.pipe(bb);
+    // Use the pre-read buffer stored by api/index.js (Vercel), or fall back to raw stream (local)
+    const rawBody: Buffer | undefined = (req as any)._rawBody;
+    if (rawBody instanceof Buffer && rawBody.length > 0) {
+      Readable.from(rawBody).pipe(bb);
+    } else {
+      req.pipe(bb);
+    }
   });
 }
 
