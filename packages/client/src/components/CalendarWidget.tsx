@@ -176,11 +176,15 @@ function WeekPanel({ cursor, shamsi }: { cursor: Date; shamsi: boolean }) {
         {days.map((d, i) => {
           const isToday = isSameDay(d, now);
           let label: string;
+          let secondaryLabel: string;
           if (shamsi) {
             const { jd } = toJalaali(d.getFullYear(), d.getMonth() + 1, d.getDate());
             label = toPersianDigits(jd);
+            secondaryLabel = String(d.getDate());
           } else {
             label = String(d.getDate());
+            const { jd } = toJalaali(d.getFullYear(), d.getMonth() + 1, d.getDate());
+            secondaryLabel = toPersianDigits(jd);
           }
           // Weekday index for Shamsi: Sat=0, Sun=1, … Fri=6
           const nameIdx = shamsi
@@ -194,6 +198,9 @@ function WeekPanel({ cursor, shamsi }: { cursor: Date; shamsi: boolean }) {
               <span className={`w-8 h-8 flex items-center justify-center rounded-full text-sm font-medium
                 ${isToday ? 'bg-blue-600 text-white' : 'text-gray-700'}`}>
                 {label}
+              </span>
+              <span className={`text-[10px] leading-none mt-0.5 ${isToday ? 'text-blue-400' : 'text-gray-300'}`}>
+                {secondaryLabel}
               </span>
             </div>
           );
