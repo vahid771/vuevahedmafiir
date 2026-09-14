@@ -9,6 +9,7 @@ import documentsRouter from './documents/router';
 import aiRouter from './ai/router';
 import preferencesRouter from './preferences/router';
 import googleRouter from './google/router';
+import googleTasksRouter from './google/tasks.router';
 
 const app = express();
 
@@ -47,6 +48,7 @@ app.use('/api/documents', documentsRouter);
 app.use('/api/ai', aiRouter);
 app.use('/api/preferences', preferencesRouter);
 app.use('/api/google', googleRouter);
+app.use('/api/google-tasks', googleTasksRouter);
 
 // 404 handler for unknown API routes
 app.use('/api/*', (_req, res) => {

@@ -11,6 +11,7 @@ import {
 } from '../api/tasks';
 import { formatDate } from '../utils/format';
 import TaskForm, { type TaskFormState } from '../components/tasks/TaskForm';
+import { getGoogleTasksStatus, syncFromGoogleTasks } from '../api/googleTasks';
 
 const PRIORITY_BADGE: Record<Task['priority'], string> = {
   low: 'bg-green-100 text-green-800',
@@ -124,6 +125,9 @@ export default function TasksPage() {
   const [addSaving, setAddSaving] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editSaving, setEditSaving] = useState(false);
+  const [gTasksConnected, setGTasksConnected] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncSuccess, setSyncSuccess] = useState(false);
 
   useEffect(() => {
     if (!token) return;
@@ -132,6 +136,13 @@ export default function TasksPage() {
       .then(setTasks)
       .catch(err => setError((err as Error).message))
       .finally(() => setLoading(false));
+  }, [token]);
+
+  useEffect(() => {
+    if (!token) return;
+    getGoogleTasksStatus(token)
+      .then(s => setGTasksConnected(s.connected && !!s.taskListId))
+      .catch(() => { /* non-fatal */ });
   }, [token]);
 
   async function handleCreate(form: TaskFormState) {
@@ -184,6 +195,23 @@ export default function TasksPage() {
     }
   }
 
+  async function handleSync() {
+    if (!token) return;
+    setSyncing(true);
+    setSyncSuccess(false);
+    setError(null);
+    try {
+      const synced = await syncFromGoogleTasks(token);
+      setTasks(synced as Task[]);
+      setSyncSuccess(true);
+      setTimeout(() => setSyncSuccess(false), 2500);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setSyncing(false);
+    }
+  }
+
   async function handleDelete(id: number) {
     if (!token || !confirm('Delete this task?')) return;
     try {
@@ -202,13 +230,40 @@ export default function TasksPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-800">Tasks</h1>
-        <button
-          type="button"
-          onClick={() => { setShowAddForm(v => !v); setEditingId(null); }}
-          className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          {showAddForm ? 'Cancel' : '+ Add Task'}
-        </button>
+        <div className="flex items-center gap-2">
+          {gTasksConnected && (
+            <button
+              type="button"
+              onClick={handleSync}
+              disabled={syncing}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+              title="Sync from Google Tasks"
+            >
+              {syncing ? (
+                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z"/>
+                </svg>
+              ) : syncSuccess ? (
+                <svg className="w-4 h-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              ) : (
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              )}
+              {syncing ? 'Syncing…' : syncSuccess ? 'Synced' : 'Sync from Google'}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => { setShowAddForm(v => !v); setEditingId(null); }}
+            className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            {showAddForm ? 'Cancel' : '+ Add Task'}
+          </button>
+        </div>
       </div>
 
       {/* Error banner */}

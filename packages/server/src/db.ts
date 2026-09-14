@@ -127,12 +127,26 @@ export async function runMigrations(): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_important_dates_user_id ON important_dates(user_id);
     CREATE INDEX IF NOT EXISTS idx_documents_user_id       ON documents(user_id);
     CREATE UNIQUE INDEX IF NOT EXISTS idx_google_tokens_user_id ON google_tokens(user_id);
+
+    CREATE TABLE IF NOT EXISTS google_tasks_tokens (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id       INTEGER UNIQUE NOT NULL REFERENCES users(id),
+      access_token  TEXT    NOT NULL,
+      refresh_token TEXT,
+      expiry        TEXT,
+      task_list_id  TEXT,
+      created_at    TEXT    DEFAULT (datetime('now')),
+      updated_at    TEXT    DEFAULT (datetime('now'))
+    );
+
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_google_tasks_tokens_user_id ON google_tasks_tokens(user_id);
   `);
 
   // ALTER TABLE migrations — run individually, ignore "duplicate column" errors for idempotency
   const alterStatements = [
     'ALTER TABLE documents ADD COLUMN drive_file_id TEXT',
     'ALTER TABLE documents ADD COLUMN drive_view_link TEXT',
+    'ALTER TABLE tasks ADD COLUMN google_task_id TEXT',
   ];
   for (const sql of alterStatements) {
     try {
