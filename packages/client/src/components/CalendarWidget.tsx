@@ -89,11 +89,15 @@ function MonthGrid({ cursor, shamsi }: { cursor: Date; shamsi: boolean }) {
             if (day === null) return <div key={i} />;
             const cellDate = new Date(year, month, day);
             const isToday = isSameDay(cellDate, now);
+            const { jd } = toJalaali(year, month + 1, day);
             return (
-              <div key={i} className="flex items-center justify-center py-1">
+              <div key={i} className="flex flex-col items-center justify-center py-1 gap-0.5">
                 <span className={`w-8 h-8 flex items-center justify-center rounded-full text-sm
                   ${isToday ? 'bg-blue-600 text-white font-semibold' : 'text-gray-700 hover:bg-gray-100'}`}>
                   {day}
+                </span>
+                <span className={`text-[10px] leading-none ${isToday ? 'text-blue-400' : 'text-gray-300'}`}>
+                  {toPersianDigits(jd)}
                 </span>
               </div>
             );
@@ -133,14 +137,19 @@ function MonthGrid({ cursor, shamsi }: { cursor: Date; shamsi: boolean }) {
       </div>
       {/* day cells */}
       <div className="grid grid-cols-7">
-        {cells.map((day, i) => {
-          if (day === null) return <div key={i} />;
-          const isToday = todayIsInMonth && td === day;
+        {cells.map((jDay, i) => {
+          if (jDay === null) return <div key={i} />;
+          const isToday = todayIsInMonth && td === jDay;
+          // Compute the corresponding Gregorian day number
+          const { gd } = toGregorian(jy, jm, jDay);
           return (
-            <div key={i} className="flex items-center justify-center py-1">
+            <div key={i} className="flex flex-col items-center justify-center py-1 gap-0.5">
               <span className={`w-8 h-8 flex items-center justify-center rounded-full text-sm
                 ${isToday ? 'bg-blue-600 text-white font-semibold' : 'text-gray-700 hover:bg-gray-100'}`}>
-                {toPersianDigits(day)}
+                {toPersianDigits(jDay)}
+              </span>
+              <span className={`text-[10px] leading-none ${isToday ? 'text-blue-400' : 'text-gray-300'}`}>
+                {gd}
               </span>
             </div>
           );
