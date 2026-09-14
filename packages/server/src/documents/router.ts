@@ -1,5 +1,4 @@
 import { Router, Request } from 'express';
-import { Readable } from 'stream';
 import Busboy from 'busboy';
 import { db } from '../db';
 import { authenticateToken } from '../middleware/authenticate';
@@ -28,16 +27,9 @@ function parseMultipart(req: Request): Promise<{ file: { buffer: Buffer; origina
     bb.on('finish', () => resolve({ file, fields }));
     bb.on('error', reject);
 
-    // Vercel pre-reads the body into req.body (or _rawBody after our middleware clears it)
-    const raw = (req as any)._rawBody ?? req.body;
-    if (Buffer.isBuffer(raw)) {
-      Readable.from(raw).pipe(bb);
-    } else if (raw instanceof Uint8Array) {
-      Readable.from(Buffer.from(raw)).pipe(bb);
-    } else {
-      // Body not pre-read — pipe the raw request stream
-      req.pipe(bb);
-    }
+    // The req stream is always available — Vercel's body getter is lazy and we blocked it
+    // before it was read, so the underlying TCP stream is still intact.
+    req.pipe(bb);
   });
 }
 
