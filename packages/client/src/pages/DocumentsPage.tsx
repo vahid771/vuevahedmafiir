@@ -7,6 +7,7 @@ import {
   deleteDocument,
   type Document,
 } from '../api/documents';
+import { formatDate } from '../utils/format';
 
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -152,7 +153,7 @@ export default function DocumentsPage() {
         <div className="space-y-2">
           {displayed.map(doc => {
             const tags = parseTags(doc.tags);
-            const uploadedDate = new Date(doc.uploaded_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+            const uploadedDate = formatDate(doc.uploaded_at);
             return (
               <div key={doc.id} className="flex items-center justify-between bg-white border border-gray-200 rounded-lg p-3">
                 <div className="flex items-center gap-3 flex-1 min-w-0">

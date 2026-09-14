@@ -44,11 +44,7 @@ export type UpdateSubscriptionData = Partial<CreateSubscriptionData>;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-import { apiUrl } from './base';
-
-function authHeaders(token: string): HeadersInit {
-  return { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
-}
+import { apiUrl, authHeaders } from './base';
 
 // ─── Bills ────────────────────────────────────────────────────────────────────
 

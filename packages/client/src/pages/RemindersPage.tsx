@@ -7,16 +7,7 @@ import {
   deleteReminder,
   type Reminder,
 } from '../api/reminders';
-
-function formatDateTime(str: string): string {
-  const d = new Date(str);
-  return isNaN(d.getTime())
-    ? str
-    : d.toLocaleString(undefined, {
-        weekday: 'short', month: 'short', day: 'numeric',
-        hour: 'numeric', minute: '2-digit',
-      });
-}
+import { formatDateTime } from '../utils/format';
 
 interface FormState { title: string; remind_at: string; notes: string; }
 const EMPTY: FormState = { title: '', remind_at: '', notes: '' };

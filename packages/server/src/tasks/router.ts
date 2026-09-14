@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { InValue } from '@libsql/client';
 import { db } from '../db';
 import { authenticateToken } from '../middleware/authenticate';
+import { assertOwnership, buildPatch, fetchById } from '../utils/db';
 
 const router = Router();
 
@@ -53,7 +54,7 @@ router.post('/', async (req, res) => {
     args: [userId, title, description ?? null, due_date ?? null, priority, status],
   });
 
-  const task = (await db.execute({ sql: 'SELECT * FROM tasks WHERE id = ?', args: [result.lastInsertRowid!] })).rows[0];
+  const task = await fetchById<object>('tasks', result.lastInsertRowid!);
   res.status(201).json(task);
 });
 
@@ -62,8 +63,7 @@ router.patch('/:id', async (req, res) => {
   const userId = req.user!.id;
   const taskId = Number(req.params.id);
 
-  const existing = (await db.execute({ sql: 'SELECT id FROM tasks WHERE id = ? AND user_id = ?', args: [taskId, userId] })).rows[0];
-  if (!existing) {
+  if (!await assertOwnership('tasks', taskId, userId)) {
     res.status(404).json({ error: 'Task not found' });
     return;
   }
@@ -76,14 +76,13 @@ router.patch('/:id', async (req, res) => {
     status?: string;
   };
 
-  const fields: string[] = [];
-  const values: InValue[] = [];
-
-  if (title !== undefined) { fields.push('title = ?'); values.push(title); }
-  if (description !== undefined) { fields.push('description = ?'); values.push(description ?? null); }
-  if (due_date !== undefined) { fields.push('due_date = ?'); values.push(due_date ?? null); }
-  if (priority !== undefined) { fields.push('priority = ?'); values.push(priority); }
-  if (status !== undefined) { fields.push('status = ?'); values.push(status); }
+  const { fields, values } = buildPatch({
+    title,
+    description: description !== undefined ? (description ?? null) : undefined,
+    due_date: due_date !== undefined ? (due_date ?? null) : undefined,
+    priority,
+    status,
+  });
 
   if (fields.length === 0) {
     res.status(400).json({ error: 'No fields to update' });
@@ -93,7 +92,7 @@ router.patch('/:id', async (req, res) => {
   values.push(taskId, userId);
   await db.execute({ sql: `UPDATE tasks SET ${fields.join(', ')} WHERE id = ? AND user_id = ?`, args: values });
 
-  const updated = (await db.execute({ sql: 'SELECT * FROM tasks WHERE id = ?', args: [taskId] })).rows[0];
+  const updated = await fetchById<object>('tasks', taskId);
   res.json(updated);
 });
 
@@ -102,8 +101,7 @@ router.delete('/:id', async (req, res) => {
   const userId = req.user!.id;
   const taskId = Number(req.params.id);
 
-  const existing = (await db.execute({ sql: 'SELECT id FROM tasks WHERE id = ? AND user_id = ?', args: [taskId, userId] })).rows[0];
-  if (!existing) {
+  if (!await assertOwnership('tasks', taskId, userId)) {
     res.status(404).json({ error: 'Task not found' });
     return;
   }

@@ -1,7 +1,7 @@
 import { Router } from 'express';
-import { InValue } from '@libsql/client';
 import { db } from '../db';
 import { authenticateToken } from '../middleware/authenticate';
+import { assertOwnership, buildPatch, fetchById } from '../utils/db';
 
 const router = Router();
 router.use(authenticateToken);
@@ -66,8 +66,8 @@ router.post('/', async (req, res) => {
     args: [userId, title, date, recurs_yearly, notes ?? null],
   });
 
-  const row = (await db.execute({ sql: 'SELECT * FROM important_dates WHERE id = ?', args: [result.lastInsertRowid!] })).rows[0] as unknown as ImportantDateRow;
-  res.status(201).json({ ...row, next_occurrence: nextOccurrence(row.date, row.recurs_yearly) });
+  const row = await fetchById<ImportantDateRow>('important_dates', result.lastInsertRowid!);
+  res.status(201).json({ ...row, next_occurrence: nextOccurrence(row!.date, row!.recurs_yearly) });
 });
 
 // PATCH /api/dates/:id
@@ -75,8 +75,7 @@ router.patch('/:id', async (req, res) => {
   const userId = req.user!.id;
   const id = Number(req.params.id);
 
-  const existing = (await db.execute({ sql: 'SELECT id FROM important_dates WHERE id = ? AND user_id = ?', args: [id, userId] })).rows[0];
-  if (!existing) { res.status(404).json({ error: 'Date not found' }); return; }
+  if (!await assertOwnership('important_dates', id, userId)) { res.status(404).json({ error: 'Date not found' }); return; }
 
   const { title, date, recurs_yearly, notes } = req.body as {
     title?: string;
@@ -85,21 +84,20 @@ router.patch('/:id', async (req, res) => {
     notes?: string | null;
   };
 
-  const fields: string[] = [];
-  const values: InValue[] = [];
-
-  if (title !== undefined) { fields.push('title = ?'); values.push(title); }
-  if (date !== undefined) { fields.push('date = ?'); values.push(date); }
-  if (recurs_yearly !== undefined) { fields.push('recurs_yearly = ?'); values.push(recurs_yearly); }
-  if (notes !== undefined) { fields.push('notes = ?'); values.push(notes ?? null); }
+  const { fields, values } = buildPatch({
+    title,
+    date,
+    recurs_yearly,
+    notes: notes !== undefined ? (notes ?? null) : undefined,
+  });
 
   if (fields.length === 0) { res.status(400).json({ error: 'No fields to update' }); return; }
 
   values.push(id, userId);
   await db.execute({ sql: `UPDATE important_dates SET ${fields.join(', ')} WHERE id = ? AND user_id = ?`, args: values });
 
-  const updated = (await db.execute({ sql: 'SELECT * FROM important_dates WHERE id = ?', args: [id] })).rows[0] as unknown as ImportantDateRow;
-  res.json({ ...updated, next_occurrence: nextOccurrence(updated.date, updated.recurs_yearly) });
+  const updated = await fetchById<ImportantDateRow>('important_dates', id);
+  res.json({ ...updated, next_occurrence: nextOccurrence(updated!.date, updated!.recurs_yearly) });
 });
 
 // DELETE /api/dates/:id
@@ -107,8 +105,7 @@ router.delete('/:id', async (req, res) => {
   const userId = req.user!.id;
   const id = Number(req.params.id);
 
-  const existing = (await db.execute({ sql: 'SELECT id FROM important_dates WHERE id = ? AND user_id = ?', args: [id, userId] })).rows[0];
-  if (!existing) { res.status(404).json({ error: 'Date not found' }); return; }
+  if (!await assertOwnership('important_dates', id, userId)) { res.status(404).json({ error: 'Date not found' }); return; }
 
   await db.execute({ sql: 'DELETE FROM important_dates WHERE id = ? AND user_id = ?', args: [id, userId] });
   res.status(204).send();

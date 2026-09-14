@@ -5,6 +5,7 @@ import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import { db } from '../db';
 import { authenticateToken } from '../middleware/authenticate';
+import { fetchById } from '../utils/db';
 
 const UPLOADS_DIR = process.env.UPLOADS_DIR ?? '/tmp/uploads';
 
@@ -93,7 +94,7 @@ router.post('/upload', upload.single('file'), async (req, res) => {
     args: [userId, title, req.file.filename, req.file.mimetype, req.file.size, JSON.stringify(tagsArray)],
   });
 
-  const doc = (await db.execute({ sql: 'SELECT * FROM documents WHERE id = ?', args: [result.lastInsertRowid!] })).rows[0];
+  const doc = await fetchById<object>('documents', result.lastInsertRowid!);
   res.status(201).json(doc);
 });
 

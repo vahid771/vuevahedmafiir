@@ -1,7 +1,7 @@
 import { Router } from 'express';
-import { InValue } from '@libsql/client';
 import { db } from '../db';
 import { authenticateToken } from '../middleware/authenticate';
+import { assertOwnership, buildPatch, fetchById } from '../utils/db';
 
 // ─── Bills Router ─────────────────────────────────────────────────────────────
 
@@ -45,7 +45,7 @@ billsRouter.post('/', async (req, res) => {
     args: [userId, name, amount ?? null, due_date ?? null, recurrence, paid],
   });
 
-  const bill = (await db.execute({ sql: 'SELECT * FROM bills WHERE id = ?', args: [result.lastInsertRowid!] })).rows[0];
+  const bill = await fetchById<object>('bills', result.lastInsertRowid!);
   res.status(201).json(bill);
 });
 
@@ -54,8 +54,7 @@ billsRouter.patch('/:id', async (req, res) => {
   const userId = req.user!.id;
   const billId = Number(req.params.id);
 
-  const existing = (await db.execute({ sql: 'SELECT id FROM bills WHERE id = ? AND user_id = ?', args: [billId, userId] })).rows[0];
-  if (!existing) {
+  if (!await assertOwnership('bills', billId, userId)) {
     res.status(404).json({ error: 'Bill not found' });
     return;
   }
@@ -68,14 +67,13 @@ billsRouter.patch('/:id', async (req, res) => {
     paid?: number;
   };
 
-  const fields: string[] = [];
-  const values: InValue[] = [];
-
-  if (name !== undefined) { fields.push('name = ?'); values.push(name); }
-  if (amount !== undefined) { fields.push('amount = ?'); values.push(amount ?? null); }
-  if (due_date !== undefined) { fields.push('due_date = ?'); values.push(due_date ?? null); }
-  if (recurrence !== undefined) { fields.push('recurrence = ?'); values.push(recurrence); }
-  if (paid !== undefined) { fields.push('paid = ?'); values.push(paid); }
+  const { fields, values } = buildPatch({
+    name,
+    amount: amount !== undefined ? (amount ?? null) : undefined,
+    due_date: due_date !== undefined ? (due_date ?? null) : undefined,
+    recurrence,
+    paid,
+  });
 
   if (fields.length === 0) {
     res.status(400).json({ error: 'No fields to update' });
@@ -85,7 +83,7 @@ billsRouter.patch('/:id', async (req, res) => {
   values.push(billId, userId);
   await db.execute({ sql: `UPDATE bills SET ${fields.join(', ')} WHERE id = ? AND user_id = ?`, args: values });
 
-  const updated = (await db.execute({ sql: 'SELECT * FROM bills WHERE id = ?', args: [billId] })).rows[0];
+  const updated = await fetchById<object>('bills', billId);
   res.json(updated);
 });
 
@@ -94,8 +92,7 @@ billsRouter.delete('/:id', async (req, res) => {
   const userId = req.user!.id;
   const billId = Number(req.params.id);
 
-  const existing = (await db.execute({ sql: 'SELECT id FROM bills WHERE id = ? AND user_id = ?', args: [billId, userId] })).rows[0];
-  if (!existing) {
+  if (!await assertOwnership('bills', billId, userId)) {
     res.status(404).json({ error: 'Bill not found' });
     return;
   }
@@ -146,7 +143,7 @@ subscriptionsRouter.post('/', async (req, res) => {
     args: [userId, name, amount ?? null, billing_cycle ?? null, next_billing_date ?? null, active],
   });
 
-  const sub = (await db.execute({ sql: 'SELECT * FROM subscriptions WHERE id = ?', args: [result.lastInsertRowid!] })).rows[0];
+  const sub = await fetchById<object>('subscriptions', result.lastInsertRowid!);
   res.status(201).json(sub);
 });
 
@@ -155,8 +152,7 @@ subscriptionsRouter.patch('/:id', async (req, res) => {
   const userId = req.user!.id;
   const subId = Number(req.params.id);
 
-  const existing = (await db.execute({ sql: 'SELECT id FROM subscriptions WHERE id = ? AND user_id = ?', args: [subId, userId] })).rows[0];
-  if (!existing) {
+  if (!await assertOwnership('subscriptions', subId, userId)) {
     res.status(404).json({ error: 'Subscription not found' });
     return;
   }
@@ -169,14 +165,13 @@ subscriptionsRouter.patch('/:id', async (req, res) => {
     active?: number;
   };
 
-  const fields: string[] = [];
-  const values: InValue[] = [];
-
-  if (name !== undefined) { fields.push('name = ?'); values.push(name); }
-  if (amount !== undefined) { fields.push('amount = ?'); values.push(amount ?? null); }
-  if (billing_cycle !== undefined) { fields.push('billing_cycle = ?'); values.push(billing_cycle ?? null); }
-  if (next_billing_date !== undefined) { fields.push('next_billing_date = ?'); values.push(next_billing_date ?? null); }
-  if (active !== undefined) { fields.push('active = ?'); values.push(active); }
+  const { fields, values } = buildPatch({
+    name,
+    amount: amount !== undefined ? (amount ?? null) : undefined,
+    billing_cycle: billing_cycle !== undefined ? (billing_cycle ?? null) : undefined,
+    next_billing_date: next_billing_date !== undefined ? (next_billing_date ?? null) : undefined,
+    active,
+  });
 
   if (fields.length === 0) {
     res.status(400).json({ error: 'No fields to update' });
@@ -186,7 +181,7 @@ subscriptionsRouter.patch('/:id', async (req, res) => {
   values.push(subId, userId);
   await db.execute({ sql: `UPDATE subscriptions SET ${fields.join(', ')} WHERE id = ? AND user_id = ?`, args: values });
 
-  const updated = (await db.execute({ sql: 'SELECT * FROM subscriptions WHERE id = ?', args: [subId] })).rows[0];
+  const updated = await fetchById<object>('subscriptions', subId);
   res.json(updated);
 });
 
@@ -195,8 +190,7 @@ subscriptionsRouter.delete('/:id', async (req, res) => {
   const userId = req.user!.id;
   const subId = Number(req.params.id);
 
-  const existing = (await db.execute({ sql: 'SELECT id FROM subscriptions WHERE id = ? AND user_id = ?', args: [subId, userId] })).rows[0];
-  if (!existing) {
+  if (!await assertOwnership('subscriptions', subId, userId)) {
     res.status(404).json({ error: 'Subscription not found' });
     return;
   }

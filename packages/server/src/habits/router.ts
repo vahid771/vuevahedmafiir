@@ -1,7 +1,7 @@
 import { Router } from 'express';
-import { InValue } from '@libsql/client';
 import { db } from '../db';
 import { authenticateToken } from '../middleware/authenticate';
+import { assertOwnership, buildPatch, fetchById } from '../utils/db';
 
 const router = Router();
 router.use(authenticateToken);
@@ -104,7 +104,7 @@ router.post('/', async (req, res) => {
     args: [userId, name, frequency, target_days],
   });
 
-  const habit = (await db.execute({ sql: 'SELECT * FROM habits WHERE id = ?', args: [result.lastInsertRowid!] })).rows[0];
+  const habit = await fetchById<object>('habits', result.lastInsertRowid!);
   res.status(201).json(habit);
 });
 
@@ -113,8 +113,7 @@ router.patch('/:id', async (req, res) => {
   const userId = req.user!.id;
   const id = Number(req.params.id);
 
-  const existing = (await db.execute({ sql: 'SELECT id FROM habits WHERE id = ? AND user_id = ?', args: [id, userId] })).rows[0];
-  if (!existing) { res.status(404).json({ error: 'Habit not found' }); return; }
+  if (!await assertOwnership('habits', id, userId)) { res.status(404).json({ error: 'Habit not found' }); return; }
 
   const { name, frequency, target_days } = req.body as {
     name?: string;
@@ -122,19 +121,14 @@ router.patch('/:id', async (req, res) => {
     target_days?: string;
   };
 
-  const fields: string[] = [];
-  const values: InValue[] = [];
-
-  if (name !== undefined) { fields.push('name = ?'); values.push(name); }
-  if (frequency !== undefined) { fields.push('frequency = ?'); values.push(frequency); }
-  if (target_days !== undefined) { fields.push('target_days = ?'); values.push(target_days); }
+  const { fields, values } = buildPatch({ name, frequency, target_days });
 
   if (fields.length === 0) { res.status(400).json({ error: 'No fields to update' }); return; }
 
   values.push(id, userId);
   await db.execute({ sql: `UPDATE habits SET ${fields.join(', ')} WHERE id = ? AND user_id = ?`, args: values });
 
-  const updated = (await db.execute({ sql: 'SELECT * FROM habits WHERE id = ?', args: [id] })).rows[0];
+  const updated = await fetchById<object>('habits', id);
   res.json(updated);
 });
 
@@ -143,8 +137,7 @@ router.delete('/:id', async (req, res) => {
   const userId = req.user!.id;
   const id = Number(req.params.id);
 
-  const existing = (await db.execute({ sql: 'SELECT id FROM habits WHERE id = ? AND user_id = ?', args: [id, userId] })).rows[0];
-  if (!existing) { res.status(404).json({ error: 'Habit not found' }); return; }
+  if (!await assertOwnership('habits', id, userId)) { res.status(404).json({ error: 'Habit not found' }); return; }
 
   await db.execute({ sql: 'DELETE FROM habits WHERE id = ? AND user_id = ?', args: [id, userId] });
   res.status(204).send();
@@ -155,8 +148,7 @@ router.post('/:id/log', async (req, res) => {
   const userId = req.user!.id;
   const habitId = Number(req.params.id);
 
-  const existing = (await db.execute({ sql: 'SELECT id FROM habits WHERE id = ? AND user_id = ?', args: [habitId, userId] })).rows[0];
-  if (!existing) { res.status(404).json({ error: 'Habit not found' }); return; }
+  if (!await assertOwnership('habits', habitId, userId)) { res.status(404).json({ error: 'Habit not found' }); return; }
 
   const today = new Date().toISOString().slice(0, 10);
 

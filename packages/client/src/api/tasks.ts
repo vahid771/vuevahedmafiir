@@ -1,4 +1,4 @@
-import { apiUrl } from './base';
+import { apiUrl, authHeaders } from './base';
 
 const BASE = '/api/tasks';
 
@@ -22,10 +22,6 @@ export type CreateTaskData = {
 };
 
 export type UpdateTaskData = Partial<CreateTaskData>;
-
-function authHeaders(token: string): HeadersInit {
-  return { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
-}
 
 export async function getTasks(token: string, status?: 'open' | 'done'): Promise<Task[]> {
   const url = status ? `${BASE}?status=${status}` : BASE;

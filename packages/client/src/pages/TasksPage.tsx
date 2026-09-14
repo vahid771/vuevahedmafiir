@@ -8,6 +8,7 @@ import {
   type Task,
   type CreateTaskData,
 } from '../api/tasks';
+import { formatDate } from '../utils/format';
 
 const PRIORITY_BADGE: Record<Task['priority'], string> = {
   low: 'bg-green-100 text-green-800',
@@ -28,12 +29,6 @@ const EMPTY_FORM: TaskFormState = {
   due_date: '',
   priority: 'medium',
 };
-
-function formatDate(dateStr: string | null): string {
-  if (!dateStr) return '';
-  const d = new Date(dateStr);
-  return isNaN(d.getTime()) ? dateStr : d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
-}
 
 interface TaskFormProps {
   initial?: TaskFormState;

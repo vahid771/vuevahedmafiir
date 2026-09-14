@@ -1,7 +1,7 @@
 import { Router } from 'express';
-import { InValue } from '@libsql/client';
 import { db } from '../db';
 import { authenticateToken } from '../middleware/authenticate';
+import { assertOwnership, buildPatch, fetchById } from '../utils/db';
 
 const router = Router();
 router.use(authenticateToken);
@@ -35,7 +35,7 @@ router.post('/', async (req, res) => {
     args: [userId, title, remind_at, notes ?? null],
   });
 
-  const reminder = (await db.execute({ sql: 'SELECT * FROM reminders WHERE id = ?', args: [result.lastInsertRowid!] })).rows[0];
+  const reminder = await fetchById<object>('reminders', result.lastInsertRowid!);
   res.status(201).json(reminder);
 });
 
@@ -44,8 +44,7 @@ router.patch('/:id', async (req, res) => {
   const userId = req.user!.id;
   const id = Number(req.params.id);
 
-  const existing = (await db.execute({ sql: 'SELECT id FROM reminders WHERE id = ? AND user_id = ?', args: [id, userId] })).rows[0];
-  if (!existing) {
+  if (!await assertOwnership('reminders', id, userId)) {
     res.status(404).json({ error: 'Reminder not found' });
     return;
   }
@@ -57,13 +56,12 @@ router.patch('/:id', async (req, res) => {
     done?: number;
   };
 
-  const fields: string[] = [];
-  const values: InValue[] = [];
-
-  if (title !== undefined) { fields.push('title = ?'); values.push(title); }
-  if (remind_at !== undefined) { fields.push('remind_at = ?'); values.push(remind_at); }
-  if (notes !== undefined) { fields.push('notes = ?'); values.push(notes ?? null); }
-  if (done !== undefined) { fields.push('done = ?'); values.push(done); }
+  const { fields, values } = buildPatch({
+    title,
+    remind_at,
+    notes: notes !== undefined ? (notes ?? null) : undefined,
+    done,
+  });
 
   if (fields.length === 0) {
     res.status(400).json({ error: 'No fields to update' });
@@ -73,7 +71,7 @@ router.patch('/:id', async (req, res) => {
   values.push(id, userId);
   await db.execute({ sql: `UPDATE reminders SET ${fields.join(', ')} WHERE id = ? AND user_id = ?`, args: values });
 
-  const updated = (await db.execute({ sql: 'SELECT * FROM reminders WHERE id = ?', args: [id] })).rows[0];
+  const updated = await fetchById<object>('reminders', id);
   res.json(updated);
 });
 
@@ -82,8 +80,7 @@ router.delete('/:id', async (req, res) => {
   const userId = req.user!.id;
   const id = Number(req.params.id);
 
-  const existing = (await db.execute({ sql: 'SELECT id FROM reminders WHERE id = ? AND user_id = ?', args: [id, userId] })).rows[0];
-  if (!existing) {
+  if (!await assertOwnership('reminders', id, userId)) {
     res.status(404).json({ error: 'Reminder not found' });
     return;
   }

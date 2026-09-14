@@ -14,16 +14,9 @@ import {
   type CreateBillData,
   type CreateSubscriptionData,
 } from '../api/bills';
+import { formatDate } from '../utils/format';
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
-
-function formatDate(dateStr: string | null): string {
-  if (!dateStr) return '—';
-  const d = new Date(dateStr + 'T00:00:00');
-  return isNaN(d.getTime())
-    ? dateStr
-    : d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
-}
 
 function formatCurrency(amount: number | null): string {
   if (amount == null) return '—';
