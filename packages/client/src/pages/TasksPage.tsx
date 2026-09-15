@@ -326,11 +326,11 @@ export default function TasksPage() {
     setNewGroupName('');
     setAddingGroup(false);
     try {
-      await addJob(`Create task group "${name}"`, async () => {
-        const g = await createTaskGroup(token, name);
-        setGroups(prev => [...prev, g]);
-        setActiveGroupId(g.id);
-      });
+      // Create locally first so the tab appears immediately and the correct
+      // groupId is active before the user can add tasks.
+      const g = await createTaskGroup(token, name);
+      setGroups(prev => [...prev, g]);
+      setActiveGroupId(g.id);
     } catch (e) { setError((e as Error).message); }
     finally { setGroupSaving(false); }
   }
