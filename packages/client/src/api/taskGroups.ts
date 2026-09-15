@@ -46,6 +46,15 @@ export async function deleteTaskGroup(token: string, id: number): Promise<void> 
   if (!res.ok) throw new Error('Failed to delete task group');
 }
 
+export async function setDefaultTaskGroup(token: string, id: number): Promise<TaskGroup[]> {
+  const res = await fetch(apiUrl(`${BASE}/${id}/set-default`), {
+    method: 'PATCH',
+    headers: authHeaders(token),
+  });
+  if (!res.ok) throw new Error('Failed to set default task group');
+  return res.json();
+}
+
 export async function syncGoogleTaskGroups(token: string): Promise<TaskGroup[]> {
   const res = await fetch(apiUrl(`${BASE}/sync-google`), {
     method: 'POST',

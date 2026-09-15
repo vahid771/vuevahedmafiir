@@ -108,6 +108,27 @@ router.patch('/:id', async (req, res) => {
   res.json(group);
 });
 
+// PATCH /api/task-groups/:id/set-default — makes this group the default (clears previous default)
+router.patch('/:id/set-default', async (req, res) => {
+  const userId = req.user!.id;
+  const id = Number(req.params.id);
+  const existing = (await db.execute({
+    sql: 'SELECT id FROM task_groups WHERE id = ? AND user_id = ?',
+    args: [id, userId],
+  })).rows[0];
+  if (!existing) { res.status(404).json({ error: 'Group not found' }); return; }
+
+  // Clear current default, then set new one
+  await db.execute({ sql: 'UPDATE task_groups SET is_default = 0 WHERE user_id = ?', args: [userId] });
+  await db.execute({ sql: 'UPDATE task_groups SET is_default = 1 WHERE id = ? AND user_id = ?', args: [id, userId] });
+
+  const groups = (await db.execute({
+    sql: 'SELECT * FROM task_groups WHERE user_id = ? ORDER BY sort_order ASC, created_at ASC',
+    args: [userId],
+  })).rows;
+  res.json(groups);
+});
+
 // DELETE /api/task-groups/:id — nullifies tasks' group, then deletes the group
 router.delete('/:id', async (req, res) => {
   const userId = req.user!.id;

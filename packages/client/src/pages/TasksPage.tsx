@@ -6,7 +6,7 @@ import {
   type Task, type CreateTaskData,
 } from '../api/tasks';
 import {
-  getTaskGroups, createTaskGroup, renameTaskGroup, deleteTaskGroup, syncGoogleTaskGroups,
+  getTaskGroups, createTaskGroup, renameTaskGroup, deleteTaskGroup, syncGoogleTaskGroups, setDefaultTaskGroup,
   type TaskGroup,
 } from '../api/taskGroups';
 import { formatDate } from '../utils/format';
@@ -356,6 +356,14 @@ export default function TasksPage() {
     } catch (e) { setError((e as Error).message); }
   }
 
+  async function handleSetDefault(id: number) {
+    if (!token) return;
+    try {
+      const updated = await setDefaultTaskGroup(token, id);
+      setGroups(updated);
+    } catch (e) { setError((e as Error).message); }
+  }
+
   async function handleGoogleSync() {
     if (!token) return;
     setSyncing(true); setSyncSuccess(false); setError(null);
@@ -458,9 +466,16 @@ export default function TasksPage() {
                   {tab.label}
                 </button>
               )}
-              {/* Rename / delete buttons — only for non-default user-created groups */}
+              {/* Rename / delete / set-default buttons — only for non-default user-created groups */}
               {isGroup && !isDefault && renamingId === -1 && isActive && (
                 <div className="flex items-center gap-0.5 mr-1">
+                  <button onClick={() => handleSetDefault(tab.id as number)}
+                    title="Make default group"
+                    className="p-0.5 text-gray-300 hover:text-amber-500 transition-colors">
+                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
+                    </svg>
+                  </button>
                   <button onClick={() => { setRenamingId(tab.id as number); setRenameValue(tab.label); }}
                     title="Rename group"
                     className="p-0.5 text-gray-300 hover:text-blue-500 transition-colors">
