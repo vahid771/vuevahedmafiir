@@ -113,9 +113,9 @@ router.patch('/:id/set-default', async (req, res) => {
   const userId = req.user!.id;
   const id = Number(req.params.id);
   const existing = (await db.execute({
-    sql: 'SELECT id FROM task_groups WHERE id = ? AND user_id = ?',
+    sql: 'SELECT id, google_list_id FROM task_groups WHERE id = ? AND user_id = ?',
     args: [id, userId],
-  })).rows[0];
+  })).rows[0] as unknown as { id: number; google_list_id: string | null } | undefined;
   if (!existing) { res.status(404).json({ error: 'Group not found' }); return; }
 
   // Clear current default, then set new one
@@ -127,6 +127,17 @@ router.patch('/:id/set-default', async (req, res) => {
     sql: 'UPDATE tasks SET task_group_id = ? WHERE user_id = ? AND task_group_id IS NULL',
     args: [id, userId],
   });
+
+  // Update the legacy Google Tasks token to point at the new default group's linked list,
+  // so new tasks without an explicit group sync to the correct Google list.
+  if (existing.google_list_id) {
+    try {
+      await db.execute({
+        sql: 'UPDATE google_tasks_tokens SET task_list_id = ? WHERE user_id = ?',
+        args: [existing.google_list_id, userId],
+      });
+    } catch { /* non-fatal */ }
+  }
 
   const groups = (await db.execute({
     sql: 'SELECT * FROM task_groups WHERE user_id = ? ORDER BY sort_order ASC, created_at ASC',
