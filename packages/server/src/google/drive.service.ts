@@ -13,13 +13,14 @@ export function getOAuthClient(): OAuth2Client {
   return new google.auth.OAuth2(clientId, clientSecret, redirectUri);
 }
 
-export function getAuthUrl(state: string): string {
+export function getAuthUrl(state: string, loginHint?: string): string {
   const client = getOAuthClient();
   return client.generateAuthUrl({
     access_type: 'offline',
     prompt: 'consent',
-    scope: ['https://www.googleapis.com/auth/drive.file'],
+    scope: ['https://www.googleapis.com/auth/drive.readonly', 'https://www.googleapis.com/auth/drive.file'],
     state,
+    ...(loginHint && { login_hint: loginHint }),
   });
 }
 
@@ -55,9 +56,11 @@ export async function getOrCreateFolder(auth: OAuth2Client, folderName: string):
   const drive = google.drive({ version: 'v3', auth });
 
   const list = await drive.files.list({
-    q: `mimeType='application/vnd.google-apps.folder' and name='${folderName}' and 'root' in parents and trashed=false`,
+    q: `mimeType='application/vnd.google-apps.folder' and name='${folderName}' and trashed=false`,
     fields: 'files(id)',
     spaces: 'drive',
+    supportsAllDrives: true,
+    includeItemsFromAllDrives: true,
   });
 
   if (list.data.files && list.data.files.length > 0) {
@@ -118,4 +121,26 @@ export async function downloadFile(auth: OAuth2Client, driveFileId: string): Pro
 export async function deleteFile(auth: OAuth2Client, driveFileId: string): Promise<void> {
   const drive = google.drive({ version: 'v3', auth });
   await drive.files.delete({ fileId: driveFileId });
+}
+
+export async function listFilesInFolder(
+  auth: OAuth2Client,
+  folderId: string,
+): Promise<Array<{ id: string; name: string; mimeType: string; size: string; webViewLink: string }>> {
+  const drive = google.drive({ version: 'v3', auth });
+  const res = await drive.files.list({
+    q: `'${folderId}' in parents and trashed=false and mimeType != 'application/vnd.google-apps.folder'`,
+    fields: 'files(id,name,mimeType,size,webViewLink)',
+    spaces: 'drive',
+    pageSize: 1000,
+    supportsAllDrives: true,
+    includeItemsFromAllDrives: true,
+  });
+  return (res.data.files ?? []).map(f => ({
+    id: f.id!,
+    name: f.name ?? '',
+    mimeType: f.mimeType ?? 'application/octet-stream',
+    size: f.size ?? '0',
+    webViewLink: f.webViewLink ?? '',
+  }));
 }

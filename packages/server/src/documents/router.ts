@@ -3,7 +3,7 @@ import Busboy from 'busboy';
 import { db } from '../db';
 import { authenticateToken } from '../middleware/authenticate';
 import { fetchById } from '../utils/db';
-import { getAuthedClient, uploadFile, downloadFile, deleteFile, getOrCreateFolder } from '../google/drive.service';
+import { getAuthedClient, uploadFile, downloadFile, deleteFile, getOrCreateFolder, listFilesInFolder } from '../google/drive.service';
 
 // Parse multipart/form-data using busboy.
 // On Vercel the runtime pre-reads the body into req._rawBody (a Buffer we store in api/index.js).
@@ -61,7 +61,7 @@ type GoogleTokenRow = {
 
 const DRIVE_FOLDER_NAME = 'Personal Life Dashboard';
 
-async function getDriveAuth(userId: number) {
+async function getDriveAuth(userId: number, { forceRefreshFolder = false } = {}) {
   const row = (await db.execute({
     sql: 'SELECT access_token, refresh_token, expiry, drive_folder_id FROM google_tokens WHERE user_id = ?',
     args: [userId],
@@ -71,8 +71,8 @@ async function getDriveAuth(userId: number) {
 
   const auth = getAuthedClient(row);
 
-  // Lazily resolve folder ID on first use after connect
-  let folderId = row.drive_folder_id;
+  // Always re-resolve on sync so a stale cached ID (e.g. wrong folder created under old scope) is corrected.
+  let folderId = (!forceRefreshFolder && row.drive_folder_id) ? row.drive_folder_id : null;
   if (!folderId) {
     folderId = await getOrCreateFolder(auth, DRIVE_FOLDER_NAME);
     await db.execute({
@@ -230,6 +230,75 @@ router.delete('/:id', async (req, res) => {
 
   await db.execute({ sql: 'DELETE FROM documents WHERE id = ? AND user_id = ?', args: [id, userId] });
   res.status(204).send();
+});
+
+// GET /api/documents/debug-drive
+// Returns the resolved folder ID and raw file list from Drive — for diagnosing sync issues.
+router.get('/debug-drive', async (req, res) => {
+  const userId = req.user!.id;
+  const drive = await getDriveAuth(userId, { forceRefreshFolder: true });
+  if (!drive) {
+    res.status(403).json({ error: 'Google Drive not connected' });
+    return;
+  }
+  const files = await listFilesInFolder(drive.auth, drive.folderId);
+  res.json({ folderId: drive.folderId, fileCount: files.length, files });
+});
+
+// POST /api/documents/sync-drive
+// Lists all files in the app's Drive folder and upserts them into the local DB.
+// Files deleted from Drive are removed from the local DB.
+router.post('/sync-drive', async (req, res) => {
+  const userId = req.user!.id;
+
+  // forceRefreshFolder: re-resolve the folder by name each time so a stale cached
+  // folder ID (e.g. created under the old drive.file scope) is always corrected.
+  const drive = await getDriveAuth(userId, { forceRefreshFolder: true });
+  if (!drive) {
+    res.status(403).json({ error: 'Google Drive not connected' });
+    return;
+  }
+
+  const driveFiles = await listFilesInFolder(drive.auth, drive.folderId);
+  console.log(`[sync-drive] userId=${userId} folderId=${drive.folderId} found=${driveFiles.length} files:`, driveFiles.map(f => f.id + ':' + f.name));
+  const driveIds = driveFiles.map(f => f.id);
+
+  // Upsert each Drive file into local DB
+  for (const f of driveFiles) {
+    const existing = (await db.execute({
+      sql: 'SELECT id FROM documents WHERE drive_file_id = ? AND user_id = ?',
+      args: [f.id, userId],
+    })).rows[0];
+
+    if (!existing) {
+      await db.execute({
+        sql: `INSERT INTO documents (user_id, title, filename, mimetype, size, tags, drive_file_id, drive_view_link)
+              VALUES (?, ?, ?, ?, ?, '[]', ?, ?)`,
+        args: [userId, f.name, f.name, f.mimeType, Number(f.size), f.id, f.webViewLink],
+      });
+    }
+  }
+
+  // Delete local records whose Drive file no longer exists
+  if (driveIds.length > 0) {
+    const placeholders = driveIds.map(() => '?').join(', ');
+    await db.execute({
+      sql: `DELETE FROM documents WHERE user_id = ? AND drive_file_id IS NOT NULL AND drive_file_id NOT IN (${placeholders})`,
+      args: [userId, ...driveIds],
+    });
+  } else {
+    await db.execute({
+      sql: `DELETE FROM documents WHERE user_id = ? AND drive_file_id IS NOT NULL`,
+      args: [userId],
+    });
+  }
+
+  const docs = (await db.execute({
+    sql: 'SELECT * FROM documents WHERE user_id = ? ORDER BY uploaded_at DESC',
+    args: [userId],
+  })).rows;
+
+  res.json(docs);
 });
 
 export default router;

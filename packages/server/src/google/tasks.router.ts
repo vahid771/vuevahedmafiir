@@ -20,10 +20,11 @@ router.get('/connect', (req, res) => {
     req.headers['authorization'] = `Bearer ${token}`;
   }
 
-  authenticateToken(req, res, () => {
+  authenticateToken(req, res, async () => {
     const userId = req.user!.id;
     const state = Buffer.from(String(userId)).toString('base64');
-    const url = getTasksAuthUrl(state);
+    const userRow = (await db.execute({ sql: 'SELECT email FROM users WHERE id = ?', args: [userId] })).rows[0];
+    const url = getTasksAuthUrl(state, (userRow?.email as string | null) ?? undefined);
     res.redirect(url);
   });
 });
@@ -62,7 +63,7 @@ router.get('/callback', async (req, res) => {
 
   const auth = getAuthedTasksClient(tokens);
   const lists = await listTaskLists(auth);
-  const encodedLists = Buffer.from(JSON.stringify(lists)).toString('base64');
+  const encodedLists = encodeURIComponent(Buffer.from(JSON.stringify(lists)).toString('base64'));
 
   const clientOrigin = process.env.CLIENT_ORIGIN ?? 'http://localhost:5173';
   res.redirect(`${clientOrigin}/settings?gtasks=pick&lists=${encodedLists}`);
