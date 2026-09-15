@@ -15,6 +15,11 @@ import {
   selectGoogleTaskList,
   type GoogleTaskList,
 } from '../api/googleTasks';
+import {
+  getGoogleCalendarStatus,
+  getGoogleCalendarConnectUrl,
+  disconnectGoogleCalendar,
+} from '../api/googleCalendar';
 
 const CALENDAR_OPTIONS: { value: CalendarType; label: string; description: string }[] = [
   {
@@ -45,6 +50,13 @@ export default function SettingsPage() {
   const [driveSuccessBanner, setDriveSuccessBanner] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
 
+  // Google Calendar state
+  const [calendarConnected, setCalendarConnected] = useState(false);
+  const [calendarLoading, setCalendarLoading] = useState(true);
+  const [calendarError, setCalendarError] = useState<string | null>(null);
+  const [calendarSuccessBanner, setCalendarSuccessBanner] = useState(false);
+  const [calendarDisconnecting, setCalendarDisconnecting] = useState(false);
+
   // Google Tasks state
   const [tasksConnected, setTasksConnected] = useState(false);
   const [, setTasksTaskListId] = useState<string | null>(null);
@@ -63,6 +75,10 @@ export default function SettingsPage() {
     const params = new URLSearchParams(location.search);
     if (params.get('drive') === 'connected') {
       setDriveSuccessBanner(true);
+    }
+    // Show success banner if redirected back from Calendar OAuth
+    if (params.get('gcal') === 'connected') {
+      setCalendarSuccessBanner(true);
     }
     // Show task list picker if redirected back from Tasks OAuth
     if (params.get('gtasks') === 'pick') {
@@ -87,6 +103,14 @@ export default function SettingsPage() {
       .then(s => setDriveConnected(s.connected))
       .catch(() => setDriveError('Failed to load Drive status'))
       .finally(() => setDriveLoading(false));
+  }, [token]);
+
+  useEffect(() => {
+    if (!token) return;
+    getGoogleCalendarStatus(token)
+      .then(s => setCalendarConnected(s.connected))
+      .catch(() => setCalendarError('Failed to load Google Calendar status'))
+      .finally(() => setCalendarLoading(false));
   }, [token]);
 
   useEffect(() => {
@@ -134,6 +158,26 @@ export default function SettingsPage() {
       setDriveError('Failed to disconnect. Please try again.');
     } finally {
       setDisconnecting(false);
+    }
+  }
+
+  function handleCalendarConnect() {
+    if (!token) return;
+    window.location.href = getGoogleCalendarConnectUrl(token);
+  }
+
+  async function handleCalendarDisconnect() {
+    if (!token) return;
+    setCalendarDisconnecting(true);
+    setCalendarError(null);
+    try {
+      await disconnectGoogleCalendar(token);
+      setCalendarConnected(false);
+      setCalendarSuccessBanner(false);
+    } catch {
+      setCalendarError('Failed to disconnect. Please try again.');
+    } finally {
+      setCalendarDisconnecting(false);
     }
   }
 
@@ -400,6 +444,67 @@ export default function SettingsPage() {
               <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 27h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/>
             </svg>
             Connect Google Tasks
+          </button>
+        )}
+      </div>
+
+      {/* Google Calendar */}
+      <div className="bg-white border border-gray-200 rounded-lg p-6 space-y-4">
+        <div>
+          <h2 className="text-base font-semibold text-gray-800">Google Calendar</h2>
+          <p className="text-sm text-gray-500 mt-0.5">
+            Connect your Google account to sync reminders, important dates, and tasks with your
+            primary Google Calendar. Local changes push automatically; use "Sync from Google" on
+            each page to pull updates back.
+          </p>
+        </div>
+
+        {calendarSuccessBanner && (
+          <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-2 rounded text-sm flex justify-between">
+            <span>Google Calendar connected successfully.</span>
+            <button onClick={() => setCalendarSuccessBanner(false)} className="ml-4 font-bold">×</button>
+          </div>
+        )}
+
+        {calendarError && (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-2 rounded text-sm flex justify-between">
+            <span>{calendarError}</span>
+            <button onClick={() => setCalendarError(null)} className="ml-4 font-bold">×</button>
+          </div>
+        )}
+
+        {calendarLoading ? (
+          <p className="text-sm text-gray-400">Loading…</p>
+        ) : calendarConnected ? (
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sm text-green-700">
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+              </svg>
+              Connected
+            </div>
+            <button
+              onClick={handleCalendarDisconnect}
+              disabled={calendarDisconnecting}
+              className="text-sm px-4 py-2 rounded border border-red-300 text-red-600 hover:bg-red-50 disabled:opacity-50"
+            >
+              {calendarDisconnecting ? 'Disconnecting…' : 'Disconnect'}
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={handleCalendarConnect}
+            className="flex items-center gap-2 bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm hover:bg-gray-50 hover:border-gray-400 transition-colors"
+          >
+            <svg viewBox="0 0 87.3 78" className="w-4 h-4" xmlns="http://www.w3.org/2000/svg">
+              <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
+              <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0 -1.2 4.5h27.5z" fill="#00ac47"/>
+              <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/>
+              <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/>
+              <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/>
+              <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 27h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/>
+            </svg>
+            Connect Google Calendar
           </button>
         )}
       </div>

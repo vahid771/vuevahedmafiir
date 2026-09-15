@@ -1,5 +1,11 @@
 import { apiUrl } from './base';
 
+/** Returns the URL to navigate to for Google login (full-page redirect). */
+export function getGoogleLoginUrl(): string {
+  const base = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '') ?? '';
+  return `${base}/api/auth/google`;
+}
+
 export interface AuthResponse {
   token: string;
   user: { id: number; email: string };

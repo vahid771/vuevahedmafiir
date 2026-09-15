@@ -3,6 +3,12 @@ import { db } from '../db';
 import { authenticateToken } from '../middleware/authenticate';
 import { assertOwnership, buildPatch, fetchById } from '../utils/db';
 import { nextOccurrence } from '../utils/dates';
+import {
+  createCalendarEvent,
+  updateCalendarEvent,
+  deleteCalendarEvent,
+} from '../google/calendar.service';
+import { getGoogleCalendarConnection } from '../google/calendar.router';
 
 const router = Router();
 router.use(authenticateToken);
@@ -15,6 +21,7 @@ type ImportantDateRow = {
   recurs_yearly: number;
   notes: string | null;
   created_at: string;
+  google_calendar_event_id: string | null;
 };
 
 // GET /api/dates
@@ -56,6 +63,25 @@ router.post('/', async (req, res) => {
   });
 
   const row = await fetchById<ImportantDateRow>('important_dates', result.lastInsertRowid!);
+
+  // Push to Google Calendar (non-fatal)
+  try {
+    const conn = await getGoogleCalendarConnection(userId);
+    if (conn) {
+      const gcEvent = await createCalendarEvent(conn.auth, conn.calendarId, {
+        summary: row!.title,
+        description: row!.notes ?? undefined,
+        start: { date: row!.date },
+        end: { date: row!.date },
+      });
+      await db.execute({
+        sql: 'UPDATE important_dates SET google_calendar_event_id = ? WHERE id = ?',
+        args: [gcEvent.id, row!.id],
+      });
+      (row as any).google_calendar_event_id = gcEvent.id;
+    }
+  } catch { /* non-fatal — date is saved locally regardless */ }
+
   res.status(201).json({ ...row, next_occurrence: nextOccurrence(row!.date, row!.recurs_yearly) });
 });
 
@@ -86,6 +112,23 @@ router.patch('/:id', async (req, res) => {
   await db.execute({ sql: `UPDATE important_dates SET ${fields.join(', ')} WHERE id = ? AND user_id = ?`, args: values });
 
   const updated = await fetchById<ImportantDateRow>('important_dates', id);
+
+  // Push update to Google Calendar (non-fatal)
+  try {
+    const eventId = updated!.google_calendar_event_id as string | null;
+    if (eventId) {
+      const conn = await getGoogleCalendarConnection(userId);
+      if (conn) {
+        await updateCalendarEvent(conn.auth, conn.calendarId, eventId, {
+          summary: updated!.title,
+          description: updated!.notes ?? undefined,
+          start: { date: updated!.date },
+          end: { date: updated!.date },
+        });
+      }
+    }
+  } catch { /* non-fatal */ }
+
   res.json({ ...updated, next_occurrence: nextOccurrence(updated!.date, updated!.recurs_yearly) });
 });
 
@@ -96,7 +139,25 @@ router.delete('/:id', async (req, res) => {
 
   if (!await assertOwnership('important_dates', id, userId)) { res.status(404).json({ error: 'Date not found' }); return; }
 
+  // Fetch google_calendar_event_id before deleting
+  const dateRow = (await db.execute({
+    sql: 'SELECT google_calendar_event_id FROM important_dates WHERE id = ?',
+    args: [id],
+  })).rows[0];
+
   await db.execute({ sql: 'DELETE FROM important_dates WHERE id = ? AND user_id = ?', args: [id, userId] });
+
+  // Delete from Google Calendar (non-fatal)
+  try {
+    const eventId = dateRow?.google_calendar_event_id as string | null;
+    if (eventId) {
+      const conn = await getGoogleCalendarConnection(userId);
+      if (conn) {
+        await deleteCalendarEvent(conn.auth, conn.calendarId, eventId);
+      }
+    }
+  } catch { /* non-fatal */ }
+
   res.status(204).send();
 });
 

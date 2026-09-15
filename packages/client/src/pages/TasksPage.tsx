@@ -12,6 +12,7 @@ import {
 import { formatDate } from '../utils/format';
 import TaskForm, { type TaskFormState } from '../components/tasks/TaskForm';
 import { getGoogleTasksStatus, syncFromGoogleTasks } from '../api/googleTasks';
+import { getGoogleCalendarStatus, syncFromGoogleCalendar } from '../api/googleCalendar';
 
 const PRIORITY_BADGE: Record<Task['priority'], string> = {
   low: 'bg-green-100 text-green-800',
@@ -128,6 +129,9 @@ export default function TasksPage() {
   const [gTasksConnected, setGTasksConnected] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncSuccess, setSyncSuccess] = useState(false);
+  const [gcalConnected, setGcalConnected] = useState(false);
+  const [calSyncing, setCalSyncing] = useState(false);
+  const [calSyncSuccess, setCalSyncSuccess] = useState(false);
 
   useEffect(() => {
     if (!token) return;
@@ -142,6 +146,13 @@ export default function TasksPage() {
     if (!token) return;
     getGoogleTasksStatus(token)
       .then(s => setGTasksConnected(s.connected && !!s.taskListId))
+      .catch(() => { /* non-fatal */ });
+  }, [token]);
+
+  useEffect(() => {
+    if (!token) return;
+    getGoogleCalendarStatus(token)
+      .then(s => setGcalConnected(s.connected))
       .catch(() => { /* non-fatal */ });
   }, [token]);
 
@@ -212,6 +223,23 @@ export default function TasksPage() {
     }
   }
 
+  async function handleCalendarSync() {
+    if (!token) return;
+    setCalSyncing(true);
+    setCalSyncSuccess(false);
+    setError(null);
+    try {
+      const result = await syncFromGoogleCalendar(token);
+      setTasks(result.tasks as Task[]);
+      setCalSyncSuccess(true);
+      setTimeout(() => setCalSyncSuccess(false), 2500);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setCalSyncing(false);
+    }
+  }
+
   async function handleDelete(id: number) {
     if (!token || !confirm('Delete this task?')) return;
     try {
@@ -254,6 +282,31 @@ export default function TasksPage() {
                 </svg>
               )}
               {syncing ? 'Syncing…' : syncSuccess ? 'Synced' : 'Sync from Google'}
+            </button>
+          )}
+          {gcalConnected && (
+            <button
+              type="button"
+              onClick={handleCalendarSync}
+              disabled={calSyncing}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+              title="Sync from Google Calendar"
+            >
+              {calSyncing ? (
+                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z"/>
+                </svg>
+              ) : calSyncSuccess ? (
+                <svg className="w-4 h-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              ) : (
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              )}
+              {calSyncing ? 'Syncing…' : calSyncSuccess ? 'Synced' : 'Sync from Calendar'}
             </button>
           )}
           <button

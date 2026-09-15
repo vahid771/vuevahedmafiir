@@ -12,7 +12,7 @@ export async function runMigrations(): Promise<void> {
     CREATE TABLE IF NOT EXISTS users (
       id            INTEGER PRIMARY KEY AUTOINCREMENT,
       email         TEXT    UNIQUE NOT NULL,
-      password_hash TEXT    NOT NULL,
+      password_hash TEXT,
       created_at    TEXT    DEFAULT (datetime('now'))
     );
 
@@ -140,6 +140,19 @@ export async function runMigrations(): Promise<void> {
     );
 
     CREATE UNIQUE INDEX IF NOT EXISTS idx_google_tasks_tokens_user_id ON google_tasks_tokens(user_id);
+
+    CREATE TABLE IF NOT EXISTS google_calendar_tokens (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id       INTEGER UNIQUE NOT NULL REFERENCES users(id),
+      access_token  TEXT    NOT NULL,
+      refresh_token TEXT,
+      expiry        TEXT,
+      calendar_id   TEXT,
+      created_at    TEXT    DEFAULT (datetime('now')),
+      updated_at    TEXT    DEFAULT (datetime('now'))
+    );
+
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_google_calendar_tokens_user_id ON google_calendar_tokens(user_id);
   `);
 
   // ALTER TABLE migrations — run individually, ignore "duplicate column" errors for idempotency
@@ -147,6 +160,9 @@ export async function runMigrations(): Promise<void> {
     'ALTER TABLE documents ADD COLUMN drive_file_id TEXT',
     'ALTER TABLE documents ADD COLUMN drive_view_link TEXT',
     'ALTER TABLE tasks ADD COLUMN google_task_id TEXT',
+    'ALTER TABLE reminders ADD COLUMN google_calendar_event_id TEXT',
+    'ALTER TABLE important_dates ADD COLUMN google_calendar_event_id TEXT',
+    'ALTER TABLE tasks ADD COLUMN google_calendar_event_id TEXT',
   ];
   for (const sql of alterStatements) {
     try {
@@ -155,5 +171,32 @@ export async function runMigrations(): Promise<void> {
       // Ignore "duplicate column" — means migration already ran
       if (!String(e).includes('duplicate column')) throw e;
     }
+  }
+
+  // Migration: make users.password_hash nullable (needed for Google-only accounts).
+  // SQLite cannot ALTER COLUMN, so we recreate the table if the column is still NOT NULL.
+  try {
+    const tableInfo = (await db.execute("PRAGMA table_info(users)")).rows;
+    const col = tableInfo.find((r: any) => r.name === 'password_hash');
+    if (col && (col as any).notnull === 1) {
+      await db.executeMultiple(`
+        PRAGMA foreign_keys = OFF;
+        DROP TABLE IF EXISTS users_new;
+        CREATE TABLE users_new (
+          id            INTEGER PRIMARY KEY AUTOINCREMENT,
+          email         TEXT    UNIQUE NOT NULL,
+          password_hash TEXT,
+          created_at    TEXT    DEFAULT (datetime('now'))
+        );
+        INSERT INTO users_new (id, email, password_hash, created_at)
+          SELECT id, email, password_hash, created_at FROM users;
+        DROP TABLE users;
+        ALTER TABLE users_new RENAME TO users;
+        PRAGMA foreign_keys = ON;
+      `);
+    }
+  } catch (e: any) {
+    console.error('Migration users.password_hash nullable failed:', e);
+    throw e;
   }
 }

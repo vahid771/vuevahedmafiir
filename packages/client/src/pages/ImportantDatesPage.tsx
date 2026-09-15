@@ -10,6 +10,7 @@ import {
 } from '../api/dates';
 import { formatDate } from '../utils/format';
 import DateForm, { type DateFormState, EMPTY_DATE_FORM } from '../components/dates/DateForm';
+import { getGoogleCalendarStatus, syncFromGoogleCalendar } from '../api/googleCalendar';
 
 function daysUntil(dateStr: string): number {
   const today = new Date();
@@ -35,6 +36,9 @@ export default function ImportantDatesPage() {
   const [editId, setEditId] = useState<number | null>(null);
   const [editInitial, setEditInitial] = useState<DateFormState>(EMPTY_DATE_FORM);
   const [saving, setSaving] = useState(false);
+  const [gcalConnected, setGcalConnected] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncSuccess, setSyncSuccess] = useState(false);
 
   async function load() {
     try {
@@ -48,6 +52,30 @@ export default function ImportantDatesPage() {
   }
 
   useEffect(() => { load(); }, []);
+
+  useEffect(() => {
+    if (!token) return;
+    getGoogleCalendarStatus(token)
+      .then(s => setGcalConnected(s.connected))
+      .catch(() => { /* non-fatal */ });
+  }, [token]);
+
+  async function handleCalendarSync() {
+    if (!token) return;
+    setSyncing(true);
+    setSyncSuccess(false);
+    setError('');
+    try {
+      const result = await syncFromGoogleCalendar(token);
+      setDates(result.dates as ImportantDate[]);
+      setSyncSuccess(true);
+      setTimeout(() => setSyncSuccess(false), 2500);
+    } catch {
+      setError('Failed to sync from Google Calendar');
+    } finally {
+      setSyncing(false);
+    }
+  }
 
   function startAdd() { setEditId(null); setEditInitial(EMPTY_DATE_FORM); setShowForm(true); }
   function startEdit(d: ImportantDate) {
@@ -90,7 +118,34 @@ export default function ImportantDatesPage() {
     <div className="max-w-2xl mx-auto py-6 px-4">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Important Dates</h1>
-        <button onClick={startAdd} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700">+ Add Date</button>
+        <div className="flex items-center gap-2">
+          {gcalConnected && (
+            <button
+              type="button"
+              onClick={handleCalendarSync}
+              disabled={syncing}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+              title="Sync from Google Calendar"
+            >
+              {syncing ? (
+                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z"/>
+                </svg>
+              ) : syncSuccess ? (
+                <svg className="w-4 h-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              ) : (
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              )}
+              {syncing ? 'Syncing…' : syncSuccess ? 'Synced' : 'Sync from Google'}
+            </button>
+          )}
+          <button onClick={startAdd} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700">+ Add Date</button>
+        </div>
       </div>
 
       {error && (

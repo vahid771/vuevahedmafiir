@@ -114,7 +114,7 @@ export async function listGoogleTasks(
   taskListId: string,
 ): Promise<Array<{ id: string; title: string; notes?: string; due?: string; status: string }>> {
   const tasks = google.tasks({ version: 'v1', auth });
-  const res = await tasks.tasks.list({ tasklist: taskListId, showHidden: false });
+  const res = await tasks.tasks.list({ tasklist: taskListId, showHidden: true, showCompleted: true });
   return (res.data.items ?? [])
     .filter((item) => !!item.id)
     .map((item) => ({

@@ -10,6 +10,12 @@ import {
   updateGoogleTask,
   deleteGoogleTask,
 } from '../google/tasks.service';
+import {
+  createCalendarEvent,
+  updateCalendarEvent,
+  deleteCalendarEvent,
+} from '../google/calendar.service';
+import { getGoogleCalendarConnection } from '../google/calendar.router';
 
 const router = Router();
 
@@ -83,27 +89,47 @@ router.post('/', async (req, res) => {
     args: [userId, title, description ?? null, due_date ?? null, priority, status],
   });
 
-  const task = await fetchById<object>('tasks', result.lastInsertRowid!);
-  res.status(201).json(task);
+  const task = await fetchById<object>('tasks', result.lastInsertRowid!) as any;
 
-  // Fire-and-forget: push to Google Tasks
-  const taskRow = task as any;
-  ;(async () => {
-    try {
-      const conn = await getGoogleTasksConnection(userId);
-      if (!conn) return;
+  // Push to Google Tasks before responding (fire-and-forget is killed by Vercel on serverless)
+  try {
+    const conn = await getGoogleTasksConnection(userId);
+    if (conn) {
       const gtask = await createGoogleTask(conn.auth, conn.taskListId, {
-        title: taskRow.title,
-        notes: taskRow.description ?? undefined,
-        due: taskRow.due_date ?? undefined,
-        status: (taskRow.status ?? 'open') as 'open' | 'done',
+        title: task.title,
+        notes: task.description ?? undefined,
+        due: task.due_date ? `${task.due_date}T00:00:00.000Z` : undefined,
+        status: (task.status ?? 'open') as 'open' | 'done',
       });
       await db.execute({
         sql: 'UPDATE tasks SET google_task_id = ? WHERE id = ?',
-        args: [gtask.id, taskRow.id],
+        args: [gtask.id, task.id],
       });
-    } catch { /* silent */ }
-  })();
+      task.google_task_id = gtask.id;
+    }
+  } catch { /* non-fatal — task is saved locally regardless */ }
+
+  // Push to Google Calendar (non-fatal, only if due_date present)
+  try {
+    if (task.due_date) {
+      const conn = await getGoogleCalendarConnection(userId);
+      if (conn) {
+        const gcEvent = await createCalendarEvent(conn.auth, conn.calendarId, {
+          summary: `[Task] ${task.title}`,
+          description: task.description ?? undefined,
+          start: { date: task.due_date },
+          end: { date: task.due_date },
+        });
+        await db.execute({
+          sql: 'UPDATE tasks SET google_calendar_event_id = ? WHERE id = ?',
+          args: [gcEvent.id, task.id],
+        });
+        task.google_calendar_event_id = gcEvent.id;
+      }
+    }
+  } catch { /* non-fatal */ }
+
+  res.status(201).json(task);
 });
 
 // PATCH /api/tasks/:id
@@ -140,25 +166,53 @@ router.patch('/:id', async (req, res) => {
   values.push(taskId, userId);
   await db.execute({ sql: `UPDATE tasks SET ${fields.join(', ')} WHERE id = ? AND user_id = ?`, args: values });
 
-  const updated = await fetchById<object>('tasks', taskId);
-  res.json(updated);
+  const updated = await fetchById<object>('tasks', taskId) as any;
 
-  // Fire-and-forget: push to Google Tasks
-  const updatedRow = updated as any;
-  ;(async () => {
-    try {
-      const googleTaskId = updatedRow.google_task_id as string | null;
-      if (!googleTaskId) return;
+  // Push update to Google Tasks before responding
+  try {
+    const googleTaskId = updated.google_task_id as string | null;
+    if (googleTaskId) {
       const conn = await getGoogleTasksConnection(userId);
-      if (!conn) return;
-      await updateGoogleTask(conn.auth, conn.taskListId, googleTaskId, {
-        title: updatedRow.title,
-        notes: updatedRow.description ?? undefined,
-        due: updatedRow.due_date ?? null,
-        status: (updatedRow.status ?? 'open') as 'open' | 'done',
+      if (conn) {
+        await updateGoogleTask(conn.auth, conn.taskListId, googleTaskId, {
+          title: updated.title,
+          notes: updated.description ?? undefined,
+          due: updated.due_date ? `${updated.due_date}T00:00:00.000Z` : null,
+          status: (updated.status ?? 'open') as 'open' | 'done',
+        });
+      }
+    }
+  } catch { /* non-fatal */ }
+
+  // Push update to Google Calendar (non-fatal)
+  try {
+    const calEventId = updated.google_calendar_event_id as string | null;
+    if (calEventId && updated.due_date) {
+      // due_date still present — update the event
+      const conn = await getGoogleCalendarConnection(userId);
+      if (conn) {
+        await updateCalendarEvent(conn.auth, conn.calendarId, calEventId, {
+          summary: `[Task] ${updated.title}`,
+          description: updated.description ?? undefined,
+          start: { date: updated.due_date },
+          end: { date: updated.due_date },
+        });
+      }
+    } else if (calEventId && !updated.due_date) {
+      // due_date was removed — delete calendar event and clear id
+      const conn = await getGoogleCalendarConnection(userId);
+      if (conn) {
+        await deleteCalendarEvent(conn.auth, conn.calendarId, calEventId);
+      }
+      await db.execute({
+        sql: 'UPDATE tasks SET google_calendar_event_id = NULL WHERE id = ?',
+        args: [updated.id],
       });
-    } catch { /* silent */ }
-  })();
+      updated.google_calendar_event_id = null;
+    }
+  } catch { /* non-fatal */ }
+
+  res.json(updated);
 });
 
 // DELETE /api/tasks/:id
@@ -174,24 +228,36 @@ router.delete('/:id', async (req, res) => {
   // Fetch google_task_id before deleting
   const taskRow = (
     await db.execute({
-      sql: 'SELECT google_task_id FROM tasks WHERE id = ?',
+      sql: 'SELECT google_task_id, google_calendar_event_id FROM tasks WHERE id = ?',
       args: [taskId],
     })
   ).rows[0];
 
   await db.execute({ sql: 'DELETE FROM tasks WHERE id = ? AND user_id = ?', args: [taskId, userId] });
-  res.status(204).send();
 
-  // Fire-and-forget: delete from Google Tasks
-  ;(async () => {
-    try {
-      const googleTaskId = taskRow?.google_task_id as string | null;
-      if (!googleTaskId) return;
+  // Delete from Google Tasks before responding
+  try {
+    const googleTaskId = taskRow?.google_task_id as string | null;
+    if (googleTaskId) {
       const conn = await getGoogleTasksConnection(userId);
-      if (!conn) return;
-      await deleteGoogleTask(conn.auth, conn.taskListId, googleTaskId);
-    } catch { /* silent */ }
-  })();
+      if (conn) {
+        await deleteGoogleTask(conn.auth, conn.taskListId, googleTaskId);
+      }
+    }
+  } catch { /* non-fatal */ }
+
+  // Delete from Google Calendar (non-fatal)
+  try {
+    const calEventId = taskRow?.google_calendar_event_id as string | null;
+    if (calEventId) {
+      const conn = await getGoogleCalendarConnection(userId);
+      if (conn) {
+        await deleteCalendarEvent(conn.auth, conn.calendarId, calEventId);
+      }
+    }
+  } catch { /* non-fatal */ }
+
+  res.status(204).send();
 });
 
 export default router;

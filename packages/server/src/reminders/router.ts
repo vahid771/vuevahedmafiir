@@ -2,6 +2,12 @@ import { Router } from 'express';
 import { db } from '../db';
 import { authenticateToken } from '../middleware/authenticate';
 import { assertOwnership, buildPatch, fetchById } from '../utils/db';
+import {
+  createCalendarEvent,
+  updateCalendarEvent,
+  deleteCalendarEvent,
+} from '../google/calendar.service';
+import { getGoogleCalendarConnection } from '../google/calendar.router';
 
 const router = Router();
 router.use(authenticateToken);
@@ -35,7 +41,26 @@ router.post('/', async (req, res) => {
     args: [userId, title, remind_at, notes ?? null],
   });
 
-  const reminder = await fetchById<object>('reminders', result.lastInsertRowid!);
+  const reminder = await fetchById<object>('reminders', result.lastInsertRowid!) as any;
+
+  // Push to Google Calendar (non-fatal)
+  try {
+    const conn = await getGoogleCalendarConnection(userId);
+    if (conn) {
+      const gcEvent = await createCalendarEvent(conn.auth, conn.calendarId, {
+        summary: reminder.title,
+        description: reminder.notes ?? undefined,
+        start: { dateTime: reminder.remind_at, timeZone: 'UTC' },
+        end: { dateTime: reminder.remind_at, timeZone: 'UTC' },
+      });
+      await db.execute({
+        sql: 'UPDATE reminders SET google_calendar_event_id = ? WHERE id = ?',
+        args: [gcEvent.id, reminder.id],
+      });
+      reminder.google_calendar_event_id = gcEvent.id;
+    }
+  } catch { /* non-fatal — reminder is saved locally regardless */ }
+
   res.status(201).json(reminder);
 });
 
@@ -71,7 +96,24 @@ router.patch('/:id', async (req, res) => {
   values.push(id, userId);
   await db.execute({ sql: `UPDATE reminders SET ${fields.join(', ')} WHERE id = ? AND user_id = ?`, args: values });
 
-  const updated = await fetchById<object>('reminders', id);
+  const updated = await fetchById<object>('reminders', id) as any;
+
+  // Push update to Google Calendar (non-fatal)
+  try {
+    const eventId = updated.google_calendar_event_id as string | null;
+    if (eventId) {
+      const conn = await getGoogleCalendarConnection(userId);
+      if (conn) {
+        await updateCalendarEvent(conn.auth, conn.calendarId, eventId, {
+          summary: updated.title,
+          description: updated.notes ?? undefined,
+          start: { dateTime: updated.remind_at, timeZone: 'UTC' },
+          end: { dateTime: updated.remind_at, timeZone: 'UTC' },
+        });
+      }
+    }
+  } catch { /* non-fatal */ }
+
   res.json(updated);
 });
 
@@ -85,7 +127,25 @@ router.delete('/:id', async (req, res) => {
     return;
   }
 
+  // Fetch google_calendar_event_id before deleting
+  const reminderRow = (await db.execute({
+    sql: 'SELECT google_calendar_event_id FROM reminders WHERE id = ?',
+    args: [id],
+  })).rows[0];
+
   await db.execute({ sql: 'DELETE FROM reminders WHERE id = ? AND user_id = ?', args: [id, userId] });
+
+  // Delete from Google Calendar (non-fatal)
+  try {
+    const eventId = reminderRow?.google_calendar_event_id as string | null;
+    if (eventId) {
+      const conn = await getGoogleCalendarConnection(userId);
+      if (conn) {
+        await deleteCalendarEvent(conn.auth, conn.calendarId, eventId);
+      }
+    }
+  } catch { /* non-fatal */ }
+
   res.status(204).send();
 });
 
