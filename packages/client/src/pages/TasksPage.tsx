@@ -448,7 +448,7 @@ export default function TasksPage() {
                 </button>
               )}
               {/* Rename / delete buttons for user-created groups */}
-              {isGroup && !renamingId && isActive && (
+              {isGroup && renamingId === -1 && isActive && (
                 <div className="flex items-center gap-0.5 mr-1">
                   <button onClick={() => { setRenamingId(tab.id as number); setRenameValue(tab.label); }}
                     title="Rename group"
