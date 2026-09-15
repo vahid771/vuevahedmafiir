@@ -170,10 +170,12 @@ export async function runMigrations(): Promise<void> {
       name           TEXT    NOT NULL,
       google_list_id TEXT,
       sort_order     INTEGER DEFAULT 0,
+      is_default     INTEGER DEFAULT 0,
       created_at     TEXT    DEFAULT (datetime('now'))
     )`,
     'CREATE INDEX IF NOT EXISTS idx_task_groups_user_id ON task_groups(user_id)',
     'ALTER TABLE tasks ADD COLUMN task_group_id INTEGER REFERENCES task_groups(id) ON DELETE SET NULL',
+    'ALTER TABLE task_groups ADD COLUMN is_default INTEGER DEFAULT 0',
   ];
   for (const sql of alterStatements) {
     try {

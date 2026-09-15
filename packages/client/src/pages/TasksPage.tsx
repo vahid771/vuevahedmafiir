@@ -383,9 +383,9 @@ export default function TasksPage() {
 
   // Tabs: "All" + one per group + ungrouped
   const tabs = [
-    { id: 'all' as const, label: 'All' },
-    ...groups.map(g => ({ id: g.id, label: g.name, isGoogle: !!g.google_list_id })),
-    { id: null as null, label: 'Ungrouped' },
+    { id: 'all' as const, label: 'All', isDefault: false, isGoogle: false },
+    ...groups.map(g => ({ id: g.id, label: g.name, isDefault: !!g.is_default, isGoogle: !!g.google_list_id })),
+    { id: null as null, label: 'Ungrouped', isDefault: false, isGoogle: false },
   ];
 
   const activeTab = tabs.find(t => t.id === activeGroupId) ?? tabs[0];
@@ -427,6 +427,7 @@ export default function TasksPage() {
         {tabs.map(tab => {
           const isActive = tab.id === activeGroupId;
           const isGroup = typeof tab.id === 'number';
+          const isDefault = tab.isDefault;
           return (
             <div key={String(tab.id)} className="flex items-center group shrink-0">
               {typeof tab.id === 'number' && renamingId === tab.id ? (
@@ -440,13 +441,25 @@ export default function TasksPage() {
               ) : (
                 <button
                   onClick={() => setActiveGroupId(tab.id)}
-                  className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap flex items-center gap-1
-                    ${isActive ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}>
+                  className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap flex items-center gap-1.5
+                    ${isDefault
+                      ? isActive
+                        ? 'border-amber-500 text-amber-600'
+                        : 'border-transparent text-amber-500 hover:text-amber-600 hover:border-amber-300'
+                      : isActive
+                        ? 'border-blue-600 text-blue-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    }`}>
+                  {isDefault && (
+                    <svg className="w-3.5 h-3.5 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
+                    </svg>
+                  )}
                   {tab.label}
                 </button>
               )}
-              {/* Rename / delete buttons for user-created groups */}
-              {isGroup && renamingId === -1 && isActive && (
+              {/* Rename / delete buttons — only for non-default user-created groups */}
+              {isGroup && !isDefault && renamingId === -1 && isActive && (
                 <div className="flex items-center gap-0.5 mr-1">
                   <button onClick={() => { setRenamingId(tab.id as number); setRenameValue(tab.label); }}
                     title="Rename group"

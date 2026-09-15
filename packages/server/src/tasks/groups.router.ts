@@ -42,6 +42,13 @@ router.post('/', async (req, res) => {
   const { name } = req.body as { name?: string };
   if (!name?.trim()) { res.status(400).json({ error: 'name is required' }); return; }
 
+  // First group for this user becomes the default
+  const existingCount = (await db.execute({
+    sql: 'SELECT COUNT(*) as cnt FROM task_groups WHERE user_id = ?',
+    args: [userId],
+  })).rows[0] as unknown as { cnt: number };
+  const isDefault = existingCount.cnt === 0 ? 1 : 0;
+
   let googleListId: string | null = null;
   try {
     const auth = await getGoogleTasksAuth(userId);
@@ -52,8 +59,8 @@ router.post('/', async (req, res) => {
   } catch { /* non-fatal */ }
 
   const result = await db.execute({
-    sql: 'INSERT INTO task_groups (user_id, name, google_list_id) VALUES (?, ?, ?)',
-    args: [userId, name.trim(), googleListId],
+    sql: 'INSERT INTO task_groups (user_id, name, google_list_id, is_default) VALUES (?, ?, ?, ?)',
+    args: [userId, name.trim(), googleListId, isDefault],
   });
   const group = (await db.execute({
     sql: 'SELECT * FROM task_groups WHERE id = ?',
@@ -99,10 +106,11 @@ router.delete('/:id', async (req, res) => {
   const userId = req.user!.id;
   const id = Number(req.params.id);
   const existing = (await db.execute({
-    sql: 'SELECT id, google_list_id FROM task_groups WHERE id = ? AND user_id = ?',
+    sql: 'SELECT id, google_list_id, is_default FROM task_groups WHERE id = ? AND user_id = ?',
     args: [id, userId],
-  })).rows[0] as unknown as { id: number; google_list_id: string | null } | undefined;
+  })).rows[0] as unknown as { id: number; google_list_id: string | null; is_default: number } | undefined;
   if (!existing) { res.status(404).json({ error: 'Group not found' }); return; }
+  if (existing.is_default) { res.status(403).json({ error: 'Cannot delete the default group' }); return; }
   await db.execute({ sql: 'UPDATE tasks SET task_group_id = NULL WHERE task_group_id = ? AND user_id = ?', args: [id, userId] });
   await db.execute({ sql: 'DELETE FROM task_groups WHERE id = ? AND user_id = ?', args: [id, userId] });
   // Delete the Google Task list if linked
