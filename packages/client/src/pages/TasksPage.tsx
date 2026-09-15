@@ -309,7 +309,7 @@ export default function TasksPage() {
   const [groupSaving, setGroupSaving] = useState(false);
 
   // Rename state
-  const [renamingId, setRenamingId] = useState<number | null>(null);
+  const [renamingId, setRenamingId] = useState<number | -1>(-1);
   const [renameValue, setRenameValue] = useState('');
 
   useEffect(() => {
@@ -337,7 +337,7 @@ export default function TasksPage() {
     try {
       const g = await renameTaskGroup(token, id, renameValue.trim());
       setGroups(prev => prev.map(gr => gr.id === id ? g : gr));
-      setRenamingId(null);
+      setRenamingId(-1);
     } catch (e) { setError((e as Error).message); }
   }
 
@@ -423,13 +423,13 @@ export default function TasksPage() {
           const isGroup = typeof tab.id === 'number';
           return (
             <div key={String(tab.id)} className="flex items-center group shrink-0">
-              {renamingId === tab.id ? (
+              {typeof tab.id === 'number' && renamingId === tab.id ? (
                 <form onSubmit={e => { e.preventDefault(); handleRenameGroup(tab.id as number); }}
                   className="flex items-center gap-1 px-2 py-1">
                   <input autoFocus value={renameValue} onChange={e => setRenameValue(e.target.value)}
                     className="border border-blue-400 rounded px-1.5 py-0.5 text-sm w-28 focus:outline-none" />
                   <button type="submit" className="text-xs text-blue-600 hover:text-blue-800">✓</button>
-                  <button type="button" onClick={() => setRenamingId(null)} className="text-xs text-gray-400 hover:text-gray-600">✕</button>
+                  <button type="button" onClick={() => setRenamingId(-1)} className="text-xs text-gray-400 hover:text-gray-600">✕</button>
                 </form>
               ) : (
                 <button
