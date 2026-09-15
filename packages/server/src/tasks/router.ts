@@ -70,12 +70,11 @@ router.get('/', async (req, res) => {
     args.push(status);
   }
 
-  if (group_id === 'null') {
-    sql += ' AND task_group_id IS NULL';
-  } else if (group_id && !isNaN(Number(group_id))) {
+  if (group_id && !isNaN(Number(group_id))) {
     sql += ' AND task_group_id = ?';
     args.push(Number(group_id));
   }
+  // group_id=null is no longer a valid filter — ungrouped tasks don't exist
 
   sql += ' ORDER BY created_at DESC';
 
@@ -107,9 +106,19 @@ router.post('/', async (req, res) => {
     return;
   }
 
+  // If no group specified, fall back to the user's default group
+  let resolvedGroupId: number | null = task_group_id ?? null;
+  if (resolvedGroupId === null) {
+    const defaultGroup = (await db.execute({
+      sql: 'SELECT id FROM task_groups WHERE user_id = ? AND is_default = 1 LIMIT 1',
+      args: [userId],
+    })).rows[0];
+    if (defaultGroup) resolvedGroupId = defaultGroup.id as number;
+  }
+
   const result = await db.execute({
     sql: 'INSERT INTO tasks (user_id, title, description, due_date, priority, status, task_group_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
-    args: [userId, title, description ?? null, due_date ?? null, priority, status, task_group_id ?? null],
+    args: [userId, title, description ?? null, due_date ?? null, priority, status, resolvedGroupId],
   });
 
   const task = await fetchById<object>('tasks', result.lastInsertRowid!) as any;

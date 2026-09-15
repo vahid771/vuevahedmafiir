@@ -122,6 +122,12 @@ router.patch('/:id/set-default', async (req, res) => {
   await db.execute({ sql: 'UPDATE task_groups SET is_default = 0 WHERE user_id = ?', args: [userId] });
   await db.execute({ sql: 'UPDATE task_groups SET is_default = 1 WHERE id = ? AND user_id = ?', args: [id, userId] });
 
+  // Move any still-ungrouped tasks into the new default group
+  await db.execute({
+    sql: 'UPDATE tasks SET task_group_id = ? WHERE user_id = ? AND task_group_id IS NULL',
+    args: [id, userId],
+  });
+
   const groups = (await db.execute({
     sql: 'SELECT * FROM task_groups WHERE user_id = ? ORDER BY sort_order ASC, created_at ASC',
     args: [userId],
@@ -129,7 +135,7 @@ router.patch('/:id/set-default', async (req, res) => {
   res.json(groups);
 });
 
-// DELETE /api/task-groups/:id — nullifies tasks' group, then deletes the group
+// DELETE /api/task-groups/:id — moves tasks to default group, then deletes the group
 router.delete('/:id', async (req, res) => {
   const userId = req.user!.id;
   const id = Number(req.params.id);
@@ -139,7 +145,14 @@ router.delete('/:id', async (req, res) => {
   })).rows[0] as unknown as { id: number; google_list_id: string | null; is_default: number } | undefined;
   if (!existing) { res.status(404).json({ error: 'Group not found' }); return; }
   if (existing.is_default) { res.status(403).json({ error: 'Cannot delete the default group' }); return; }
-  await db.execute({ sql: 'UPDATE tasks SET task_group_id = NULL WHERE task_group_id = ? AND user_id = ?', args: [id, userId] });
+
+  // Move tasks to the default group (or NULL if none exists)
+  const defaultGroup = (await db.execute({
+    sql: 'SELECT id FROM task_groups WHERE user_id = ? AND is_default = 1 LIMIT 1',
+    args: [userId],
+  })).rows[0];
+  const fallbackId = defaultGroup ? defaultGroup.id : null;
+  await db.execute({ sql: 'UPDATE tasks SET task_group_id = ? WHERE task_group_id = ? AND user_id = ?', args: [fallbackId, id, userId] });
   await db.execute({ sql: 'DELETE FROM task_groups WHERE id = ? AND user_id = ?', args: [id, userId] });
   // Delete the Google Task list if linked
   try {

@@ -389,11 +389,10 @@ export default function TasksPage() {
     finally { setCalSyncing(false); }
   }
 
-  // Tabs: "All" + one per group + ungrouped
+  // Tabs: "All" + one per group (no Ungrouped — all tasks belong to a group)
   const tabs = [
     { id: 'all' as const, label: 'All', isDefault: false, isGoogle: false },
     ...groups.map(g => ({ id: g.id, label: g.name, isDefault: !!g.is_default, isGoogle: !!g.google_list_id })),
-    { id: null as null, label: 'Ungrouped', isDefault: false, isGoogle: false },
   ];
 
   const activeTab = tabs.find(t => t.id === activeGroupId) ?? tabs[0];
