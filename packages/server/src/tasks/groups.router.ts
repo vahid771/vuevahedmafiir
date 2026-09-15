@@ -295,10 +295,11 @@ router.post('/sync-google', async (req, res) => {
     } catch { /* non-fatal */ }
   }
 
-  // Build a group-id → google_list_id map from the already-updated localGroups array
+  // Build a group-id → google_list_id map. Normalise keys to Number() because
+  // libSQL can return BigInt for integer columns, which would cause Map misses.
   const groupListMap = new Map<number, string>();
   for (const g of localGroups) {
-    if (g.google_list_id) groupListMap.set(g.id, g.google_list_id);
+    if (g.google_list_id) groupListMap.set(Number(g.id), g.google_list_id);
   }
 
   // Push local tasks with no google_task_id
@@ -314,7 +315,7 @@ router.post('/sync-google', async (req, res) => {
 
   const fallbackListId = googleDefaultListId;
   for (const task of localUnsynced) {
-    const targetListId = (task.task_group_id ? groupListMap.get(task.task_group_id) : null) ?? fallbackListId;
+    const targetListId = (task.task_group_id != null ? groupListMap.get(Number(task.task_group_id)) : null) ?? fallbackListId;
     if (!targetListId) continue;
     try {
       const gt = await createGoogleTask(auth, targetListId, {

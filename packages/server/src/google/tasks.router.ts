@@ -107,11 +107,12 @@ async function performFullSync(userId: number, auth: OAuth2Client): Promise<void
     } catch { /* non-fatal */ }
   }
 
-  // Build a group-id → google_list_id map from the already-updated localGroups array
-  // (in-memory updates are authoritative; avoids a stale JOIN read)
+  // Build a group-id → google_list_id map from the already-updated localGroups array.
+  // Use Number() keys — libSQL can return BigInt for integer columns and Map lookups
+  // are identity-typed, so we normalise everything to number.
   const groupListMap = new Map<number, string>();
   for (const g of localGroups) {
-    if (g.google_list_id) groupListMap.set(g.id, g.google_list_id);
+    if (g.google_list_id) groupListMap.set(Number(g.id), g.google_list_id);
   }
 
   // Push local tasks that have no google_task_id
@@ -128,7 +129,7 @@ async function performFullSync(userId: number, auth: OAuth2Client): Promise<void
   const fallbackListId = googleDefaultListId;
 
   for (const task of localUnsynced) {
-    const targetListId = (task.task_group_id ? groupListMap.get(task.task_group_id) : null) ?? fallbackListId;
+    const targetListId = (task.task_group_id != null ? groupListMap.get(Number(task.task_group_id)) : null) ?? fallbackListId;
     if (!targetListId) continue;
     try {
       const gt = await createGoogleTask(auth, targetListId, {
