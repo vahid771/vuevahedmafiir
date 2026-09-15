@@ -70,7 +70,7 @@ router.patch('/:id', async (req, res) => {
   const existing = (await db.execute({
     sql: 'SELECT id, google_list_id FROM task_groups WHERE id = ? AND user_id = ?',
     args: [id, userId],
-  })).rows[0] as { id: number; google_list_id: string | null } | undefined;
+  })).rows[0] as unknown as { id: number; google_list_id: string | null } | undefined;
   if (!existing) { res.status(404).json({ error: 'Group not found' }); return; }
 
   await db.execute({
