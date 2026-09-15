@@ -232,6 +232,19 @@ router.delete('/:id', async (req, res) => {
   res.status(204).send();
 });
 
+// GET /api/documents/token-info
+// Shows what scopes the current Drive token actually has
+router.get('/token-info', async (req, res) => {
+  const userId = req.user!.id;
+  const row = (await db.execute({
+    sql: 'SELECT access_token FROM google_tokens WHERE user_id = ?',
+    args: [userId],
+  })).rows[0] as unknown as { access_token: string } | undefined;
+  if (!row) { res.status(404).json({ error: 'not connected' }); return; }
+  const info = await fetch(`https://www.googleapis.com/oauth2/v1/tokeninfo?access_token=${row.access_token}`);
+  res.json(await info.json());
+});
+
 // GET /api/documents/debug-drive
 // Returns the resolved folder ID and raw file list from Drive — for diagnosing sync issues.
 router.get('/debug-drive', async (req, res) => {
