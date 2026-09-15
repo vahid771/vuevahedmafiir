@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import type { OAuth2Client } from 'google-auth-library';
 import { db } from '../db';
 import { authenticateToken } from '../middleware/authenticate';
 import {
@@ -7,7 +8,143 @@ import {
   getAuthedTasksClient,
   listTaskLists,
   listGoogleTasks,
+  createGoogleTaskList,
+  createGoogleTask,
 } from './tasks.service';
+
+/**
+ * Full bidirectional sync between Google Tasks and local DB for a given user.
+ * - Google → Local: all lists become groups, all tasks are upserted into those groups.
+ * - Local → Google: groups without a google_list_id get a new Google list;
+ *                   tasks without a google_task_id get pushed to their group's list.
+ */
+async function performFullSync(userId: number, auth: OAuth2Client): Promise<void> {
+  const googleLists = await listTaskLists(auth);
+  const googleDefaultListId = googleLists.length > 0 ? googleLists[0].id : null;
+
+  // --- Link local default group to Google's default list if not yet linked ---
+  const localDefaultGroup = (await db.execute({
+    sql: 'SELECT id, google_list_id FROM task_groups WHERE user_id = ? AND is_default = 1',
+    args: [userId],
+  })).rows[0] as unknown as { id: number; google_list_id: string | null } | undefined;
+
+  if (localDefaultGroup && !localDefaultGroup.google_list_id && googleDefaultListId) {
+    await db.execute({
+      sql: 'UPDATE task_groups SET google_list_id = ?, is_google_default = 1 WHERE id = ?',
+      args: [googleDefaultListId, localDefaultGroup.id],
+    });
+    localDefaultGroup.google_list_id = googleDefaultListId;
+  }
+
+  // --- Reset is_google_default, then re-mark ---
+  await db.execute({ sql: 'UPDATE task_groups SET is_google_default = 0 WHERE user_id = ?', args: [userId] });
+
+  // --- Google → Local: upsert all lists as groups, upsert all tasks ---
+  for (const [idx, gl] of googleLists.entries()) {
+    const isGoogleDefault = idx === 0 ? 1 : 0;
+
+    const existingGroup = (await db.execute({
+      sql: 'SELECT id FROM task_groups WHERE user_id = ? AND google_list_id = ?',
+      args: [userId, gl.id],
+    })).rows[0];
+
+    let groupId: number;
+    if (existingGroup) {
+      await db.execute({
+        sql: 'UPDATE task_groups SET name = ?, is_google_default = ? WHERE id = ?',
+        args: [gl.title, isGoogleDefault, existingGroup.id],
+      });
+      groupId = existingGroup.id as number;
+    } else {
+      const ins = await db.execute({
+        sql: 'INSERT INTO task_groups (user_id, name, google_list_id, is_google_default) VALUES (?, ?, ?, ?)',
+        args: [userId, gl.title, gl.id, isGoogleDefault],
+      });
+      groupId = Number(ins.lastInsertRowid!);
+    }
+
+    const googleTasks = await listGoogleTasks(auth, gl.id);
+    for (const gt of googleTasks) {
+      const localStatus = gt.status === 'completed' ? 'done' : 'open';
+      const dueDate = gt.due ? gt.due.substring(0, 10) : null;
+      const existingTask = (await db.execute({
+        sql: 'SELECT id FROM tasks WHERE google_task_id = ? AND user_id = ?',
+        args: [gt.id, userId],
+      })).rows[0];
+
+      if (existingTask) {
+        await db.execute({
+          sql: 'UPDATE tasks SET title = ?, description = ?, due_date = ?, status = ?, task_group_id = ? WHERE id = ? AND user_id = ?',
+          args: [gt.title, gt.notes ?? null, dueDate, localStatus, groupId, existingTask.id, userId],
+        });
+      } else {
+        await db.execute({
+          sql: `INSERT INTO tasks (user_id, title, description, due_date, priority, status, google_task_id, task_group_id)
+                VALUES (?, ?, ?, ?, 'medium', ?, ?, ?)`,
+          args: [userId, gt.title, gt.notes ?? null, dueDate, localStatus, gt.id, groupId],
+        });
+      }
+    }
+  }
+
+  // --- Local → Google: push local groups and tasks that have no Google counterpart ---
+
+  // Push local groups that have no google_list_id yet
+  const localGroups = (await db.execute({
+    sql: 'SELECT id, name, google_list_id FROM task_groups WHERE user_id = ?',
+    args: [userId],
+  })).rows as unknown as { id: number; name: string; google_list_id: string | null }[];
+
+  for (const group of localGroups) {
+    if (group.google_list_id) continue; // already linked
+    try {
+      const gl = await createGoogleTaskList(auth, group.name);
+      await db.execute({
+        sql: 'UPDATE task_groups SET google_list_id = ? WHERE id = ?',
+        args: [gl.id, group.id],
+      });
+      group.google_list_id = gl.id;
+    } catch { /* non-fatal */ }
+  }
+
+  // Push local tasks that have no google_task_id
+  const localUnsynced = (await db.execute({
+    sql: `SELECT t.id, t.title, t.description, t.due_date, t.status, t.task_group_id,
+                 tg.google_list_id
+          FROM tasks t
+          LEFT JOIN task_groups tg ON tg.id = t.task_group_id
+          WHERE t.user_id = ? AND t.google_task_id IS NULL`,
+    args: [userId],
+  })).rows as unknown as {
+    id: number; title: string; description: string | null;
+    due_date: string | null; status: string;
+    task_group_id: number | null; google_list_id: string | null;
+  }[];
+
+  // Also get the legacy fallback list id
+  const tokenRow = (await db.execute({
+    sql: 'SELECT task_list_id FROM google_tasks_tokens WHERE user_id = ?',
+    args: [userId],
+  })).rows[0] as unknown as { task_list_id: string | null } | undefined;
+  const fallbackListId = tokenRow?.task_list_id ?? googleDefaultListId;
+
+  for (const task of localUnsynced) {
+    const targetListId = task.google_list_id ?? fallbackListId;
+    if (!targetListId) continue;
+    try {
+      const gt = await createGoogleTask(auth, targetListId, {
+        title: task.title,
+        notes: task.description ?? undefined,
+        due: task.due_date ? `${task.due_date}T00:00:00.000Z` : undefined,
+        status: (task.status as 'open' | 'done'),
+      });
+      await db.execute({
+        sql: 'UPDATE tasks SET google_task_id = ? WHERE id = ?',
+        args: [gt.id, task.id],
+      });
+    } catch { /* non-fatal */ }
+  }
+}
 
 const router = Router();
 
@@ -30,7 +167,7 @@ router.get('/connect', (req, res) => {
 });
 
 // GET /api/google-tasks/callback
-// Exchanges code, saves tokens, fetches task lists, redirects to list picker
+// Exchanges code, saves tokens, runs full bidirectional sync, redirects to /tasks
 router.get('/callback', async (req, res) => {
   const { code, state } = req.query as { code?: string; state?: string };
 
@@ -62,11 +199,14 @@ router.get('/callback', async (req, res) => {
   });
 
   const auth = getAuthedTasksClient(tokens);
-  const lists = await listTaskLists(auth);
-  const encodedLists = encodeURIComponent(Buffer.from(JSON.stringify(lists)).toString('base64'));
+
+  // Run full bidirectional sync — non-fatal if it fails, user can sync manually
+  try {
+    await performFullSync(userId, auth);
+  } catch { /* non-fatal */ }
 
   const clientOrigin = process.env.CLIENT_ORIGIN ?? 'http://localhost:5173';
-  res.redirect(`${clientOrigin}/settings?gtasks=pick&lists=${encodedLists}`);
+  res.redirect(`${clientOrigin}/tasks`);
 });
 
 // GET /api/google-tasks/task-lists

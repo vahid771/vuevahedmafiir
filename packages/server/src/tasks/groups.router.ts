@@ -6,6 +6,7 @@ import {
   listTaskLists,
   listGoogleTasks,
   createGoogleTaskList,
+  createGoogleTask,
   updateGoogleTaskList,
   deleteGoogleTaskList,
 } from '../google/tasks.service';
@@ -272,6 +273,57 @@ router.post('/sync-google', async (req, res) => {
         });
       }
     }
+  }
+
+  // --- Local → Google: push local groups and tasks with no Google counterpart ---
+
+  // Re-fetch groups (may have new google_list_ids from above)
+  const localGroups = (await db.execute({
+    sql: 'SELECT id, name, google_list_id FROM task_groups WHERE user_id = ?',
+    args: [userId],
+  })).rows as unknown as { id: number; name: string; google_list_id: string | null }[];
+
+  for (const group of localGroups) {
+    if (group.google_list_id) continue;
+    try {
+      const gl = await createGoogleTaskList(auth, group.name);
+      await db.execute({
+        sql: 'UPDATE task_groups SET google_list_id = ? WHERE id = ?',
+        args: [gl.id, group.id],
+      });
+      group.google_list_id = gl.id;
+    } catch { /* non-fatal */ }
+  }
+
+  // Push local tasks with no google_task_id
+  const localUnsynced = (await db.execute({
+    sql: `SELECT t.id, t.title, t.description, t.due_date, t.status,
+                 tg.google_list_id
+          FROM tasks t
+          LEFT JOIN task_groups tg ON tg.id = t.task_group_id
+          WHERE t.user_id = ? AND t.google_task_id IS NULL`,
+    args: [userId],
+  })).rows as unknown as {
+    id: number; title: string; description: string | null;
+    due_date: string | null; status: string; google_list_id: string | null;
+  }[];
+
+  const fallbackListId = googleDefaultListId;
+  for (const task of localUnsynced) {
+    const targetListId = task.google_list_id ?? fallbackListId;
+    if (!targetListId) continue;
+    try {
+      const gt = await createGoogleTask(auth, targetListId, {
+        title: task.title,
+        notes: task.description ?? undefined,
+        due: task.due_date ? `${task.due_date}T00:00:00.000Z` : undefined,
+        status: task.status as 'open' | 'done',
+      });
+      await db.execute({
+        sql: 'UPDATE tasks SET google_task_id = ? WHERE id = ?',
+        args: [gt.id, task.id],
+      });
+    } catch { /* non-fatal */ }
   }
 
   // Return updated groups
