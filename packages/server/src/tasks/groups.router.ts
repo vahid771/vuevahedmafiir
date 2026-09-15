@@ -7,6 +7,7 @@ import {
   listGoogleTasks,
   createGoogleTaskList,
   updateGoogleTaskList,
+  deleteGoogleTaskList,
 } from '../google/tasks.service';
 
 async function getGoogleTasksAuth(userId: number) {
@@ -98,12 +99,19 @@ router.delete('/:id', async (req, res) => {
   const userId = req.user!.id;
   const id = Number(req.params.id);
   const existing = (await db.execute({
-    sql: 'SELECT id FROM task_groups WHERE id = ? AND user_id = ?',
+    sql: 'SELECT id, google_list_id FROM task_groups WHERE id = ? AND user_id = ?',
     args: [id, userId],
-  })).rows[0];
+  })).rows[0] as unknown as { id: number; google_list_id: string | null } | undefined;
   if (!existing) { res.status(404).json({ error: 'Group not found' }); return; }
   await db.execute({ sql: 'UPDATE tasks SET task_group_id = NULL WHERE task_group_id = ? AND user_id = ?', args: [id, userId] });
   await db.execute({ sql: 'DELETE FROM task_groups WHERE id = ? AND user_id = ?', args: [id, userId] });
+  // Delete the Google Task list if linked
+  try {
+    if (existing.google_list_id) {
+      const auth = await getGoogleTasksAuth(userId);
+      if (auth) await deleteGoogleTaskList(auth, existing.google_list_id);
+    }
+  } catch { /* non-fatal */ }
   res.status(204).send();
 });
 

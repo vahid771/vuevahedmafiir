@@ -80,6 +80,14 @@ export async function updateGoogleTaskList(
   await tasks.tasklists.patch({ tasklist: taskListId, requestBody: { title } });
 }
 
+export async function deleteGoogleTaskList(
+  auth: OAuth2Client,
+  taskListId: string,
+): Promise<void> {
+  const tasks = google.tasks({ version: 'v1', auth });
+  await tasks.tasklists.delete({ tasklist: taskListId });
+}
+
 export async function createGoogleTask(
   auth: OAuth2Client,
   taskListId: string,
