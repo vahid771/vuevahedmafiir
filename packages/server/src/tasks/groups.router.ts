@@ -53,8 +53,15 @@ router.post('/', async (req, res) => {
   try {
     const auth = await getGoogleTasksAuth(userId);
     if (auth) {
-      const gl = await createGoogleTaskList(auth, name.trim());
-      googleListId = gl.id;
+      if (isDefault) {
+        // Link the local default group to Google's default list (first in the list)
+        // instead of creating a brand-new list.
+        const googleLists = await listTaskLists(auth);
+        googleListId = googleLists.length > 0 ? googleLists[0].id : null;
+      } else {
+        const gl = await createGoogleTaskList(auth, name.trim());
+        googleListId = gl.id;
+      }
     }
   } catch { /* non-fatal */ }
 
@@ -146,8 +153,26 @@ router.post('/sync-google', async (req, res) => {
 
   const googleLists = await listTaskLists(auth);
 
+  // The first list returned by Google is always their default "My Tasks" list.
+  const googleDefaultListId = googleLists.length > 0 ? googleLists[0].id : null;
+
+  // Fetch our local default group once so we can link it if needed.
+  const localDefaultGroup = (await db.execute({
+    sql: 'SELECT id, google_list_id FROM task_groups WHERE user_id = ? AND is_default = 1',
+    args: [userId],
+  })).rows[0] as unknown as { id: number; google_list_id: string | null } | undefined;
+
+  // If the local default group has no google_list_id yet, link it to Google's default list.
+  if (localDefaultGroup && !localDefaultGroup.google_list_id && googleDefaultListId) {
+    await db.execute({
+      sql: 'UPDATE task_groups SET google_list_id = ? WHERE id = ?',
+      args: [googleDefaultListId, localDefaultGroup.id],
+    });
+    localDefaultGroup.google_list_id = googleDefaultListId;
+  }
+
   for (const gl of googleLists) {
-    // Upsert group by google_list_id
+    // Upsert group by google_list_id — also match the local default group by Google's default list id.
     const existing = (await db.execute({
       sql: 'SELECT id FROM task_groups WHERE user_id = ? AND google_list_id = ?',
       args: [userId, gl.id],
@@ -161,6 +186,7 @@ router.post('/sync-google', async (req, res) => {
       });
       groupId = existing.id as number;
     } else {
+      // No local group linked to this Google list — create one (non-default)
       const ins = await db.execute({
         sql: 'INSERT INTO task_groups (user_id, name, google_list_id) VALUES (?, ?, ?)',
         args: [userId, gl.title, gl.id],
