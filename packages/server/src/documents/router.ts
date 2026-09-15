@@ -232,32 +232,6 @@ router.delete('/:id', async (req, res) => {
   res.status(204).send();
 });
 
-// GET /api/documents/token-info
-// Shows what scopes the current Drive token actually has
-router.get('/token-info', async (req, res) => {
-  const userId = req.user!.id;
-  const row = (await db.execute({
-    sql: 'SELECT access_token FROM google_tokens WHERE user_id = ?',
-    args: [userId],
-  })).rows[0] as unknown as { access_token: string } | undefined;
-  if (!row) { res.status(404).json({ error: 'not connected' }); return; }
-  const info = await fetch(`https://www.googleapis.com/oauth2/v1/tokeninfo?access_token=${row.access_token}`);
-  res.json(await info.json());
-});
-
-// GET /api/documents/debug-drive
-// Returns the resolved folder ID and raw file list from Drive — for diagnosing sync issues.
-router.get('/debug-drive', async (req, res) => {
-  const userId = req.user!.id;
-  const drive = await getDriveAuth(userId, { forceRefreshFolder: true });
-  if (!drive) {
-    res.status(403).json({ error: 'Google Drive not connected' });
-    return;
-  }
-  const files = await listFilesInFolder(drive.auth, drive.folderId);
-  res.json({ folderId: drive.folderId, fileCount: files.length, files });
-});
-
 // POST /api/documents/sync-drive
 // Lists all files in the app's Drive folder and upserts them into the local DB.
 // Files deleted from Drive are removed from the local DB.
