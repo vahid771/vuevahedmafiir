@@ -11,6 +11,7 @@ import {
 import { formatDateTime } from '../utils/format';
 import ReminderForm, { type ReminderFormState, EMPTY_REMINDER_FORM } from '../components/reminders/ReminderForm';
 import { getGoogleCalendarStatus, syncFromGoogleCalendar } from '../api/googleCalendar';
+import { useSyncQueue } from '../context/SyncQueueContext';
 
 function reminderToForm(r: Reminder): ReminderFormState {
   // datetime-local input needs YYYY-MM-DDTHH:MM
@@ -24,6 +25,7 @@ function reminderToForm(r: Reminder): ReminderFormState {
 export default function RemindersPage() {
   const { token } = useAuth();
   const { calendar } = useCalendar();
+  const { addJob } = useSyncQueue();
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -88,9 +90,13 @@ export default function RemindersPage() {
     try {
       const payload = { ...form, notes: form.notes || null };
       if (editId !== null) {
-        await updateReminder(token!, editId, payload);
+        await (gcalConnected
+          ? addJob(`Update "${form.title}" on Google Calendar`, () => updateReminder(token!, editId, payload).then(() => {}))
+          : updateReminder(token!, editId, payload));
       } else {
-        await createReminder(token!, payload);
+        await (gcalConnected
+          ? addJob(`Add "${form.title}" to Google Calendar`, () => createReminder(token!, payload).then(() => {}))
+          : createReminder(token!, payload));
       }
       cancelForm();
       await load();
@@ -103,7 +109,9 @@ export default function RemindersPage() {
 
   async function toggleDone(r: Reminder) {
     try {
-      await updateReminder(token!, r.id, { done: r.done ? 0 : 1 });
+      await (gcalConnected
+        ? addJob(`Update "${r.title}" on Google Calendar`, () => updateReminder(token!, r.id, { done: r.done ? 0 : 1 }).then(() => {}))
+        : updateReminder(token!, r.id, { done: r.done ? 0 : 1 }));
       await load();
     } catch {
       setError('Failed to update reminder');
@@ -113,7 +121,9 @@ export default function RemindersPage() {
   async function handleDelete(id: number) {
     if (!confirm('Delete this reminder?')) return;
     try {
-      await deleteReminder(token!, id);
+      await (gcalConnected
+        ? addJob(`Delete reminder from Google Calendar`, () => deleteReminder(token!, id).then(() => {}))
+        : deleteReminder(token!, id));
       await load();
     } catch {
       setError('Failed to delete reminder');
@@ -128,12 +138,28 @@ export default function RemindersPage() {
           <p className={`text-sm mt-0.5 ${isOverdue ? 'text-red-600' : 'text-gray-500'}`}>{formatDateTime(r.remind_at, calendar)}</p>
           {r.notes && <p className="text-sm text-gray-400 mt-0.5 truncate">{r.notes}</p>}
         </div>
-        <div className="flex items-center gap-2 ml-3 shrink-0">
-          <button onClick={() => toggleDone(r)} className={`text-xs px-2 py-1 rounded border ${r.done ? 'border-gray-300 text-gray-500' : 'border-green-400 text-green-700 hover:bg-green-50'}`}>
-            {r.done ? 'Undo' : 'Done'}
+        <div className="flex items-center gap-1 ml-3 shrink-0">
+          <button onClick={() => toggleDone(r)} title={r.done ? 'Undo' : 'Mark done'} className={`p-1.5 rounded transition-colors ${r.done ? 'text-gray-400 hover:text-gray-600 hover:bg-gray-50' : 'text-gray-400 hover:text-green-600 hover:bg-green-50'}`}>
+            {r.done ? (
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+              </svg>
+            ) : (
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            )}
           </button>
-          <button onClick={() => startEdit(r)} className="text-xs px-2 py-1 rounded border border-gray-300 text-gray-600 hover:bg-gray-50">Edit</button>
-          <button onClick={() => handleDelete(r.id)} className="text-xs px-2 py-1 rounded border border-red-300 text-red-600 hover:bg-red-50">Del</button>
+          <button onClick={() => startEdit(r)} title="Edit" className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+          </button>
+          <button onClick={() => handleDelete(r.id)} title="Delete" className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+          </button>
         </div>
       </div>
     );
