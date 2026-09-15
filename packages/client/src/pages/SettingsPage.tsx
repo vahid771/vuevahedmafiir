@@ -69,7 +69,9 @@ export default function SettingsPage() {
       const encodedLists = params.get('lists');
       if (encodedLists) {
         try {
-          const lists: GoogleTaskList[] = JSON.parse(atob(encodedLists));
+          const binary = atob(encodedLists);
+          const bytes = Uint8Array.from(binary, c => c.charCodeAt(0));
+          const lists: GoogleTaskList[] = JSON.parse(new TextDecoder().decode(bytes));
           setPickerLists(lists);
           if (lists.length > 0) setPickerSelected(lists[0].id);
         } catch {
