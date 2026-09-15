@@ -9,6 +9,7 @@ export interface TaskGroup {
   google_list_id: string | null;
   sort_order: number;
   is_default: number;
+  is_google_default: number;
   created_at: string;
 }
 

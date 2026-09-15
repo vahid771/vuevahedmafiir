@@ -392,7 +392,7 @@ export default function TasksPage() {
   // Tabs: "All" + one per group (no Ungrouped — all tasks belong to a group)
   const tabs = [
     { id: 'all' as const, label: 'All', isDefault: false, isGoogle: false },
-    ...groups.map(g => ({ id: g.id, label: g.name, isDefault: !!g.is_default, isGoogle: !!g.google_list_id })),
+    ...groups.map(g => ({ id: g.id, label: g.name, isDefault: !!g.is_default, isGoogleDefault: !!g.is_google_default, isGoogle: !!g.google_list_id })),
   ];
 
   const activeTab = tabs.find(t => t.id === activeGroupId) ?? tabs[0];
@@ -435,6 +435,7 @@ export default function TasksPage() {
           const isActive = tab.id === activeGroupId;
           const isGroup = typeof tab.id === 'number';
           const isDefault = tab.isDefault;
+          const isGoogleDefault = (tab as any).isGoogleDefault ?? false;
           return (
             <div key={String(tab.id)} className="flex items-center group shrink-0">
               {typeof tab.id === 'number' && renamingId === tab.id ? (
@@ -482,13 +483,15 @@ export default function TasksPage() {
                       <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                     </svg>
                   </button>
-                  <button onClick={() => handleDeleteGroup(tab.id as number)}
-                    title="Delete group"
-                    className="p-0.5 text-gray-300 hover:text-red-500 transition-colors">
-                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
+                  {!isGoogleDefault && (
+                    <button onClick={() => handleDeleteGroup(tab.id as number)}
+                      title="Delete group"
+                      className="p-0.5 text-gray-300 hover:text-red-500 transition-colors">
+                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  )}
                 </div>
               )}
             </div>

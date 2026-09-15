@@ -50,6 +50,7 @@ router.post('/', async (req, res) => {
   const isDefault = existingCount.cnt === 0 ? 1 : 0;
 
   let googleListId: string | null = null;
+  let isGoogleDefault = 0;
   try {
     const auth = await getGoogleTasksAuth(userId);
     if (auth) {
@@ -57,7 +58,10 @@ router.post('/', async (req, res) => {
         // Link the local default group to Google's default list (first in the list)
         // instead of creating a brand-new list.
         const googleLists = await listTaskLists(auth);
-        googleListId = googleLists.length > 0 ? googleLists[0].id : null;
+        if (googleLists.length > 0) {
+          googleListId = googleLists[0].id;
+          isGoogleDefault = 1;
+        }
       } else {
         const gl = await createGoogleTaskList(auth, name.trim());
         googleListId = gl.id;
@@ -66,8 +70,8 @@ router.post('/', async (req, res) => {
   } catch { /* non-fatal */ }
 
   const result = await db.execute({
-    sql: 'INSERT INTO task_groups (user_id, name, google_list_id, is_default) VALUES (?, ?, ?, ?)',
-    args: [userId, name.trim(), googleListId, isDefault],
+    sql: 'INSERT INTO task_groups (user_id, name, google_list_id, is_default, is_google_default) VALUES (?, ?, ?, ?, ?)',
+    args: [userId, name.trim(), googleListId, isDefault, isGoogleDefault],
   });
   const group = (await db.execute({
     sql: 'SELECT * FROM task_groups WHERE id = ?',
@@ -151,11 +155,12 @@ router.delete('/:id', async (req, res) => {
   const userId = req.user!.id;
   const id = Number(req.params.id);
   const existing = (await db.execute({
-    sql: 'SELECT id, google_list_id, is_default FROM task_groups WHERE id = ? AND user_id = ?',
+    sql: 'SELECT id, google_list_id, is_default, is_google_default FROM task_groups WHERE id = ? AND user_id = ?',
     args: [id, userId],
-  })).rows[0] as unknown as { id: number; google_list_id: string | null; is_default: number } | undefined;
+  })).rows[0] as unknown as { id: number; google_list_id: string | null; is_default: number; is_google_default: number } | undefined;
   if (!existing) { res.status(404).json({ error: 'Group not found' }); return; }
   if (existing.is_default) { res.status(403).json({ error: 'Cannot delete the default group' }); return; }
+  if (existing.is_google_default) { res.status(403).json({ error: 'Cannot delete the Google Tasks default list group' }); return; }
 
   // Move tasks to the default group (or NULL if none exists)
   const defaultGroup = (await db.execute({
@@ -216,7 +221,12 @@ router.post('/sync-google', async (req, res) => {
     localDefaultGroup.google_list_id = googleDefaultListId;
   }
 
-  for (const gl of googleLists) {
+  // Reset is_google_default on all groups before re-marking
+  await db.execute({ sql: 'UPDATE task_groups SET is_google_default = 0 WHERE user_id = ?', args: [userId] });
+
+  for (const [idx, gl] of googleLists.entries()) {
+    const isGoogleDefault = idx === 0 ? 1 : 0;
+
     // Upsert group by google_list_id — also match the local default group by Google's default list id.
     const existing = (await db.execute({
       sql: 'SELECT id FROM task_groups WHERE user_id = ? AND google_list_id = ?',
@@ -226,15 +236,15 @@ router.post('/sync-google', async (req, res) => {
     let groupId: number;
     if (existing) {
       await db.execute({
-        sql: 'UPDATE task_groups SET name = ? WHERE id = ?',
-        args: [gl.title, existing.id],
+        sql: 'UPDATE task_groups SET name = ?, is_google_default = ? WHERE id = ?',
+        args: [gl.title, isGoogleDefault, existing.id],
       });
       groupId = existing.id as number;
     } else {
       // No local group linked to this Google list — create one (non-default)
       const ins = await db.execute({
-        sql: 'INSERT INTO task_groups (user_id, name, google_list_id) VALUES (?, ?, ?)',
-        args: [userId, gl.title, gl.id],
+        sql: 'INSERT INTO task_groups (user_id, name, google_list_id, is_google_default) VALUES (?, ?, ?, ?)',
+        args: [userId, gl.title, gl.id, isGoogleDefault],
       });
       groupId = Number(ins.lastInsertRowid!);
     }
