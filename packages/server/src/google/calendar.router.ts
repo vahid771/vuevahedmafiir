@@ -6,7 +6,9 @@ import {
   exchangeCalendarCode,
   getAuthedCalendarClient,
   listCalendarEvents,
+  createCalendarEvent,
 } from './calendar.service';
+import { nextOccurrence } from '../utils/dates';
 import type { OAuth2Client } from 'google-auth-library';
 
 const router = Router();
@@ -19,10 +21,11 @@ router.get('/connect', (req, res) => {
     req.headers['authorization'] = `Bearer ${token}`;
   }
 
-  authenticateToken(req, res, () => {
+  authenticateToken(req, res, async () => {
     const userId = req.user!.id;
     const state = Buffer.from(String(userId)).toString('base64');
-    const url = getCalendarAuthUrl(state);
+    const userRow = (await db.execute({ sql: 'SELECT email FROM users WHERE id = ?', args: [userId] })).rows[0];
+    const url = getCalendarAuthUrl(state, (userRow?.email as string | null) ?? undefined);
     res.redirect(url);
   });
 });
@@ -61,6 +64,75 @@ router.get('/callback', async (req, res) => {
   });
 
   const clientOrigin = process.env.CLIENT_ORIGIN ?? 'http://localhost:5173';
+
+  // Back-fill: push all existing local items that don't yet have a google_calendar_event_id
+  try {
+    const auth = getAuthedCalendarClient(tokens);
+    const calendarId = 'primary';
+
+    // Important dates
+    const existingDates = (await db.execute({
+      sql: 'SELECT * FROM important_dates WHERE user_id = ? AND (google_calendar_event_id IS NULL OR google_calendar_event_id = "")',
+      args: [userId],
+    })).rows;
+    for (const d of existingDates) {
+      try {
+        const gcEvent = await createCalendarEvent(auth, calendarId, {
+          summary: d.title as string,
+          description: (d.notes as string | null) ?? undefined,
+          start: { date: d.date as string },
+          end: { date: d.date as string },
+        });
+        await db.execute({
+          sql: 'UPDATE important_dates SET google_calendar_event_id = ? WHERE id = ?',
+          args: [gcEvent.id, d.id],
+        });
+      } catch { /* skip individual failures */ }
+    }
+
+    // Reminders
+    const existingReminders = (await db.execute({
+      sql: 'SELECT * FROM reminders WHERE user_id = ? AND (google_calendar_event_id IS NULL OR google_calendar_event_id = "")',
+      args: [userId],
+    })).rows;
+    for (const r of existingReminders) {
+      try {
+        const remindAt = r.remind_at as string;
+        const remindAtFull = /T\d{2}:\d{2}$/.test(remindAt) ? remindAt + ':00' : remindAt;
+        const gcEvent = await createCalendarEvent(auth, calendarId, {
+          summary: r.title as string,
+          description: (r.notes as string | null) ?? undefined,
+          start: { dateTime: remindAtFull, timeZone: 'UTC' },
+          end: { dateTime: remindAtFull, timeZone: 'UTC' },
+        });
+        await db.execute({
+          sql: 'UPDATE reminders SET google_calendar_event_id = ? WHERE id = ?',
+          args: [gcEvent.id, r.id],
+        });
+      } catch { /* skip individual failures */ }
+    }
+
+    // Tasks with due_date
+    const existingTasks = (await db.execute({
+      sql: 'SELECT * FROM tasks WHERE user_id = ? AND due_date IS NOT NULL AND (google_calendar_event_id IS NULL OR google_calendar_event_id = "")',
+      args: [userId],
+    })).rows;
+    for (const t of existingTasks) {
+      try {
+        const gcEvent = await createCalendarEvent(auth, calendarId, {
+          summary: `[Task] ${t.title as string}`,
+          description: (t.description as string | null) ?? undefined,
+          start: { date: t.due_date as string },
+          end: { date: t.due_date as string },
+        });
+        await db.execute({
+          sql: 'UPDATE tasks SET google_calendar_event_id = ? WHERE id = ?',
+          args: [gcEvent.id, t.id],
+        });
+      } catch { /* skip individual failures */ }
+    }
+  } catch { /* back-fill is non-fatal */ }
+
   res.redirect(`${clientOrigin}/settings?gcal=connected`);
 });
 
@@ -125,12 +197,18 @@ router.post('/sync', authenticateToken, async (req, res) => {
 
   const events = await listCalendarEvents(auth, calendarId);
 
+  // Collect event IDs by type so we can delete orphaned local records after upsert
+  const gcalTaskIds: string[] = [];
+  const gcalReminderIds: string[] = [];
+  const gcalDateIds: string[] = [];
+
   for (const event of events) {
     const isTask = event.summary.startsWith('[Task] ') && !!event.start.dateTime;
     const isTimedReminder = !isTask && !!event.start.dateTime;
     const isAllDay = !isTask && !!event.start.date && !event.start.dateTime;
 
     if (isTask) {
+      gcalTaskIds.push(event.id);
       const title = event.summary.slice('[Task] '.length);
       const dueDate = event.start.dateTime!.substring(0, 10);
       const existing = (await db.execute({
@@ -150,6 +228,7 @@ router.post('/sync', authenticateToken, async (req, res) => {
         });
       }
     } else if (isTimedReminder) {
+      gcalReminderIds.push(event.id);
       const existing = (await db.execute({
         sql: 'SELECT id FROM reminders WHERE google_calendar_event_id = ? AND user_id = ?',
         args: [event.id, userId],
@@ -167,6 +246,7 @@ router.post('/sync', authenticateToken, async (req, res) => {
         });
       }
     } else if (isAllDay) {
+      gcalDateIds.push(event.id);
       const existing = (await db.execute({
         sql: 'SELECT id FROM important_dates WHERE google_calendar_event_id = ? AND user_id = ?',
         args: [event.id, userId],
@@ -186,13 +266,59 @@ router.post('/sync', authenticateToken, async (req, res) => {
     }
   }
 
-  const [reminders, dates, tasks] = await Promise.all([
+  // Delete local records whose google_calendar_event_id is no longer in Google Calendar
+  if (gcalDateIds.length > 0) {
+    const placeholders = gcalDateIds.map(() => '?').join(', ');
+    await db.execute({
+      sql: `DELETE FROM important_dates WHERE user_id = ? AND google_calendar_event_id IS NOT NULL AND google_calendar_event_id NOT IN (${placeholders})`,
+      args: [userId, ...gcalDateIds],
+    });
+  } else {
+    // All calendar-originated dates were removed from Google — delete them all
+    await db.execute({
+      sql: `DELETE FROM important_dates WHERE user_id = ? AND google_calendar_event_id IS NOT NULL`,
+      args: [userId],
+    });
+  }
+
+  if (gcalReminderIds.length > 0) {
+    const placeholders = gcalReminderIds.map(() => '?').join(', ');
+    await db.execute({
+      sql: `DELETE FROM reminders WHERE user_id = ? AND google_calendar_event_id IS NOT NULL AND google_calendar_event_id NOT IN (${placeholders})`,
+      args: [userId, ...gcalReminderIds],
+    });
+  } else {
+    await db.execute({
+      sql: `DELETE FROM reminders WHERE user_id = ? AND google_calendar_event_id IS NOT NULL`,
+      args: [userId],
+    });
+  }
+
+  if (gcalTaskIds.length > 0) {
+    const placeholders = gcalTaskIds.map(() => '?').join(', ');
+    await db.execute({
+      sql: `DELETE FROM tasks WHERE user_id = ? AND google_calendar_event_id IS NOT NULL AND google_calendar_event_id NOT IN (${placeholders})`,
+      args: [userId, ...gcalTaskIds],
+    });
+  } else {
+    await db.execute({
+      sql: `DELETE FROM tasks WHERE user_id = ? AND google_calendar_event_id IS NOT NULL`,
+      args: [userId],
+    });
+  }
+
+  const [reminders, datesResult, tasks] = await Promise.all([
     db.execute({ sql: 'SELECT * FROM reminders WHERE user_id = ? ORDER BY created_at DESC', args: [userId] }),
     db.execute({ sql: 'SELECT * FROM important_dates WHERE user_id = ? ORDER BY date ASC', args: [userId] }),
     db.execute({ sql: 'SELECT * FROM tasks WHERE user_id = ? ORDER BY created_at DESC', args: [userId] }),
   ]);
 
-  res.json({ reminders: reminders.rows, dates: dates.rows, tasks: tasks.rows });
+  const datesWithOccurrence = datesResult.rows.map((r: any) => ({
+    ...r,
+    next_occurrence: nextOccurrence(r.date, r.recurs_yearly),
+  }));
+
+  res.json({ reminders: reminders.rows, dates: datesWithOccurrence, tasks: tasks.rows });
 });
 
 export default router;

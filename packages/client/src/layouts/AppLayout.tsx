@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import { useAuth } from '../context/AuthContext';
+import SyncQueuePanel from '../components/SyncQueuePanel';
 
 export default function AppLayout() {
   const { logout, user } = useAuth();
@@ -58,6 +59,7 @@ export default function AppLayout() {
           <Outlet />
         </main>
       </div>
+      <SyncQueuePanel />
     </div>
   );
 }

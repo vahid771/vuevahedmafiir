@@ -17,10 +17,11 @@ router.get('/connect', (req, res) => {
     req.headers['authorization'] = `Bearer ${token}`;
   }
 
-  authenticateToken(req, res, () => {
+  authenticateToken(req, res, async () => {
     const userId = req.user!.id;
     const state = Buffer.from(String(userId)).toString('base64');
-    const url = getAuthUrl(state);
+    const userRow = (await db.execute({ sql: 'SELECT email FROM users WHERE id = ?', args: [userId] })).rows[0];
+    const url = getAuthUrl(state, (userRow?.email as string | null) ?? undefined);
     res.redirect(url);
   });
 });

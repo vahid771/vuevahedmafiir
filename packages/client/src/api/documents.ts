@@ -53,3 +53,12 @@ export async function deleteDocument(token: string, id: number): Promise<void> {
   const res = await fetch(apiUrl(`/api/documents/${id}`), { method: 'DELETE', headers: authHeaders(token) });
   if (!res.ok) throw new Error('Failed to delete document');
 }
+
+export async function syncDriveDocuments(token: string): Promise<Document[]> {
+  const res = await fetch(apiUrl('/api/documents/sync-drive'), {
+    method: 'POST',
+    headers: authHeaders(token),
+  });
+  if (!res.ok) throw new Error('Failed to sync from Google Drive');
+  return res.json() as Promise<Document[]>;
+}

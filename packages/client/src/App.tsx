@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { CalendarProvider } from './context/CalendarContext';
+import { SyncQueueProvider } from './context/SyncQueueContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import AppLayout from './layouts/AppLayout';
 import LoginPage from './pages/LoginPage';
@@ -20,6 +21,7 @@ function App() {
   return (
     <AuthProvider>
       <CalendarProvider>
+      <SyncQueueProvider>
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
@@ -45,6 +47,7 @@ function App() {
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
           </Routes>
         </BrowserRouter>
+      </SyncQueueProvider>
       </CalendarProvider>
     </AuthProvider>
   );

@@ -47,11 +47,15 @@ router.post('/', async (req, res) => {
   try {
     const conn = await getGoogleCalendarConnection(userId);
     if (conn) {
+      // Google Calendar requires full ISO 8601 with seconds; datetime-local inputs omit them
+      const remindAtFull = /T\d{2}:\d{2}$/.test(reminder.remind_at)
+        ? reminder.remind_at + ':00'
+        : reminder.remind_at;
       const gcEvent = await createCalendarEvent(conn.auth, conn.calendarId, {
         summary: reminder.title,
         description: reminder.notes ?? undefined,
-        start: { dateTime: reminder.remind_at, timeZone: 'UTC' },
-        end: { dateTime: reminder.remind_at, timeZone: 'UTC' },
+        start: { dateTime: remindAtFull, timeZone: 'UTC' },
+        end: { dateTime: remindAtFull, timeZone: 'UTC' },
       });
       await db.execute({
         sql: 'UPDATE reminders SET google_calendar_event_id = ? WHERE id = ?',
@@ -59,7 +63,7 @@ router.post('/', async (req, res) => {
       });
       reminder.google_calendar_event_id = gcEvent.id;
     }
-  } catch { /* non-fatal — reminder is saved locally regardless */ }
+  } catch { /* non-fatal */ }
 
   res.status(201).json(reminder);
 });
@@ -104,11 +108,14 @@ router.patch('/:id', async (req, res) => {
     if (eventId) {
       const conn = await getGoogleCalendarConnection(userId);
       if (conn) {
+        const remindAtFull = /T\d{2}:\d{2}$/.test(updated.remind_at)
+          ? updated.remind_at + ':00'
+          : updated.remind_at;
         await updateCalendarEvent(conn.auth, conn.calendarId, eventId, {
           summary: updated.title,
           description: updated.notes ?? undefined,
-          start: { dateTime: updated.remind_at, timeZone: 'UTC' },
-          end: { dateTime: updated.remind_at, timeZone: 'UTC' },
+          start: { dateTime: remindAtFull, timeZone: 'UTC' },
+          end: { dateTime: remindAtFull, timeZone: 'UTC' },
         });
       }
     }

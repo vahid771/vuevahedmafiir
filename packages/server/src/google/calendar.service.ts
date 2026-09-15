@@ -12,13 +12,14 @@ function getCalendarOAuthClient(): OAuth2Client {
   return new google.auth.OAuth2(clientId, clientSecret, redirectUri);
 }
 
-export function getCalendarAuthUrl(state: string): string {
+export function getCalendarAuthUrl(state: string, loginHint?: string): string {
   const client = getCalendarOAuthClient();
   return client.generateAuthUrl({
     access_type: 'offline',
     prompt: 'consent',
     scope: ['https://www.googleapis.com/auth/calendar'],
     state,
+    ...(loginHint && { login_hint: loginHint }),
   });
 }
 
@@ -118,7 +119,7 @@ export async function listCalendarEvents(
     timeMin: timeMin.toISOString(),
   });
   return (res.data.items ?? [])
-    .filter((item) => !!item.id)
+    .filter((item) => !!item.id && item.eventType === 'default')
     .map((item) => ({
       id: item.id!,
       summary: item.summary ?? '',
