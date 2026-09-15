@@ -259,7 +259,15 @@ router.post('/sync-drive', async (req, res) => {
     return;
   }
 
-  const driveFiles = await listFilesInFolder(drive.auth, drive.folderId);
+  let driveFiles: Awaited<ReturnType<typeof listFilesInFolder>> = [];
+  try {
+    driveFiles = await listFilesInFolder(drive.auth, drive.folderId);
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error(`[sync-drive] Drive API error: ${msg}`);
+    res.status(502).json({ error: `Drive API error: ${msg}` });
+    return;
+  }
   console.log(`[sync-drive] userId=${userId} folderId=${drive.folderId} found=${driveFiles.length} files:`, driveFiles.map(f => f.id + ':' + f.name));
   const driveIds = driveFiles.map(f => f.id);
 
