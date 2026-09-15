@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { toJalaali, toGregorian, jalaaliMonthLength } from 'jalaali-js';
 import { useCalendar } from '../context/CalendarContext';
 import {
@@ -11,12 +11,30 @@ import {
   gregorianWeekRange,
   toJalaliDisplay,
 } from '../utils/jalali';
+import { getTasks, type Task } from '../api/tasks';
+import { getReminders, type Reminder } from '../api/reminders';
+import { getDates, type ImportantDate } from '../api/dates';
+import { useAuth } from '../context/AuthContext';
 
 type View = 'month' | 'week' | 'day';
 
 const SHORT_EN_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const SHORT_EN_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const PERSIAN_SHORT_DAYS = ['ش', 'ی', 'د', 'س', 'چ', 'پ', 'ج']; // Sat→Fri
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+export interface CalEvent {
+  id: string;
+  kind: 'task' | 'reminder' | 'date';
+  title: string;
+  date: string;       // YYYY-MM-DD
+  time?: string;      // HH:MM (reminders only)
+  done?: boolean;
+  priority?: 'low' | 'medium' | 'high';
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -34,71 +52,123 @@ function isSameDay(a: Date, b: Date): boolean {
     a.getDate() === b.getDate();
 }
 
-/** Advance a Date by N whole days */
 function addDays(d: Date, n: number): Date {
   const r = new Date(d);
   r.setDate(r.getDate() + n);
   return r;
 }
 
-/**
- * Returns the start of the week containing `d`.
- * Miladi: Sunday (getDay()===0)
- * Shamsi: Saturday (getDay()===6)
- */
+function toYMD(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 function weekStart(d: Date, shamsi: boolean): Date {
-  const dow = d.getDay(); // 0=Sun … 6=Sat
-  const offset = shamsi
-    ? (dow === 6 ? 0 : dow + 1) // distance back to Saturday
-    : dow;                       // distance back to Sunday
+  const dow = d.getDay();
+  const offset = shamsi ? (dow === 6 ? 0 : dow + 1) : dow;
   return addDays(d, -offset);
+}
+
+// ---------------------------------------------------------------------------
+// Event pill colours
+// ---------------------------------------------------------------------------
+
+const KIND_STYLE: Record<CalEvent['kind'], string> = {
+  task:     'bg-blue-100 text-blue-700 border-blue-200',
+  reminder: 'bg-amber-100 text-amber-700 border-amber-200',
+  date:     'bg-purple-100 text-purple-700 border-purple-200',
+};
+
+const KIND_DOT: Record<CalEvent['kind'], string> = {
+  task:     'bg-blue-500',
+  reminder: 'bg-amber-500',
+  date:     'bg-purple-500',
+};
+
+const KIND_ICON: Record<CalEvent['kind'], string> = {
+  task:     '✓',
+  reminder: '🔔',
+  date:     '★',
+};
+
+// ---------------------------------------------------------------------------
+// EventPill — used in week + day views
+// ---------------------------------------------------------------------------
+
+function EventPill({ ev }: { ev: CalEvent }) {
+  return (
+    <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-xs border leading-tight truncate ${KIND_STYLE[ev.kind]} ${ev.done ? 'opacity-50 line-through' : ''}`}>
+      <span className="shrink-0 text-[10px]">{KIND_ICON[ev.kind]}</span>
+      <span className="truncate">{ev.title}</span>
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------------------
 // Month view
 // ---------------------------------------------------------------------------
 
-function MonthGrid({ cursor, shamsi }: { cursor: Date; shamsi: boolean }) {
+function MonthGrid({ cursor, shamsi, events }: { cursor: Date; shamsi: boolean; events: CalEvent[] }) {
   const now = today();
 
-  if (!shamsi) {
-    // ── Miladi month grid ──────────────────────────────────────────────────
-    const year = cursor.getFullYear();
-    const month = cursor.getMonth(); // 0-based
-    const firstDow = new Date(year, month, 1).getDay(); // 0=Sun
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
+  // Index events by YYYY-MM-DD
+  const byDay = useMemo(() => {
+    const map = new Map<string, CalEvent[]>();
+    for (const ev of events) {
+      const list = map.get(ev.date) ?? [];
+      list.push(ev);
+      map.set(ev.date, list);
+    }
+    return map;
+  }, [events]);
 
+  if (!shamsi) {
+    const year = cursor.getFullYear();
+    const month = cursor.getMonth();
+    const firstDow = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
     const cells: (number | null)[] = [
       ...Array(firstDow).fill(null),
       ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
     ];
-    // pad to full weeks
     while (cells.length % 7 !== 0) cells.push(null);
 
     return (
       <div className="select-none">
-        {/* weekday headers */}
         <div className="grid grid-cols-7 mb-1">
           {SHORT_EN_DAYS.map(d => (
             <div key={d} className="text-center text-xs font-medium text-gray-400 py-1">{d}</div>
           ))}
         </div>
-        {/* day cells */}
         <div className="grid grid-cols-7">
           {cells.map((day, i) => {
-            if (day === null) return <div key={i} />;
+            if (day === null) return <div key={i} className="min-h-[60px]" />;
             const cellDate = new Date(year, month, day);
             const isToday = isSameDay(cellDate, now);
+            const ymd = toYMD(cellDate);
+            const dayEvents = byDay.get(ymd) ?? [];
             const { jd } = toJalaali(year, month + 1, day);
             return (
-              <div key={i} className="flex flex-col items-center justify-center py-1 gap-0.5">
-                <span className={`w-8 h-8 flex items-center justify-center rounded-full text-sm
-                  ${isToday ? 'bg-blue-600 text-white font-semibold' : 'text-gray-700 hover:bg-gray-100'}`}>
-                  {day}
-                </span>
-                <span className={`text-[10px] leading-none ${isToday ? 'text-blue-400' : 'text-gray-300'}`}>
-                  {toPersianDigits(jd)}
-                </span>
+              <div key={i} className={`min-h-[60px] p-0.5 border border-transparent ${isToday ? 'bg-blue-50 rounded-lg' : ''}`}>
+                <div className="flex flex-col items-center mb-0.5">
+                  <span className={`w-7 h-7 flex items-center justify-center rounded-full text-xs font-medium
+                    ${isToday ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-100'}`}>
+                    {day}
+                  </span>
+                  <span className={`text-[9px] leading-none ${isToday ? 'text-blue-400' : 'text-gray-300'}`}>
+                    {toPersianDigits(jd)}
+                  </span>
+                </div>
+                {/* dots for up to 3 events, "+N" overflow */}
+                {dayEvents.length > 0 && (
+                  <div className="flex flex-wrap gap-0.5 justify-center px-0.5">
+                    {dayEvents.slice(0, 3).map(ev => (
+                      <span key={ev.id} title={ev.title} className={`w-1.5 h-1.5 rounded-full shrink-0 ${KIND_DOT[ev.kind]} ${ev.done ? 'opacity-40' : ''}`} />
+                    ))}
+                    {dayEvents.length > 3 && (
+                      <span className="text-[9px] text-gray-400 leading-none">+{dayEvents.length - 3}</span>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}
@@ -107,50 +177,55 @@ function MonthGrid({ cursor, shamsi }: { cursor: Date; shamsi: boolean }) {
     );
   }
 
-  // ── Shamsi month grid ────────────────────────────────────────────────────
+  // Shamsi
   const { jy, jm } = toJalaali(cursor.getFullYear(), cursor.getMonth() + 1, cursor.getDate());
   const daysInJMonth = jalaliDaysInMonth(jy, jm);
-
-  // First day of this Jalali month → its Gregorian date → getDay()
   const { gy: fy, gm: fm, gd: fd } = toGregorian(jy, jm, 1);
-  const firstDow = new Date(fy, fm - 1, fd).getDay(); // 0=Sun … 6=Sat
-  // Shamsi week starts Saturday (6). Offset = how many blank cells before day 1.
+  const firstDow = new Date(fy, fm - 1, fd).getDay();
   const offset = firstDow === 6 ? 0 : (firstDow + 1) % 7;
-
   const cells: (number | null)[] = [
     ...Array(offset).fill(null),
     ...Array.from({ length: daysInJMonth }, (_, i) => i + 1),
   ];
   while (cells.length % 7 !== 0) cells.push(null);
-
-  // Today in Jalali
   const { jy: ty, jm: tm, jd: td } = toJalaali(now.getFullYear(), now.getMonth() + 1, now.getDate());
   const todayIsInMonth = ty === jy && tm === jm;
 
   return (
     <div className="select-none" dir="rtl">
-      {/* weekday headers */}
       <div className="grid grid-cols-7 mb-1">
         {PERSIAN_SHORT_DAYS.map(d => (
           <div key={d} className="text-center text-xs font-medium text-gray-400 py-1">{d}</div>
         ))}
       </div>
-      {/* day cells */}
       <div className="grid grid-cols-7">
         {cells.map((jDay, i) => {
-          if (jDay === null) return <div key={i} />;
+          if (jDay === null) return <div key={i} className="min-h-[60px]" />;
           const isToday = todayIsInMonth && td === jDay;
-          // Compute the corresponding Gregorian day number
-          const { gd } = toGregorian(jy, jm, jDay);
+          const { gy, gm: gmonth, gd } = toGregorian(jy, jm, jDay);
+          const ymd = `${gy}-${String(gmonth).padStart(2, '0')}-${String(gd).padStart(2, '0')}`;
+          const dayEvents = byDay.get(ymd) ?? [];
           return (
-            <div key={i} className="flex flex-col items-center justify-center py-1 gap-0.5">
-              <span className={`w-8 h-8 flex items-center justify-center rounded-full text-sm
-                ${isToday ? 'bg-blue-600 text-white font-semibold' : 'text-gray-700 hover:bg-gray-100'}`}>
-                {toPersianDigits(jDay)}
-              </span>
-              <span className={`text-[10px] leading-none ${isToday ? 'text-blue-400' : 'text-gray-300'}`}>
-                {gd}
-              </span>
+            <div key={i} className={`min-h-[60px] p-0.5 border border-transparent ${isToday ? 'bg-blue-50 rounded-lg' : ''}`}>
+              <div className="flex flex-col items-center mb-0.5">
+                <span className={`w-7 h-7 flex items-center justify-center rounded-full text-xs font-medium
+                  ${isToday ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-100'}`}>
+                  {toPersianDigits(jDay)}
+                </span>
+                <span className={`text-[9px] leading-none ${isToday ? 'text-blue-400' : 'text-gray-300'}`}>
+                  {gd}
+                </span>
+              </div>
+              {dayEvents.length > 0 && (
+                <div className="flex flex-wrap gap-0.5 justify-center px-0.5">
+                  {dayEvents.slice(0, 3).map(ev => (
+                    <span key={ev.id} title={ev.title} className={`w-1.5 h-1.5 rounded-full shrink-0 ${KIND_DOT[ev.kind]} ${ev.done ? 'opacity-40' : ''}`} />
+                  ))}
+                  {dayEvents.length > 3 && (
+                    <span className="text-[9px] text-gray-400 leading-none">+{dayEvents.length - 3}</span>
+                  )}
+                </div>
+              )}
             </div>
           );
         })}
@@ -163,16 +238,26 @@ function MonthGrid({ cursor, shamsi }: { cursor: Date; shamsi: boolean }) {
 // Week view
 // ---------------------------------------------------------------------------
 
-function WeekPanel({ cursor, shamsi }: { cursor: Date; shamsi: boolean }) {
+function WeekPanel({ cursor, shamsi, events }: { cursor: Date; shamsi: boolean; events: CalEvent[] }) {
   const now = today();
   const ws = weekStart(cursor, shamsi);
   const days = Array.from({ length: 7 }, (_, i) => addDays(ws, i));
-
   const dayNames = shamsi ? PERSIAN_SHORT_DAYS : SHORT_EN_DAYS;
+
+  const byDay = useMemo(() => {
+    const map = new Map<string, CalEvent[]>();
+    for (const ev of events) {
+      const list = map.get(ev.date) ?? [];
+      list.push(ev);
+      map.set(ev.date, list);
+    }
+    return map;
+  }, [events]);
 
   return (
     <div className="select-none" dir={shamsi ? 'rtl' : 'ltr'}>
-      <div className="grid grid-cols-7 border border-gray-200 rounded-lg overflow-hidden">
+      {/* Day headers */}
+      <div className="grid grid-cols-7 border border-gray-200 rounded-t-lg overflow-hidden">
         {days.map((d, i) => {
           const isToday = isSameDay(d, now);
           let label: string;
@@ -186,29 +271,46 @@ function WeekPanel({ cursor, shamsi }: { cursor: Date; shamsi: boolean }) {
             const { jd } = toJalaali(d.getFullYear(), d.getMonth() + 1, d.getDate());
             secondaryLabel = toPersianDigits(jd);
           }
-          // Weekday index for Shamsi: Sat=0, Sun=1, … Fri=6
           const nameIdx = shamsi
             ? (d.getDay() === 6 ? 0 : d.getDay() + 1)
             : d.getDay();
-
           return (
-            <div key={i} className={`flex flex-col items-center py-3 border-r last:border-r-0 border-gray-200
-              ${isToday ? 'bg-blue-50' : 'bg-white'}`}>
+            <div key={i} className={`flex flex-col items-center py-2 border-r last:border-r-0 border-gray-200 ${isToday ? 'bg-blue-50' : 'bg-white'}`}>
               <span className="text-xs text-gray-400 mb-1">{dayNames[nameIdx]}</span>
-              <span className={`w-8 h-8 flex items-center justify-center rounded-full text-sm font-medium
+              <span className={`w-7 h-7 flex items-center justify-center rounded-full text-sm font-medium
                 ${isToday ? 'bg-blue-600 text-white' : 'text-gray-700'}`}>
                 {label}
               </span>
-              <span className={`text-[10px] leading-none mt-0.5 ${isToday ? 'text-blue-400' : 'text-gray-300'}`}>
+              <span className={`text-[9px] leading-none mt-0.5 ${isToday ? 'text-blue-400' : 'text-gray-300'}`}>
                 {secondaryLabel}
               </span>
             </div>
           );
         })}
       </div>
-      {/* empty body placeholder */}
-      <div className="mt-2 border border-gray-100 rounded-lg h-24 bg-gray-50 flex items-center justify-center">
-        <span className="text-xs text-gray-300">{shamsi ? 'رویدادی وجود ندارد' : 'No events'}</span>
+
+      {/* Event rows per day */}
+      <div className="grid grid-cols-7 border-x border-b border-gray-200 rounded-b-lg overflow-hidden min-h-[80px]">
+        {days.map((d, i) => {
+          const isToday = isSameDay(d, now);
+          const ymd = toYMD(d);
+          const dayEvents = byDay.get(ymd) ?? [];
+          return (
+            <div key={i} className={`p-1 border-r last:border-r-0 border-gray-100 space-y-0.5 ${isToday ? 'bg-blue-50' : ''}`}>
+              {dayEvents.map(ev => <EventPill key={ev.id} ev={ev} />)}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Legend */}
+      <div className="flex items-center gap-3 mt-2 px-1">
+        {(['task', 'reminder', 'date'] as CalEvent['kind'][]).map(k => (
+          <div key={k} className="flex items-center gap-1">
+            <span className={`w-2 h-2 rounded-full ${KIND_DOT[k]}`} />
+            <span className="text-xs text-gray-400 capitalize">{k === 'date' ? 'important date' : k}</span>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -218,28 +320,78 @@ function WeekPanel({ cursor, shamsi }: { cursor: Date; shamsi: boolean }) {
 // Day view
 // ---------------------------------------------------------------------------
 
-function DayPanel({ cursor, shamsi }: { cursor: Date; shamsi: boolean }) {
+function DayPanel({ cursor, shamsi, events }: { cursor: Date; shamsi: boolean; events: CalEvent[] }) {
   const now = today();
   const isToday = isSameDay(cursor, now);
+  const currentHour = new Date().getHours();
+  const ymd = toYMD(cursor);
+
+  const dayEvents = useMemo(
+    () => events.filter(ev => ev.date === ymd),
+    [events, ymd],
+  );
+
+  // Split into timed (reminders with HH:MM) and all-day
+  const timedEvents = dayEvents.filter(ev => ev.time);
+  const allDayEvents = dayEvents.filter(ev => !ev.time);
+
+  // Group timed by hour
+  const byHour = useMemo(() => {
+    const map = new Map<number, CalEvent[]>();
+    for (const ev of timedEvents) {
+      const h = parseInt(ev.time!.split(':')[0], 10);
+      const list = map.get(h) ?? [];
+      list.push(ev);
+      map.set(h, list);
+    }
+    return map;
+  }, [timedEvents]);
+
   const hours = Array.from({ length: 24 }, (_, i) => i);
 
   return (
     <div className="select-none" dir={shamsi ? 'rtl' : 'ltr'}>
+      {/* All-day events strip */}
+      {allDayEvents.length > 0 && (
+        <div className="mb-2 p-2 border border-gray-200 rounded-lg bg-gray-50">
+          <div className="text-xs text-gray-400 mb-1 font-medium">{shamsi ? 'تمام روز' : 'All day'}</div>
+          <div className="flex flex-wrap gap-1">
+            {allDayEvents.map(ev => <EventPill key={ev.id} ev={ev} />)}
+          </div>
+        </div>
+      )}
+
+      {/* Hourly grid */}
       <div className="border border-gray-200 rounded-lg overflow-hidden">
         {hours.map(h => {
           const label = shamsi
             ? `${toPersianDigits(String(h).padStart(2, '0'))}:۰۰`
             : `${String(h).padStart(2, '0')}:00`;
+          const hourEvents = byHour.get(h) ?? [];
+          const isCurrentHour = h === currentHour && isToday;
           return (
-            <div key={h} className={`flex items-center border-b last:border-b-0 border-gray-100
-              ${h === new Date().getHours() && isToday ? 'bg-blue-50' : ''}`}>
-              <span className="w-14 shrink-0 text-xs text-gray-400 px-3 py-2 border-r border-gray-100">
+            <div key={h} className={`flex items-start border-b last:border-b-0 border-gray-100 min-h-[32px]
+              ${isCurrentHour ? 'bg-blue-50' : ''}`}>
+              <span className={`w-14 shrink-0 text-xs px-2 py-2 border-r border-gray-100 leading-tight
+                ${isCurrentHour ? 'text-blue-500 font-medium' : 'text-gray-400'}`}>
                 {label}
               </span>
-              <div className="flex-1 py-2 px-2 min-h-[28px]" />
+              <div className="flex-1 py-1 px-1.5 flex flex-wrap gap-1">
+                {hourEvents.map(ev => <EventPill key={ev.id} ev={ev} />)}
+              </div>
             </div>
           );
         })}
+      </div>
+
+      {/* Legend */}
+      <div className="flex items-center gap-3 mt-2 px-1">
+        {(['task', 'reminder', 'date'] as CalEvent['kind'][]).map(k => (
+          <div key={k} className="flex items-center gap-1">
+            <span className={`w-2 h-2 rounded-full ${KIND_DOT[k]}`} />
+            <span className="text-xs text-gray-400 capitalize">{k === 'date' ? 'important date' : k}</span>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -251,33 +403,73 @@ function DayPanel({ cursor, shamsi }: { cursor: Date; shamsi: boolean }) {
 
 export default function CalendarWidget() {
   const { calendar } = useCalendar();
+  const { token } = useAuth();
   const shamsi = calendar === 'shamsi';
   const [view, setView] = useState<View>('month');
   const [cursor, setCursor] = useState<Date>(today);
+  const [events, setEvents] = useState<CalEvent[]>([]);
 
-  // ── Navigation ───────────────────────────────────────────────────────────
+  // Fetch all data once on mount
+  useEffect(() => {
+    if (!token) return;
+    Promise.all([
+      getTasks(token).catch(() => [] as Task[]),
+      getReminders(token).catch(() => [] as Reminder[]),
+      getDates(token).catch(() => [] as ImportantDate[]),
+    ]).then(([tasks, reminders, dates]) => {
+      const evs: CalEvent[] = [];
+
+      for (const t of tasks) {
+        if (t.due_date) {
+          evs.push({
+            id: `task-${t.id}`,
+            kind: 'task',
+            title: t.title,
+            date: t.due_date.slice(0, 10),
+            done: t.status === 'done',
+            priority: t.priority,
+          });
+        }
+      }
+
+      for (const r of reminders) {
+        const dt = new Date(r.remind_at);
+        if (!isNaN(dt.getTime())) {
+          evs.push({
+            id: `reminder-${r.id}`,
+            kind: 'reminder',
+            title: r.title,
+            date: toYMD(dt),
+            time: `${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}`,
+            done: !!r.done,
+          });
+        }
+      }
+
+      for (const d of dates) {
+        const dateStr = (d.next_occurrence || d.date).slice(0, 10);
+        evs.push({
+          id: `date-${d.id}`,
+          kind: 'date',
+          title: d.title,
+          date: dateStr,
+        });
+      }
+
+      setEvents(evs);
+    });
+  }, [token]);
+
+  // ── Navigation ──────────────────────────────────────────────────────────
   function navigate(dir: 1 | -1) {
-    if (view === 'day') {
-      setCursor(c => addDays(c, dir));
-      return;
-    }
-    if (view === 'week') {
-      setCursor(c => addDays(c, dir * 7));
-      return;
-    }
-    // month
+    if (view === 'day') { setCursor(c => addDays(c, dir)); return; }
+    if (view === 'week') { setCursor(c => addDays(c, dir * 7)); return; }
     if (!shamsi) {
-      setCursor(c => {
-        const d = new Date(c);
-        d.setDate(1);
-        d.setMonth(d.getMonth() + dir);
-        return d;
-      });
+      setCursor(c => { const d = new Date(c); d.setDate(1); d.setMonth(d.getMonth() + dir); return d; });
     } else {
       setCursor(c => {
         const { jy, jm } = toJalaali(c.getFullYear(), c.getMonth() + 1, c.getDate());
-        let nm = jm + dir;
-        let ny = jy;
+        let nm = jm + dir; let ny = jy;
         if (nm < 1) { nm = 12; ny--; }
         if (nm > 12) { nm = 1; ny++; }
         const safeDays = jalaaliMonthLength(ny, nm);
@@ -290,9 +482,7 @@ export default function CalendarWidget() {
   // ── Primary title ────────────────────────────────────────────────────────
   function primaryTitle(): string {
     if (view === 'day') {
-      if (!shamsi) {
-        return cursor.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
-      }
+      if (!shamsi) return cursor.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
       const { jy, jm, jd } = toJalaali(cursor.getFullYear(), cursor.getMonth() + 1, cursor.getDate());
       const PERSIAN_DAYS_LONG = ['یکشنبه','دوشنبه','سه‌شنبه','چهارشنبه','پنجشنبه','جمعه','شنبه'];
       return `${PERSIAN_DAYS_LONG[cursor.getDay()]}، ${toPersianDigits(jd)} ${PERSIAN_MONTHS[jm - 1]} ${toPersianDigits(jy)}`;
@@ -300,34 +490,21 @@ export default function CalendarWidget() {
     if (view === 'week') {
       const ws = weekStart(cursor, shamsi);
       const we = addDays(ws, 6);
-      if (!shamsi) {
-        return `${SHORT_EN_MONTHS[ws.getMonth()]} ${ws.getDate()} – ${SHORT_EN_MONTHS[we.getMonth()]} ${we.getDate()}, ${we.getFullYear()}`;
-      }
+      if (!shamsi) return `${SHORT_EN_MONTHS[ws.getMonth()]} ${ws.getDate()} – ${SHORT_EN_MONTHS[we.getMonth()]} ${we.getDate()}, ${we.getFullYear()}`;
       const { jy: sy, jm: sm, jd: sd } = toJalaali(ws.getFullYear(), ws.getMonth() + 1, ws.getDate());
       const { jy: ey, jm: em, jd: ed } = toJalaali(we.getFullYear(), we.getMonth() + 1, we.getDate());
-      if (sy === ey) {
-        return `${toPersianDigits(sd)} ${PERSIAN_MONTHS[sm - 1]} – ${toPersianDigits(ed)} ${PERSIAN_MONTHS[em - 1]} ${toPersianDigits(ey)}`;
-      }
+      if (sy === ey) return `${toPersianDigits(sd)} ${PERSIAN_MONTHS[sm - 1]} – ${toPersianDigits(ed)} ${PERSIAN_MONTHS[em - 1]} ${toPersianDigits(ey)}`;
       return `${toPersianDigits(sd)} ${PERSIAN_MONTHS[sm - 1]} ${toPersianDigits(sy)} – ${toPersianDigits(ed)} ${PERSIAN_MONTHS[em - 1]} ${toPersianDigits(ey)}`;
     }
-    // month
-    if (!shamsi) {
-      return cursor.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
-    }
+    if (!shamsi) return cursor.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
     const { jy, jm } = toJalaali(cursor.getFullYear(), cursor.getMonth() + 1, cursor.getDate());
     return `${PERSIAN_MONTHS[jm - 1]} ${toPersianDigits(jy)}`;
   }
 
-  // ── Secondary label ──────────────────────────────────────────────────────
   function secondaryLabel(): string {
     if (view === 'day') {
-      if (shamsi) {
-        // secondary is miladi
-        return cursor.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
-      }
-      return toJalaliDisplay(
-        `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`
-      );
+      if (shamsi) return cursor.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+      return toJalaliDisplay(`${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`);
     }
     if (view === 'week') {
       const ws = weekStart(cursor, shamsi);
@@ -335,7 +512,6 @@ export default function CalendarWidget() {
       if (shamsi) return gregorianWeekRange(ws, we);
       return jalaliWeekRange(ws, we);
     }
-    // month
     if (shamsi) {
       const { jy, jm } = toJalaali(cursor.getFullYear(), cursor.getMonth() + 1, cursor.getDate());
       return gregorianMonthRangeForJalaliMonth(jy, jm);
@@ -349,55 +525,30 @@ export default function CalendarWidget() {
     : { month: 'Month', week: 'Week', day: 'Day' };
 
   return (
-    <div
-      className="bg-white border border-gray-200 rounded-xl p-4"
-      dir={shamsi ? 'rtl' : 'ltr'}
-    >
-      {/* ── Header ── */}
+    <div className="bg-white border border-gray-200 rounded-xl p-4" dir={shamsi ? 'rtl' : 'ltr'}>
+      {/* Header */}
       <div className="flex items-start justify-between gap-2 mb-4 flex-wrap">
-        {/* Left: titles */}
         <div className="min-w-0">
           <h2 className="text-base font-semibold text-gray-900 leading-tight">{primaryTitle()}</h2>
           <p className="text-xs text-gray-400 mt-0.5">{secondaryLabel()}</p>
         </div>
-
-        {/* Right: controls */}
         <div className={`flex items-center gap-2 shrink-0 ${shamsi ? 'flex-row-reverse' : ''}`}>
-          {/* Prev / Next */}
           <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden">
-            <button
-              onClick={() => navigate(-1)}
-              className="px-2.5 py-1.5 text-gray-500 hover:bg-gray-100 transition-colors text-sm"
-              aria-label="Previous"
-            >
+            <button onClick={() => navigate(-1)} className="px-2.5 py-1.5 text-gray-500 hover:bg-gray-100 transition-colors text-sm" aria-label="Previous">
               {shamsi ? '›' : '‹'}
             </button>
-            <button
-              onClick={() => navigate(1)}
-              className="px-2.5 py-1.5 text-gray-500 hover:bg-gray-100 transition-colors border-l border-gray-200 text-sm"
-              aria-label="Next"
-            >
+            <button onClick={() => navigate(1)} className="px-2.5 py-1.5 text-gray-500 hover:bg-gray-100 transition-colors border-l border-gray-200 text-sm" aria-label="Next">
               {shamsi ? '‹' : '›'}
             </button>
           </div>
-
-          {/* Today button */}
-          <button
-            onClick={() => setCursor(today())}
-            className="px-3 py-1.5 text-xs font-medium border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors"
-          >
+          <button onClick={() => setCursor(today())} className="px-3 py-1.5 text-xs font-medium border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors">
             {shamsi ? 'امروز' : 'Today'}
           </button>
-
-          {/* View switcher */}
           <div className="flex border border-gray-200 rounded-lg overflow-hidden">
             {views.map(v => (
-              <button
-                key={v}
-                onClick={() => setView(v)}
+              <button key={v} onClick={() => setView(v)}
                 className={`px-3 py-1.5 text-xs font-medium transition-colors border-r last:border-r-0 border-gray-200
-                  ${view === v ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
-              >
+                  ${view === v ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}>
                 {viewLabels[v]}
               </button>
             ))}
@@ -405,10 +556,10 @@ export default function CalendarWidget() {
         </div>
       </div>
 
-      {/* ── Body ── */}
-      {view === 'month' && <MonthGrid cursor={cursor} shamsi={shamsi} />}
-      {view === 'week' && <WeekPanel cursor={cursor} shamsi={shamsi} />}
-      {view === 'day' && <DayPanel cursor={cursor} shamsi={shamsi} />}
+      {/* Body */}
+      {view === 'month' && <MonthGrid cursor={cursor} shamsi={shamsi} events={events} />}
+      {view === 'week' && <WeekPanel cursor={cursor} shamsi={shamsi} events={events} />}
+      {view === 'day' && <DayPanel cursor={cursor} shamsi={shamsi} events={events} />}
     </div>
   );
 }
