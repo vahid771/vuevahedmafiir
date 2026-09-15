@@ -18,7 +18,7 @@ export function getAuthUrl(state: string, loginHint?: string): string {
   return client.generateAuthUrl({
     access_type: 'offline',
     prompt: 'consent',
-    scope: ['https://www.googleapis.com/auth/drive.readonly', 'https://www.googleapis.com/auth/drive.file'],
+    scope: ['https://www.googleapis.com/auth/drive'],
     state,
     ...(loginHint && { login_hint: loginHint }),
   });
