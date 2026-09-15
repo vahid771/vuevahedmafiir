@@ -12,13 +12,14 @@ function getTasksOAuthClient(): OAuth2Client {
   return new google.auth.OAuth2(clientId, clientSecret, redirectUri);
 }
 
-export function getTasksAuthUrl(state: string): string {
+export function getTasksAuthUrl(state: string, loginHint?: string): string {
   const client = getTasksOAuthClient();
   return client.generateAuthUrl({
     access_type: 'offline',
     prompt: 'consent',
     scope: ['https://www.googleapis.com/auth/tasks'],
     state,
+    ...(loginHint && { login_hint: loginHint }),
   });
 }
 
@@ -59,6 +60,24 @@ export async function listTaskLists(
     id: item.id!,
     title: item.title ?? '',
   }));
+}
+
+export async function createGoogleTaskList(
+  auth: OAuth2Client,
+  title: string,
+): Promise<{ id: string; title: string }> {
+  const tasks = google.tasks({ version: 'v1', auth });
+  const res = await tasks.tasklists.insert({ requestBody: { title } });
+  return { id: res.data.id!, title: res.data.title ?? title };
+}
+
+export async function updateGoogleTaskList(
+  auth: OAuth2Client,
+  taskListId: string,
+  title: string,
+): Promise<void> {
+  const tasks = google.tasks({ version: 'v1', auth });
+  await tasks.tasklists.patch({ tasklist: taskListId, requestBody: { title } });
 }
 
 export async function createGoogleTask(

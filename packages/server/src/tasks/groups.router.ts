@@ -5,7 +5,22 @@ import {
   getAuthedTasksClient,
   listTaskLists,
   listGoogleTasks,
+  createGoogleTaskList,
+  updateGoogleTaskList,
 } from '../google/tasks.service';
+
+async function getGoogleTasksAuth(userId: number) {
+  const row = (await db.execute({
+    sql: 'SELECT access_token, refresh_token, expiry FROM google_tasks_tokens WHERE user_id = ?',
+    args: [userId],
+  })).rows[0];
+  if (!row) return null;
+  return getAuthedTasksClient({
+    access_token: row.access_token as string,
+    refresh_token: row.refresh_token as string | null,
+    expiry: row.expiry as string | null,
+  });
+}
 
 const router = Router();
 router.use(authenticateToken);
@@ -25,9 +40,19 @@ router.post('/', async (req, res) => {
   const userId = req.user!.id;
   const { name } = req.body as { name?: string };
   if (!name?.trim()) { res.status(400).json({ error: 'name is required' }); return; }
+
+  let googleListId: string | null = null;
+  try {
+    const auth = await getGoogleTasksAuth(userId);
+    if (auth) {
+      const gl = await createGoogleTaskList(auth, name.trim());
+      googleListId = gl.id;
+    }
+  } catch { /* non-fatal */ }
+
   const result = await db.execute({
-    sql: 'INSERT INTO task_groups (user_id, name) VALUES (?, ?)',
-    args: [userId, name.trim()],
+    sql: 'INSERT INTO task_groups (user_id, name, google_list_id) VALUES (?, ?, ?)',
+    args: [userId, name.trim(), googleListId],
   });
   const group = (await db.execute({
     sql: 'SELECT * FROM task_groups WHERE id = ?',
@@ -43,14 +68,24 @@ router.patch('/:id', async (req, res) => {
   const { name } = req.body as { name?: string };
   if (!name?.trim()) { res.status(400).json({ error: 'name is required' }); return; }
   const existing = (await db.execute({
-    sql: 'SELECT id FROM task_groups WHERE id = ? AND user_id = ?',
+    sql: 'SELECT id, google_list_id FROM task_groups WHERE id = ? AND user_id = ?',
     args: [id, userId],
-  })).rows[0];
+  })).rows[0] as { id: number; google_list_id: string | null } | undefined;
   if (!existing) { res.status(404).json({ error: 'Group not found' }); return; }
+
   await db.execute({
     sql: 'UPDATE task_groups SET name = ? WHERE id = ? AND user_id = ?',
     args: [name.trim(), id, userId],
   });
+
+  // Push rename to Google Tasks if linked
+  try {
+    if (existing.google_list_id) {
+      const auth = await getGoogleTasksAuth(userId);
+      if (auth) await updateGoogleTaskList(auth, existing.google_list_id, name.trim());
+    }
+  } catch { /* non-fatal */ }
+
   const group = (await db.execute({
     sql: 'SELECT * FROM task_groups WHERE id = ?',
     args: [id],
