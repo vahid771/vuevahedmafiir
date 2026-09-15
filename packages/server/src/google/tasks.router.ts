@@ -145,17 +145,33 @@ router.get('/status', authenticateToken, async (req, res) => {
 });
 
 // DELETE /api/google-tasks/disconnect
-// Removes tokens and clears google_task_id on all user tasks
+// Removes tokens, deletes all synced tasks (those with a google_task_id),
+// then removes task groups that were synced from Google (those with a google_list_id).
 router.delete('/disconnect', authenticateToken, async (req, res) => {
   const userId = req.user!.id;
+
+  // Delete all tasks that originated from Google Tasks
+  await db.execute({
+    sql: 'DELETE FROM tasks WHERE user_id = ? AND google_task_id IS NOT NULL',
+    args: [userId],
+  });
+
+  // Remove task groups that were synced from Google, and reset google flags on any remaining groups
+  await db.execute({
+    sql: 'DELETE FROM task_groups WHERE user_id = ? AND google_list_id IS NOT NULL',
+    args: [userId],
+  });
+  await db.execute({
+    sql: 'UPDATE task_groups SET google_list_id = NULL, is_google_default = 0 WHERE user_id = ?',
+    args: [userId],
+  });
+
+  // Remove the Google Tasks token row
   await db.execute({
     sql: 'DELETE FROM google_tasks_tokens WHERE user_id = ?',
     args: [userId],
   });
-  await db.execute({
-    sql: 'UPDATE tasks SET google_task_id = NULL WHERE user_id = ?',
-    args: [userId],
-  });
+
   res.status(204).send();
 });
 
