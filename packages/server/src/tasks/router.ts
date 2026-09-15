@@ -21,26 +21,40 @@ const router = Router();
 
 router.use(authenticateToken);
 
-/** Returns Google Tasks auth + taskListId for the user, or null if not connected. */
+/**
+ * Resolves the correct Google Task list ID for a task:
+ * - If the task has a group with a google_list_id → use that list
+ * - Otherwise fall back to the legacy selected task_list_id in google_tasks_tokens
+ */
 async function getGoogleTasksConnection(
   userId: number,
+  taskGroupId?: number | null,
 ): Promise<{ auth: OAuth2Client; taskListId: string } | null> {
-  const row = (
-    await db.execute({
-      sql: 'SELECT access_token, refresh_token, expiry, task_list_id FROM google_tasks_tokens WHERE user_id = ?',
-      args: [userId],
-    })
-  ).rows[0];
-
-  if (!row || !row.task_list_id) return null;
+  const tokenRow = (await db.execute({
+    sql: 'SELECT access_token, refresh_token, expiry, task_list_id FROM google_tasks_tokens WHERE user_id = ?',
+    args: [userId],
+  })).rows[0];
+  if (!tokenRow) return null;
 
   const auth = getAuthedTasksClient({
-    access_token: row.access_token as string,
-    refresh_token: row.refresh_token as string | null,
-    expiry: row.expiry as string | null,
+    access_token: tokenRow.access_token as string,
+    refresh_token: tokenRow.refresh_token as string | null,
+    expiry: tokenRow.expiry as string | null,
   });
 
-  return { auth, taskListId: row.task_list_id as string };
+  // Prefer the group's linked Google list over the legacy fallback
+  if (taskGroupId) {
+    const groupRow = (await db.execute({
+      sql: 'SELECT google_list_id FROM task_groups WHERE id = ? AND user_id = ?',
+      args: [taskGroupId, userId],
+    })).rows[0];
+    const googleListId = groupRow?.google_list_id as string | null;
+    if (googleListId) return { auth, taskListId: googleListId };
+  }
+
+  // Fall back to legacy selected list
+  if (!tokenRow.task_list_id) return null;
+  return { auth, taskListId: tokenRow.task_list_id as string };
 }
 
 // GET /api/tasks?status=open|done&group_id=N
@@ -102,7 +116,7 @@ router.post('/', async (req, res) => {
 
   // Push to Google Tasks before responding (fire-and-forget is killed by Vercel on serverless)
   try {
-    const conn = await getGoogleTasksConnection(userId);
+    const conn = await getGoogleTasksConnection(userId, task.task_group_id);
     if (conn) {
       const gtask = await createGoogleTask(conn.auth, conn.taskListId, {
         title: task.title,
@@ -181,7 +195,7 @@ router.patch('/:id', async (req, res) => {
   try {
     const googleTaskId = updated.google_task_id as string | null;
     if (googleTaskId) {
-      const conn = await getGoogleTasksConnection(userId);
+      const conn = await getGoogleTasksConnection(userId, updated.task_group_id);
       if (conn) {
         await updateGoogleTask(conn.auth, conn.taskListId, googleTaskId, {
           title: updated.title,
@@ -234,10 +248,10 @@ router.delete('/:id', async (req, res) => {
     return;
   }
 
-  // Fetch google_task_id before deleting
+  // Fetch google_task_id + group before deleting
   const taskRow = (
     await db.execute({
-      sql: 'SELECT google_task_id, google_calendar_event_id FROM tasks WHERE id = ?',
+      sql: 'SELECT google_task_id, google_calendar_event_id, task_group_id FROM tasks WHERE id = ?',
       args: [taskId],
     })
   ).rows[0];
@@ -248,7 +262,7 @@ router.delete('/:id', async (req, res) => {
   try {
     const googleTaskId = taskRow?.google_task_id as string | null;
     if (googleTaskId) {
-      const conn = await getGoogleTasksConnection(userId);
+      const conn = await getGoogleTasksConnection(userId, taskRow?.task_group_id as number | null);
       if (conn) {
         await deleteGoogleTask(conn.auth, conn.taskListId, googleTaskId);
       }
