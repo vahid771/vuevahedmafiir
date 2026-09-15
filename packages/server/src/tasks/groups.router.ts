@@ -295,22 +295,26 @@ router.post('/sync-google', async (req, res) => {
     } catch { /* non-fatal */ }
   }
 
+  // Build a group-id → google_list_id map from the already-updated localGroups array
+  const groupListMap = new Map<number, string>();
+  for (const g of localGroups) {
+    if (g.google_list_id) groupListMap.set(g.id, g.google_list_id);
+  }
+
   // Push local tasks with no google_task_id
   const localUnsynced = (await db.execute({
-    sql: `SELECT t.id, t.title, t.description, t.due_date, t.status,
-                 tg.google_list_id
-          FROM tasks t
-          LEFT JOIN task_groups tg ON tg.id = t.task_group_id
-          WHERE t.user_id = ? AND t.google_task_id IS NULL`,
+    sql: `SELECT id, title, description, due_date, status, task_group_id
+          FROM tasks
+          WHERE user_id = ? AND google_task_id IS NULL`,
     args: [userId],
   })).rows as unknown as {
     id: number; title: string; description: string | null;
-    due_date: string | null; status: string; google_list_id: string | null;
+    due_date: string | null; status: string; task_group_id: number | null;
   }[];
 
   const fallbackListId = googleDefaultListId;
   for (const task of localUnsynced) {
-    const targetListId = task.google_list_id ?? fallbackListId;
+    const targetListId = (task.task_group_id ? groupListMap.get(task.task_group_id) : null) ?? fallbackListId;
     if (!targetListId) continue;
     try {
       const gt = await createGoogleTask(auth, targetListId, {

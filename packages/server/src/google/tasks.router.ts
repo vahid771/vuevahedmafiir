@@ -107,29 +107,28 @@ async function performFullSync(userId: number, auth: OAuth2Client): Promise<void
     } catch { /* non-fatal */ }
   }
 
+  // Build a group-id → google_list_id map from the already-updated localGroups array
+  // (in-memory updates are authoritative; avoids a stale JOIN read)
+  const groupListMap = new Map<number, string>();
+  for (const g of localGroups) {
+    if (g.google_list_id) groupListMap.set(g.id, g.google_list_id);
+  }
+
   // Push local tasks that have no google_task_id
   const localUnsynced = (await db.execute({
-    sql: `SELECT t.id, t.title, t.description, t.due_date, t.status, t.task_group_id,
-                 tg.google_list_id
-          FROM tasks t
-          LEFT JOIN task_groups tg ON tg.id = t.task_group_id
-          WHERE t.user_id = ? AND t.google_task_id IS NULL`,
+    sql: `SELECT id, title, description, due_date, status, task_group_id
+          FROM tasks
+          WHERE user_id = ? AND google_task_id IS NULL`,
     args: [userId],
   })).rows as unknown as {
     id: number; title: string; description: string | null;
-    due_date: string | null; status: string;
-    task_group_id: number | null; google_list_id: string | null;
+    due_date: string | null; status: string; task_group_id: number | null;
   }[];
 
-  // Also get the legacy fallback list id
-  const tokenRow = (await db.execute({
-    sql: 'SELECT task_list_id FROM google_tasks_tokens WHERE user_id = ?',
-    args: [userId],
-  })).rows[0] as unknown as { task_list_id: string | null } | undefined;
-  const fallbackListId = tokenRow?.task_list_id ?? googleDefaultListId;
+  const fallbackListId = googleDefaultListId;
 
   for (const task of localUnsynced) {
-    const targetListId = task.google_list_id ?? fallbackListId;
+    const targetListId = (task.task_group_id ? groupListMap.get(task.task_group_id) : null) ?? fallbackListId;
     if (!targetListId) continue;
     try {
       const gt = await createGoogleTask(auth, targetListId, {
