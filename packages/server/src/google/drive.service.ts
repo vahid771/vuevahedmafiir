@@ -128,9 +128,12 @@ export async function listFilesInFolder(
   folderId: string,
 ): Promise<Array<{ id: string; name: string; mimeType: string; size: string; webViewLink: string }>> {
   const drive = google.drive({ version: 'v3', auth });
+  // List ALL non-folder files in Drive (not scoped to a specific folder).
+  // This ensures manually added files are always visible regardless of
+  // which folder they live in or which folder ID is cached.
   const res = await drive.files.list({
-    q: `'${folderId}' in parents and trashed=false and mimeType != 'application/vnd.google-apps.folder'`,
-    fields: 'files(id,name,mimeType,size,webViewLink)',
+    q: `trashed=false and mimeType != 'application/vnd.google-apps.folder'`,
+    fields: 'files(id,name,mimeType,size,webViewLink,parents)',
     spaces: 'drive',
     pageSize: 1000,
     supportsAllDrives: true,
