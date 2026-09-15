@@ -19,12 +19,16 @@ export type CreateTaskData = {
   due_date?: string;
   priority?: 'low' | 'medium' | 'high';
   status?: 'open' | 'done';
+  task_group_id?: number | null;
 };
 
 export type UpdateTaskData = Partial<CreateTaskData>;
 
-export async function getTasks(token: string, status?: 'open' | 'done'): Promise<Task[]> {
-  const url = status ? `${BASE}?status=${status}` : BASE;
+export async function getTasks(token: string, opts?: { status?: 'open' | 'done'; group_id?: number | 'null' }): Promise<Task[]> {
+  const params = new URLSearchParams();
+  if (opts?.status) params.set('status', opts.status);
+  if (opts?.group_id !== undefined) params.set('group_id', String(opts.group_id));
+  const url = params.toString() ? `${BASE}?${params}` : BASE;
   const res = await fetch(apiUrl(url), { headers: authHeaders(token) });
   if (!res.ok) throw new Error('Failed to fetch tasks');
   return res.json() as Promise<Task[]>;

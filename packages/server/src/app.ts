@@ -1,6 +1,7 @@
 import express, { NextFunction, Request, Response } from 'express';
 import authRouter from './auth/router';
 import tasksRouter from './tasks/router';
+import taskGroupsRouter from './tasks/groups.router';
 import { billsRouter, subscriptionsRouter } from './bills/router';
 import remindersRouter from './reminders/router';
 import habitsRouter from './habits/router';
@@ -40,6 +41,7 @@ app.get('/api/health', (_req, res) => {
 
 app.use('/api/auth', authRouter);
 app.use('/api/tasks', tasksRouter);
+app.use('/api/task-groups', taskGroupsRouter);
 app.use('/api/bills', billsRouter);
 app.use('/api/subscriptions', subscriptionsRouter);
 app.use('/api/reminders', remindersRouter);

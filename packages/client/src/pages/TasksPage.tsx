@@ -1,18 +1,44 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useCalendar } from '../context/CalendarContext';
 import {
-  getTasks,
-  createTask,
-  updateTask,
-  deleteTask,
-  type Task,
-  type CreateTaskData,
+  getTasks, createTask, updateTask, deleteTask,
+  type Task, type CreateTaskData,
 } from '../api/tasks';
+import {
+  getTaskGroups, createTaskGroup, renameTaskGroup, deleteTaskGroup, syncGoogleTaskGroups,
+  type TaskGroup,
+} from '../api/taskGroups';
 import { formatDate } from '../utils/format';
 import TaskForm, { type TaskFormState } from '../components/tasks/TaskForm';
-import { getGoogleTasksStatus, syncFromGoogleTasks } from '../api/googleTasks';
+import { getGoogleTasksStatus } from '../api/googleTasks';
 import { getGoogleCalendarStatus, syncFromGoogleCalendar } from '../api/googleCalendar';
+import { useSyncQueue } from '../context/SyncQueueContext';
+
+// ─── Icons ────────────────────────────────────────────────────────────────────
+
+const IconEdit = () => (
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+  </svg>
+);
+const IconTrash = () => (
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+  </svg>
+);
+const IconSync = ({ spinning }: { spinning?: boolean }) => (
+  <svg className={`w-4 h-4 ${spinning ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+  </svg>
+);
+const IconCheck = () => (
+  <svg className="w-4 h-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+  </svg>
+);
+
+// ─── Priority badge ───────────────────────────────────────────────────────────
 
 const PRIORITY_BADGE: Record<Task['priority'], string> = {
   low: 'bg-green-100 text-green-800',
@@ -20,7 +46,11 @@ const PRIORITY_BADGE: Record<Task['priority'], string> = {
   high: 'bg-red-100 text-red-800',
 };
 
-interface TaskRowProps {
+// ─── TaskRow ──────────────────────────────────────────────────────────────────
+
+function TaskRow({
+  task, onToggle, onDelete, onEdit, editingId, onSaveEdit, onCancelEdit, saving,
+}: {
   task: Task;
   onToggle: (task: Task) => void;
   onDelete: (id: number) => void;
@@ -29,23 +59,18 @@ interface TaskRowProps {
   onSaveEdit: (task: Task, form: TaskFormState) => void;
   onCancelEdit: () => void;
   saving: boolean;
-}
-
-function TaskRow({ task, onToggle, onDelete, onEdit, editingId, onSaveEdit, onCancelEdit, saving }: TaskRowProps) {
+}) {
   const isDone = task.status === 'done';
   const { calendar } = useCalendar();
 
   return (
     <li className="space-y-2">
       <div className="flex items-start gap-3 py-3 px-4 bg-white rounded-lg border border-gray-200 hover:border-gray-300 transition-colors">
-        {/* Toggle button */}
         <button
           type="button"
           onClick={() => onToggle(task)}
           className={`mt-0.5 flex-shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
-            isDone
-              ? 'bg-green-500 border-green-500 text-white'
-              : 'border-gray-400 hover:border-green-400'
+            isDone ? 'bg-green-500 border-green-500 text-white' : 'border-gray-400 hover:border-green-400'
           }`}
           title={isDone ? 'Mark open' : 'Mark done'}
         >
@@ -55,8 +80,6 @@ function TaskRow({ task, onToggle, onDelete, onEdit, editingId, onSaveEdit, onCa
             </svg>
           )}
         </button>
-
-        {/* Content */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center flex-wrap gap-2">
             <span className={`text-sm font-medium ${isDone ? 'line-through text-gray-400' : 'text-gray-800'}`}>
@@ -73,41 +96,20 @@ function TaskRow({ task, onToggle, onDelete, onEdit, editingId, onSaveEdit, onCa
             <p className={`text-xs mt-0.5 ${isDone ? 'text-gray-400' : 'text-gray-500'}`}>{task.description}</p>
           )}
         </div>
-
-        {/* Actions */}
         <div className="flex gap-1 flex-shrink-0">
-          <button
-            type="button"
-            onClick={() => onEdit(task)}
-            className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
-            title="Edit"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-            </svg>
+          <button type="button" onClick={() => onEdit(task)} title="Edit"
+            className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors">
+            <IconEdit />
           </button>
-          <button
-            type="button"
-            onClick={() => onDelete(task.id)}
-            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-            title="Delete"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-            </svg>
+          <button type="button" onClick={() => onDelete(task.id)} title="Delete"
+            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors">
+            <IconTrash />
           </button>
         </div>
       </div>
-
-      {/* Inline edit form */}
       {editingId === task.id && (
         <TaskForm
-          initial={{
-            title: task.title,
-            description: task.description ?? '',
-            due_date: task.due_date ?? '',
-            priority: task.priority,
-          }}
+          initial={{ title: task.title, description: task.description ?? '', due_date: task.due_date ?? '', priority: task.priority }}
           onSave={form => onSaveEdit(task, form)}
           onCancel={onCancelEdit}
           saving={saving}
@@ -117,8 +119,17 @@ function TaskRow({ task, onToggle, onDelete, onEdit, editingId, onSaveEdit, onCa
   );
 }
 
-export default function TasksPage() {
+// ─── TaskList (content of one tab) ───────────────────────────────────────────
+
+function TaskList({
+  groupId, gTasksConnected, gcalConnected,
+}: {
+  groupId: number | null;
+  gTasksConnected: boolean;
+  gcalConnected: boolean;
+}) {
   const { token } = useAuth();
+  const { addJob } = useSyncQueue();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -126,34 +137,395 @@ export default function TasksPage() {
   const [addSaving, setAddSaving] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editSaving, setEditSaving] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!token) return;
+    setLoading(true);
+    try {
+      const opts = groupId === null ? { group_id: 'null' as const } : { group_id: groupId };
+      setTasks(await getTasks(token, opts));
+    } catch (e) { setError((e as Error).message); }
+    finally { setLoading(false); }
+  }, [token, groupId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function handleCreate(form: TaskFormState) {
+    if (!token || !form.title.trim()) return;
+    setAddSaving(true);
+    try {
+      const data: CreateTaskData = {
+        title: form.title.trim(),
+        ...(form.description && { description: form.description }),
+        ...(form.due_date && { due_date: form.due_date }),
+        priority: form.priority,
+        task_group_id: groupId,
+      };
+      const label = [gTasksConnected && 'Google Tasks', gcalConnected && form.due_date && 'Google Calendar'].filter(Boolean).join(' & ');
+      if (label) {
+        await addJob(`Add "${form.title.trim()}" to ${label}`, () =>
+          createTask(token, data).then(created => { setTasks(prev => [created, ...prev]); setShowAddForm(false); }));
+      } else {
+        const created = await createTask(token, data);
+        setTasks(prev => [created, ...prev]);
+        setShowAddForm(false);
+      }
+    } catch (e) { setError((e as Error).message); }
+    finally { setAddSaving(false); }
+  }
+
+  async function handleToggle(task: Task) {
+    if (!token) return;
+    const newStatus = task.status === 'open' ? 'done' : 'open';
+    try {
+      if (gTasksConnected || gcalConnected) {
+        await addJob(`Update "${task.title}" status`, () =>
+          updateTask(token, task.id, { status: newStatus }).then(u => setTasks(prev => prev.map(t => t.id === u.id ? u : t))));
+      } else {
+        const u = await updateTask(token, task.id, { status: newStatus });
+        setTasks(prev => prev.map(t => t.id === u.id ? u : t));
+      }
+    } catch (e) { setError((e as Error).message); }
+  }
+
+  async function handleSaveEdit(task: Task, form: TaskFormState) {
+    if (!token) return;
+    setEditSaving(true);
+    try {
+      const patch = { title: form.title.trim(), description: form.description || undefined, due_date: form.due_date || undefined, priority: form.priority };
+      if (gTasksConnected || gcalConnected) {
+        await addJob(`Update "${form.title.trim()}"`, () =>
+          updateTask(token, task.id, patch).then(u => { setTasks(prev => prev.map(t => t.id === u.id ? u : t)); setEditingId(null); }));
+      } else {
+        const u = await updateTask(token, task.id, patch);
+        setTasks(prev => prev.map(t => t.id === u.id ? u : t));
+        setEditingId(null);
+      }
+    } catch (e) { setError((e as Error).message); }
+    finally { setEditSaving(false); }
+  }
+
+  async function handleDelete(id: number) {
+    if (!token || !confirm('Delete this task?')) return;
+    const task = tasks.find(t => t.id === id);
+    try {
+      if ((gTasksConnected || gcalConnected) && task) {
+        await addJob(`Delete "${task.title}"`, () =>
+          deleteTask(token, id).then(() => setTasks(prev => prev.filter(t => t.id !== id))));
+      } else {
+        await deleteTask(token, id);
+        setTasks(prev => prev.filter(t => t.id !== id));
+      }
+    } catch (e) { setError((e as Error).message); }
+  }
+
+  const openTasks = tasks.filter(t => t.status === 'open');
+  const doneTasks = tasks.filter(t => t.status === 'done');
+
+  return (
+    <div className="space-y-4">
+      {error && (
+        <div className="flex items-center justify-between bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
+          <span>{error}</span>
+          <button onClick={() => setError(null)} className="ml-4 text-red-500 hover:text-red-700">✕</button>
+        </div>
+      )}
+
+      <div className="flex justify-end">
+        <button type="button"
+          onClick={() => { setShowAddForm(v => !v); setEditingId(null); }}
+          className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+          {showAddForm ? 'Cancel' : '+ Add Task'}
+        </button>
+      </div>
+
+      {showAddForm && (
+        <TaskForm onSave={handleCreate} onCancel={() => setShowAddForm(false)} saving={addSaving} />
+      )}
+
+      {loading ? (
+        <p className="text-center text-gray-400 py-12">Loading…</p>
+      ) : (
+        <div className="space-y-6">
+          <section>
+            <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+              Open <span className="font-normal">({openTasks.length})</span>
+            </h2>
+            {openTasks.length === 0 ? (
+              <p className="text-sm text-gray-400 italic px-4">No open tasks.</p>
+            ) : (
+              <ul className="space-y-2">
+                {openTasks.map(task => (
+                  <TaskRow key={task.id} task={task}
+                    onToggle={handleToggle} onDelete={handleDelete}
+                    onEdit={t => { setEditingId(t.id); setShowAddForm(false); }}
+                    editingId={editingId} onSaveEdit={handleSaveEdit}
+                    onCancelEdit={() => setEditingId(null)} saving={editSaving} />
+                ))}
+              </ul>
+            )}
+          </section>
+          {doneTasks.length > 0 && (
+            <section>
+              <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                Done <span className="font-normal">({doneTasks.length})</span>
+              </h2>
+              <ul className="space-y-2">
+                {doneTasks.map(task => (
+                  <TaskRow key={task.id} task={task}
+                    onToggle={handleToggle} onDelete={handleDelete}
+                    onEdit={t => { setEditingId(t.id); setShowAddForm(false); }}
+                    editingId={editingId} onSaveEdit={handleSaveEdit}
+                    onCancelEdit={() => setEditingId(null)} saving={editSaving} />
+                ))}
+              </ul>
+            </section>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── TasksPage ────────────────────────────────────────────────────────────────
+
+export default function TasksPage() {
+  const { token } = useAuth();
+  const { addJob } = useSyncQueue();
+
+  const [groups, setGroups] = useState<TaskGroup[]>([]);
+  const [activeGroupId, setActiveGroupId] = useState<number | null | 'all'>('all');
   const [gTasksConnected, setGTasksConnected] = useState(false);
+  const [gcalConnected, setGcalConnected] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncSuccess, setSyncSuccess] = useState(false);
-  const [gcalConnected, setGcalConnected] = useState(false);
   const [calSyncing, setCalSyncing] = useState(false);
   const [calSyncSuccess, setCalSyncSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // New group input state
+  const [addingGroup, setAddingGroup] = useState(false);
+  const [newGroupName, setNewGroupName] = useState('');
+  const [groupSaving, setGroupSaving] = useState(false);
+
+  // Rename state
+  const [renamingId, setRenamingId] = useState<number | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+
+  useEffect(() => {
+    if (!token) return;
+    getTaskGroups(token).then(setGroups).catch(() => {});
+    getGoogleTasksStatus(token).then(s => setGTasksConnected(s.connected)).catch(() => {});
+    getGoogleCalendarStatus(token).then(s => setGcalConnected(s.connected)).catch(() => {});
+  }, [token]);
+
+  async function handleAddGroup() {
+    if (!token || !newGroupName.trim()) return;
+    setGroupSaving(true);
+    try {
+      const g = await createTaskGroup(token, newGroupName.trim());
+      setGroups(prev => [...prev, g]);
+      setActiveGroupId(g.id);
+      setNewGroupName('');
+      setAddingGroup(false);
+    } catch (e) { setError((e as Error).message); }
+    finally { setGroupSaving(false); }
+  }
+
+  async function handleRenameGroup(id: number) {
+    if (!token || !renameValue.trim()) return;
+    try {
+      const g = await renameTaskGroup(token, id, renameValue.trim());
+      setGroups(prev => prev.map(gr => gr.id === id ? g : gr));
+      setRenamingId(null);
+    } catch (e) { setError((e as Error).message); }
+  }
+
+  async function handleDeleteGroup(id: number) {
+    if (!token || !confirm('Delete this group? Tasks will be moved to "All Tasks".')) return;
+    try {
+      await deleteTaskGroup(token, id);
+      setGroups(prev => prev.filter(g => g.id !== id));
+      if (activeGroupId === id) setActiveGroupId('all');
+    } catch (e) { setError((e as Error).message); }
+  }
+
+  async function handleGoogleSync() {
+    if (!token) return;
+    setSyncing(true); setSyncSuccess(false); setError(null);
+    try {
+      await addJob('Sync all Google Task lists', async () => {
+        const updated = await syncGoogleTaskGroups(token);
+        setGroups(updated);
+        setSyncSuccess(true);
+        setTimeout(() => setSyncSuccess(false), 2500);
+      });
+    } catch (e) { setError((e as Error).message); }
+    finally { setSyncing(false); }
+  }
+
+  async function handleCalendarSync() {
+    if (!token) return;
+    setCalSyncing(true); setCalSyncSuccess(false); setError(null);
+    try {
+      await syncFromGoogleCalendar(token);
+      setCalSyncSuccess(true);
+      setTimeout(() => setCalSyncSuccess(false), 2500);
+    } catch (e) { setError((e as Error).message); }
+    finally { setCalSyncing(false); }
+  }
+
+  // Tabs: "All" + one per group + ungrouped
+  const tabs = [
+    { id: 'all' as const, label: 'All' },
+    ...groups.map(g => ({ id: g.id, label: g.name, isGoogle: !!g.google_list_id })),
+    { id: null as null, label: 'Ungrouped' },
+  ];
+
+  const activeTab = tabs.find(t => t.id === activeGroupId) ?? tabs[0];
+
+  return (
+    <div className="max-w-2xl mx-auto space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-gray-800">Tasks</h1>
+        <div className="flex items-center gap-2">
+          {gTasksConnected && (
+            <button type="button" onClick={handleGoogleSync} disabled={syncing}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+              title="Sync all Google Task lists">
+              {syncing ? <IconSync spinning /> : syncSuccess ? <IconCheck /> : <IconSync />}
+              {syncing ? 'Syncing…' : syncSuccess ? 'Synced' : 'Sync Google'}
+            </button>
+          )}
+          {gcalConnected && (
+            <button type="button" onClick={handleCalendarSync} disabled={calSyncing}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+              title="Sync from Google Calendar">
+              {calSyncing ? <IconSync spinning /> : calSyncSuccess ? <IconCheck /> : <IconSync />}
+              {calSyncing ? 'Syncing…' : calSyncSuccess ? 'Synced' : 'Sync Calendar'}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {error && (
+        <div className="flex items-center justify-between bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
+          <span>{error}</span>
+          <button onClick={() => setError(null)} className="ml-4 text-red-500 hover:text-red-700">✕</button>
+        </div>
+      )}
+
+      {/* Tab bar */}
+      <div className="flex items-center gap-1 border-b border-gray-200 overflow-x-auto pb-px">
+        {tabs.map(tab => {
+          const isActive = tab.id === activeGroupId;
+          const isGroup = typeof tab.id === 'number';
+          return (
+            <div key={String(tab.id)} className="flex items-center group shrink-0">
+              {renamingId === tab.id ? (
+                <form onSubmit={e => { e.preventDefault(); handleRenameGroup(tab.id as number); }}
+                  className="flex items-center gap-1 px-2 py-1">
+                  <input autoFocus value={renameValue} onChange={e => setRenameValue(e.target.value)}
+                    className="border border-blue-400 rounded px-1.5 py-0.5 text-sm w-28 focus:outline-none" />
+                  <button type="submit" className="text-xs text-blue-600 hover:text-blue-800">✓</button>
+                  <button type="button" onClick={() => setRenamingId(null)} className="text-xs text-gray-400 hover:text-gray-600">✕</button>
+                </form>
+              ) : (
+                <button
+                  onClick={() => setActiveGroupId(tab.id)}
+                  className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap flex items-center gap-1
+                    ${isActive ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}>
+                  {(tab as any).isGoogle && (
+                    <svg className="w-3 h-3 text-blue-400" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                    </svg>
+                  )}
+                  {tab.label}
+                </button>
+              )}
+              {/* Rename / delete buttons for user-created groups */}
+              {isGroup && !renamingId && isActive && (
+                <div className="flex items-center gap-0.5 mr-1">
+                  <button onClick={() => { setRenamingId(tab.id as number); setRenameValue(tab.label); }}
+                    title="Rename group"
+                    className="p-0.5 text-gray-300 hover:text-blue-500 transition-colors">
+                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                  </button>
+                  <button onClick={() => handleDeleteGroup(tab.id as number)}
+                    title="Delete group"
+                    className="p-0.5 text-gray-300 hover:text-red-500 transition-colors">
+                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        {/* + New group */}
+        {addingGroup ? (
+          <form onSubmit={e => { e.preventDefault(); handleAddGroup(); }}
+            className="flex items-center gap-1 px-2 py-1 shrink-0">
+            <input autoFocus value={newGroupName} onChange={e => setNewGroupName(e.target.value)}
+              placeholder="Group name"
+              className="border border-blue-400 rounded px-1.5 py-0.5 text-sm w-28 focus:outline-none" />
+            <button type="submit" disabled={groupSaving || !newGroupName.trim()}
+              className="text-xs text-blue-600 hover:text-blue-800 disabled:opacity-40">✓</button>
+            <button type="button" onClick={() => { setAddingGroup(false); setNewGroupName(''); }}
+              className="text-xs text-gray-400 hover:text-gray-600">✕</button>
+          </form>
+        ) : (
+          <button onClick={() => setAddingGroup(true)}
+            className="px-2 py-2 text-gray-400 hover:text-blue-600 transition-colors shrink-0"
+            title="Add new group">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+            </svg>
+          </button>
+        )}
+      </div>
+
+      {/* Tab content */}
+      {activeTab.id === 'all' ? (
+        // "All" tab — show tasks across all groups (no group filter)
+        <AllTasksView gTasksConnected={gTasksConnected} gcalConnected={gcalConnected} />
+      ) : (
+        <TaskList
+          key={String(activeGroupId)}
+          groupId={activeGroupId as number | null}
+          gTasksConnected={gTasksConnected}
+          gcalConnected={gcalConnected}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── AllTasksView — no group filter, shows everything ────────────────────────
+
+function AllTasksView({ gTasksConnected, gcalConnected }: { gTasksConnected: boolean; gcalConnected: boolean }) {
+  const { token } = useAuth();
+  const { addJob } = useSyncQueue();
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [addSaving, setAddSaving] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editSaving, setEditSaving] = useState(false);
 
   useEffect(() => {
     if (!token) return;
     setLoading(true);
-    getTasks(token)
-      .then(setTasks)
-      .catch(err => setError((err as Error).message))
-      .finally(() => setLoading(false));
-  }, [token]);
-
-  useEffect(() => {
-    if (!token) return;
-    getGoogleTasksStatus(token)
-      .then(s => setGTasksConnected(s.connected && !!s.taskListId))
-      .catch(() => { /* non-fatal */ });
-  }, [token]);
-
-  useEffect(() => {
-    if (!token) return;
-    getGoogleCalendarStatus(token)
-      .then(s => setGcalConnected(s.connected))
-      .catch(() => { /* non-fatal */ });
+    getTasks(token).then(setTasks).catch(e => setError((e as Error).message)).finally(() => setLoading(false));
   }, [token]);
 
   async function handleCreate(form: TaskFormState) {
@@ -166,78 +538,37 @@ export default function TasksPage() {
         ...(form.due_date && { due_date: form.due_date }),
         priority: form.priority,
       };
-      const created = await createTask(token, data);
-      setTasks(prev => [created, ...prev]);
-      setShowAddForm(false);
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setAddSaving(false);
-    }
+      const label = [gTasksConnected && 'Google Tasks', gcalConnected && form.due_date && 'Google Calendar'].filter(Boolean).join(' & ');
+      if (label) {
+        await addJob(`Add "${form.title.trim()}" to ${label}`, () =>
+          createTask(token, data).then(c => { setTasks(prev => [c, ...prev]); setShowAddForm(false); }));
+      } else {
+        const c = await createTask(token, data);
+        setTasks(prev => [c, ...prev]);
+        setShowAddForm(false);
+      }
+    } catch (e) { setError((e as Error).message); }
+    finally { setAddSaving(false); }
   }
 
   async function handleToggle(task: Task) {
     if (!token) return;
     const newStatus = task.status === 'open' ? 'done' : 'open';
     try {
-      const updated = await updateTask(token, task.id, { status: newStatus });
-      setTasks(prev => prev.map(t => (t.id === updated.id ? updated : t)));
-    } catch (err) {
-      setError((err as Error).message);
-    }
+      const u = await updateTask(token, task.id, { status: newStatus });
+      setTasks(prev => prev.map(t => t.id === u.id ? u : t));
+    } catch (e) { setError((e as Error).message); }
   }
 
   async function handleSaveEdit(task: Task, form: TaskFormState) {
     if (!token) return;
     setEditSaving(true);
     try {
-      const updated = await updateTask(token, task.id, {
-        title: form.title.trim(),
-        description: form.description || undefined,
-        due_date: form.due_date || undefined,
-        priority: form.priority,
-      });
-      setTasks(prev => prev.map(t => (t.id === updated.id ? updated : t)));
+      const u = await updateTask(token, task.id, { title: form.title.trim(), description: form.description || undefined, due_date: form.due_date || undefined, priority: form.priority });
+      setTasks(prev => prev.map(t => t.id === u.id ? u : t));
       setEditingId(null);
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setEditSaving(false);
-    }
-  }
-
-  async function handleSync() {
-    if (!token) return;
-    setSyncing(true);
-    setSyncSuccess(false);
-    setError(null);
-    try {
-      const synced = await syncFromGoogleTasks(token);
-      setTasks(synced as Task[]);
-      setSyncSuccess(true);
-      setTimeout(() => setSyncSuccess(false), 2500);
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setSyncing(false);
-    }
-  }
-
-  async function handleCalendarSync() {
-    if (!token) return;
-    setCalSyncing(true);
-    setCalSyncSuccess(false);
-    setError(null);
-    try {
-      const result = await syncFromGoogleCalendar(token);
-      setTasks(result.tasks as Task[]);
-      setCalSyncSuccess(true);
-      setTimeout(() => setCalSyncSuccess(false), 2500);
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setCalSyncing(false);
-    }
+    } catch (e) { setError((e as Error).message); }
+    finally { setEditSaving(false); }
   }
 
   async function handleDelete(id: number) {
@@ -245,146 +576,49 @@ export default function TasksPage() {
     try {
       await deleteTask(token, id);
       setTasks(prev => prev.filter(t => t.id !== id));
-    } catch (err) {
-      setError((err as Error).message);
-    }
+    } catch (e) { setError((e as Error).message); }
   }
 
   const openTasks = tasks.filter(t => t.status === 'open');
   const doneTasks = tasks.filter(t => t.status === 'done');
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-800">Tasks</h1>
-        <div className="flex items-center gap-2">
-          {gTasksConnected && (
-            <button
-              type="button"
-              onClick={handleSync}
-              disabled={syncing}
-              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
-              title="Sync from Google Tasks"
-            >
-              {syncing ? (
-                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z"/>
-                </svg>
-              ) : syncSuccess ? (
-                <svg className="w-4 h-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                </svg>
-              ) : (
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-              )}
-              {syncing ? 'Syncing…' : syncSuccess ? 'Synced' : 'Sync from Google'}
-            </button>
-          )}
-          {gcalConnected && (
-            <button
-              type="button"
-              onClick={handleCalendarSync}
-              disabled={calSyncing}
-              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
-              title="Sync from Google Calendar"
-            >
-              {calSyncing ? (
-                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z"/>
-                </svg>
-              ) : calSyncSuccess ? (
-                <svg className="w-4 h-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                </svg>
-              ) : (
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-              )}
-              {calSyncing ? 'Syncing…' : calSyncSuccess ? 'Synced' : 'Sync from Calendar'}
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={() => { setShowAddForm(v => !v); setEditingId(null); }}
-            className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            {showAddForm ? 'Cancel' : '+ Add Task'}
-          </button>
-        </div>
-      </div>
-
-      {/* Error banner */}
+    <div className="space-y-4">
       {error && (
         <div className="flex items-center justify-between bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
           <span>{error}</span>
           <button onClick={() => setError(null)} className="ml-4 text-red-500 hover:text-red-700">✕</button>
         </div>
       )}
-
-      {/* Add form */}
-      {showAddForm && (
-        <TaskForm
-          onSave={handleCreate}
-          onCancel={() => setShowAddForm(false)}
-          saving={addSaving}
-        />
-      )}
-
-      {loading ? (
-        <p className="text-center text-gray-400 py-12">Loading tasks…</p>
-      ) : (
+      <div className="flex justify-end">
+        <button type="button" onClick={() => { setShowAddForm(v => !v); setEditingId(null); }}
+          className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+          {showAddForm ? 'Cancel' : '+ Add Task'}
+        </button>
+      </div>
+      {showAddForm && <TaskForm onSave={handleCreate} onCancel={() => setShowAddForm(false)} saving={addSaving} />}
+      {loading ? <p className="text-center text-gray-400 py-12">Loading…</p> : (
         <div className="space-y-6">
-          {/* Open tasks */}
           <section>
-            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">
-              Open <span className="font-normal text-gray-400">({openTasks.length})</span>
-            </h2>
-            {openTasks.length === 0 ? (
-              <p className="text-sm text-gray-400 italic px-4">No open tasks.</p>
-            ) : (
+            <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Open <span className="font-normal">({openTasks.length})</span></h2>
+            {openTasks.length === 0 ? <p className="text-sm text-gray-400 italic px-4">No open tasks.</p> : (
               <ul className="space-y-2">
                 {openTasks.map(task => (
-                  <TaskRow
-                    key={task.id}
-                    task={task}
-                    onToggle={handleToggle}
-                    onDelete={handleDelete}
+                  <TaskRow key={task.id} task={task} onToggle={handleToggle} onDelete={handleDelete}
                     onEdit={t => { setEditingId(t.id); setShowAddForm(false); }}
-                    editingId={editingId}
-                    onSaveEdit={handleSaveEdit}
-                    onCancelEdit={() => setEditingId(null)}
-                    saving={editSaving}
-                  />
+                    editingId={editingId} onSaveEdit={handleSaveEdit} onCancelEdit={() => setEditingId(null)} saving={editSaving} />
                 ))}
               </ul>
             )}
           </section>
-
-          {/* Done tasks */}
           {doneTasks.length > 0 && (
             <section>
-              <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">
-                Done <span className="font-normal text-gray-400">({doneTasks.length})</span>
-              </h2>
+              <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Done <span className="font-normal">({doneTasks.length})</span></h2>
               <ul className="space-y-2">
                 {doneTasks.map(task => (
-                  <TaskRow
-                    key={task.id}
-                    task={task}
-                    onToggle={handleToggle}
-                    onDelete={handleDelete}
+                  <TaskRow key={task.id} task={task} onToggle={handleToggle} onDelete={handleDelete}
                     onEdit={t => { setEditingId(t.id); setShowAddForm(false); }}
-                    editingId={editingId}
-                    onSaveEdit={handleSaveEdit}
-                    onCancelEdit={() => setEditingId(null)}
-                    saving={editSaving}
-                  />
+                    editingId={editingId} onSaveEdit={handleSaveEdit} onCancelEdit={() => setEditingId(null)} saving={editSaving} />
                 ))}
               </ul>
             </section>

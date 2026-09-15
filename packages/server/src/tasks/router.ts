@@ -43,10 +43,10 @@ async function getGoogleTasksConnection(
   return { auth, taskListId: row.task_list_id as string };
 }
 
-// GET /api/tasks?status=open|done
+// GET /api/tasks?status=open|done&group_id=N
 router.get('/', async (req, res) => {
   const userId = req.user!.id;
-  const { status } = req.query;
+  const { status, group_id } = req.query;
 
   let sql = 'SELECT * FROM tasks WHERE user_id = ?';
   const args: InValue[] = [userId];
@@ -54,6 +54,13 @@ router.get('/', async (req, res) => {
   if (status === 'open' || status === 'done') {
     sql += ' AND status = ?';
     args.push(status);
+  }
+
+  if (group_id === 'null') {
+    sql += ' AND task_group_id IS NULL';
+  } else if (group_id && !isNaN(Number(group_id))) {
+    sql += ' AND task_group_id = ?';
+    args.push(Number(group_id));
   }
 
   sql += ' ORDER BY created_at DESC';
@@ -71,12 +78,14 @@ router.post('/', async (req, res) => {
     due_date,
     priority = 'medium',
     status = 'open',
+    task_group_id,
   } = req.body as {
     title?: string;
     description?: string;
     due_date?: string;
     priority?: string;
     status?: string;
+    task_group_id?: number | null;
   };
 
   if (!title) {
@@ -85,8 +94,8 @@ router.post('/', async (req, res) => {
   }
 
   const result = await db.execute({
-    sql: 'INSERT INTO tasks (user_id, title, description, due_date, priority, status) VALUES (?, ?, ?, ?, ?, ?)',
-    args: [userId, title, description ?? null, due_date ?? null, priority, status],
+    sql: 'INSERT INTO tasks (user_id, title, description, due_date, priority, status, task_group_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    args: [userId, title, description ?? null, due_date ?? null, priority, status, task_group_id ?? null],
   });
 
   const task = await fetchById<object>('tasks', result.lastInsertRowid!) as any;

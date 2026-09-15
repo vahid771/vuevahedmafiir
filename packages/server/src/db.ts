@@ -163,6 +163,17 @@ export async function runMigrations(): Promise<void> {
     'ALTER TABLE reminders ADD COLUMN google_calendar_event_id TEXT',
     'ALTER TABLE important_dates ADD COLUMN google_calendar_event_id TEXT',
     'ALTER TABLE tasks ADD COLUMN google_calendar_event_id TEXT',
+    // Task groups
+    `CREATE TABLE IF NOT EXISTS task_groups (
+      id             INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id        INTEGER NOT NULL REFERENCES users(id),
+      name           TEXT    NOT NULL,
+      google_list_id TEXT,
+      sort_order     INTEGER DEFAULT 0,
+      created_at     TEXT    DEFAULT (datetime('now'))
+    )`,
+    'CREATE INDEX IF NOT EXISTS idx_task_groups_user_id ON task_groups(user_id)',
+    'ALTER TABLE tasks ADD COLUMN task_group_id INTEGER REFERENCES task_groups(id) ON DELETE SET NULL',
   ];
   for (const sql of alterStatements) {
     try {
