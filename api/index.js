@@ -1,27 +1,25 @@
 let loadErr = null;
 let app = null;
-let runMigrations = null;
+let migrationPromise = null;
 
 try {
   app = require('./app').default;
-  runMigrations = require('./db').runMigrations;
+  const { runMigrations } = require('./db');
+  // Start migrations immediately at module load time so the cost is not
+  // charged against the first incoming request's timeout budget.
+  migrationPromise = runMigrations();
 } catch (e) {
   loadErr = e;
 }
-
-let migrated = false;
 
 async function handler(req, res) {
   if (loadErr) {
     return res.status(500).json({ stage: 'load', error: String(loadErr), stack: loadErr.stack });
   }
-  if (!migrated) {
-    try {
-      await runMigrations();
-      migrated = true;
-    } catch (migErr) {
-      return res.status(500).json({ stage: 'migrate', error: String(migErr) });
-    }
+  try {
+    await migrationPromise;
+  } catch (migErr) {
+    return res.status(500).json({ stage: 'migrate', error: String(migErr) });
   }
   return app(req, res);
 }

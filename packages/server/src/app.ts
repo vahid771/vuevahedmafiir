@@ -22,7 +22,15 @@ app.use((req, res, next) => {
   const ct = req.headers['content-type'] || '';
   // Skip body reading for multipart — busboy handles it in the route
   if (ct.startsWith('multipart/form-data')) return next();
-  // For everything else, drain the stream into a buffer and parse if JSON
+  // Vercel's runtime may have already parsed the body (body getter on IncomingMessage).
+  // If req.body is already set, skip stream draining entirely.
+  if (req.body !== undefined) return next();
+  // For everything else, drain the stream into a buffer and parse if JSON.
+  // Guard against an already-ended stream: if readable has ended, 'end' never fires.
+  if (!(req as any).readable) {
+    if (ct.includes('application/json') && req.body === undefined) req.body = {};
+    return next();
+  }
   const chunks: Buffer[] = [];
   req.on('data', (chunk: Buffer) => chunks.push(chunk));
   req.on('end', () => {
