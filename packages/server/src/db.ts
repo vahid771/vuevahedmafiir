@@ -46,6 +46,7 @@ export async function runMigrations(): Promise<void> {
       billing_cycle     TEXT    CHECK(billing_cycle IN ('weekly','monthly','yearly')),
       next_billing_date TEXT,
       active            INTEGER DEFAULT 1,
+      max_repetitions   INTEGER,
       created_at        TEXT    DEFAULT (datetime('now'))
     );
 
@@ -134,7 +135,6 @@ export async function runMigrations(): Promise<void> {
       access_token  TEXT    NOT NULL,
       refresh_token TEXT,
       expiry        TEXT,
-      task_list_id  TEXT,
       created_at    TEXT    DEFAULT (datetime('now')),
       updated_at    TEXT    DEFAULT (datetime('now'))
     );
@@ -178,6 +178,7 @@ export async function runMigrations(): Promise<void> {
     'ALTER TABLE tasks ADD COLUMN task_group_id INTEGER REFERENCES task_groups(id) ON DELETE SET NULL',
     'ALTER TABLE task_groups ADD COLUMN is_default INTEGER DEFAULT 0',
     'ALTER TABLE task_groups ADD COLUMN is_google_default INTEGER DEFAULT 0',
+    'ALTER TABLE subscriptions ADD COLUMN max_repetitions INTEGER',
   ];
   for (const sql of alterStatements) {
     try {
