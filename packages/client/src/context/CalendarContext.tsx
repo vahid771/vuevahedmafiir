@@ -5,6 +5,8 @@ import { getPreferences, updatePreferences, CalendarType } from '../api/preferen
 interface CalendarContextValue {
   calendar: CalendarType;
   setCalendar: (c: CalendarType) => Promise<void>;
+  country: string | null;
+  setCountry: (c: string | null) => Promise<void>;
 }
 
 const CalendarContext = createContext<CalendarContextValue | null>(null);
@@ -12,12 +14,16 @@ const CalendarContext = createContext<CalendarContextValue | null>(null);
 export function CalendarProvider({ children }: { children: ReactNode }) {
   const { token } = useAuth();
   const [calendar, setCalendarState] = useState<CalendarType>('miladi');
+  const [country, setCountryState] = useState<string | null>(null);
 
   useEffect(() => {
     if (!token) return;
     getPreferences(token)
-      .then(prefs => setCalendarState(prefs.calendar))
-      .catch(() => {/* keep default */});
+      .then(prefs => {
+        setCalendarState(prefs.calendar);
+        setCountryState(prefs.country ?? null);
+      })
+      .catch(() => {/* keep defaults */});
   }, [token]);
 
   async function setCalendar(c: CalendarType) {
@@ -26,8 +32,14 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
     setCalendarState(c);
   }
 
+  async function setCountry(c: string | null) {
+    if (!token) return;
+    await updatePreferences(token, { country: c });
+    setCountryState(c);
+  }
+
   return (
-    <CalendarContext.Provider value={{ calendar, setCalendar }}>
+    <CalendarContext.Provider value={{ calendar, setCalendar, country, setCountry }}>
       {children}
     </CalendarContext.Provider>
   );

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useTranslation } from 'react-i18next';
 import {
   getDocuments,
   uploadDocument,
@@ -31,6 +32,7 @@ function parseTags(tagsStr: string): string[] {
 
 export default function DocumentsPage() {
   const { token } = useAuth();
+  const { t } = useTranslation();
   const { addJob } = useSyncQueue();
   const [docs, setDocs] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
@@ -51,7 +53,7 @@ export default function DocumentsPage() {
       setLoading(true);
       setDocs(await getDocuments(token!, tag ?? undefined));
     } catch {
-      setError('Failed to load documents');
+      setError(t('documents.failedLoad'));
     } finally {
       setLoading(false);
     }
@@ -72,14 +74,14 @@ export default function DocumentsPage() {
     setSyncing(true);
     setSyncSuccess(false);
     try {
-      await addJob('Sync files from Google Drive', async () => {
+      await addJob({ key: 'sync.syncDrive' }, async () => {
         const synced = await syncDriveDocuments(token);
         setDocs(synced);
         setSyncSuccess(true);
         setTimeout(() => setSyncSuccess(false), 2500);
       });
     } catch {
-      setError('Failed to sync from Google Drive');
+      setError(t('documents.failedLoad'));
     } finally {
       setSyncing(false);
     }
@@ -100,7 +102,7 @@ export default function DocumentsPage() {
       const tags = uploadTags.split(',').map(t => t.trim()).filter(Boolean);
       const reset = () => { setShowUpload(false); setUploadFile(null); setUploadTitle(''); setUploadTags(''); };
       await addJob(
-        driveConnected ? `Upload "${uploadTitle}" to Google Drive` : `Upload "${uploadTitle}"`,
+        { key: 'sync.uploadItem', vars: { name: uploadTitle } },
         async () => { await uploadDocument(token!, uploadFile!, uploadTitle, tags); reset(); await load(); }
       );
     } catch {
@@ -111,11 +113,11 @@ export default function DocumentsPage() {
   }
 
   async function handleDelete(id: number) {
-    if (!confirm('Delete this document?')) return;
+    if (!confirm(t('documents.deleteConfirm'))) return;
     const doc = docs.find(d => d.id === id);
     try {
       await addJob(
-        driveConnected ? `Delete "${doc?.title ?? 'document'}" from Google Drive` : `Delete "${doc?.title ?? 'document'}"`,
+        { key: 'sync.deleteItemDrive', vars: { name: doc?.title ?? 'document' } },
         async () => { await deleteDocument(token!, id); await load(activeTag ?? undefined); }
       );
     } catch {
@@ -127,7 +129,7 @@ export default function DocumentsPage() {
     try {
       await downloadDocument(token!, doc.id, doc.title);
     } catch {
-      setError('Failed to download document');
+      setError(t('documents.failedDownload'));
     }
   }
 
@@ -136,7 +138,7 @@ export default function DocumentsPage() {
   return (
     <div className="max-w-3xl mx-auto py-6 px-4">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Documents</h1>
+        <h1 className="text-2xl font-bold text-gray-900">{t('documents.title')}</h1>
         <div className="flex items-center gap-2">
           {driveConnected && (
             <button
@@ -144,7 +146,7 @@ export default function DocumentsPage() {
               onClick={handleDriveSync}
               disabled={syncing}
               className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
-              title="Sync files from Google Drive"
+              title={t('documents.syncFromDrive')}
             >
               {syncing ? (
                 <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -160,24 +162,24 @@ export default function DocumentsPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
               )}
-              {syncing ? 'Syncing…' : syncSuccess ? 'Synced' : 'Sync from Drive'}
+              {syncing ? t('documents.syncing') : syncSuccess ? t('documents.synced') : t('documents.syncFromDrive')}
             </button>
           )}
           <button
             onClick={() => setShowUpload(s => !s)}
             disabled={!driveConnected}
-            title={!driveConnected ? 'Connect Google Drive in Settings to upload documents' : undefined}
+            title={!driveConnected ? t('documents.connectDriveToUpload') : undefined}
             className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            + Upload
+            {t('documents.upload')}
           </button>
         </div>
       </div>
 
       {!driveConnected && (
         <div className="mb-4 bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded-lg flex items-center justify-between text-sm">
-          <span>Google Drive is not connected. Documents require Drive to upload and download.</span>
-          <a href="/settings" className="ml-4 font-medium underline hover:text-amber-900 whitespace-nowrap">Go to Settings →</a>
+          <span>{t('documents.driveNotConnected')}</span>
+          <a href="/settings" className="ml-4 font-medium underline hover:text-amber-900 whitespace-nowrap">{t('documents.goToSettings')}</a>
         </div>
       )}
 
@@ -190,17 +192,17 @@ export default function DocumentsPage() {
 
       {showUpload && driveConnected && (
         <div className="mb-6 bg-white border border-gray-200 rounded-lg p-4">
-          <h2 className="font-semibold text-gray-800 mb-3">Upload Document</h2>
+          <h2 className="font-semibold text-gray-800 mb-3">{t('documents.uploadDocument')}</h2>
           <div className="space-y-3">
             <input type="file" className="w-full text-sm" onChange={e => setUploadFile(e.target.files?.[0] ?? null)} />
-            <input className="w-full border border-gray-300 rounded px-3 py-2 text-sm" placeholder="Title *" value={uploadTitle} onChange={e => setUploadTitle(e.target.value)} />
-            <input className="w-full border border-gray-300 rounded px-3 py-2 text-sm" placeholder="Tags (comma-separated, e.g. tax, 2024)" value={uploadTags} onChange={e => setUploadTags(e.target.value)} />
+            <input className="w-full border border-gray-300 rounded px-3 py-2 text-sm" placeholder={t('documents.uploadTitle')} value={uploadTitle} onChange={e => setUploadTitle(e.target.value)} />
+            <input className="w-full border border-gray-300 rounded px-3 py-2 text-sm" placeholder={t('documents.uploadTags')} value={uploadTags} onChange={e => setUploadTags(e.target.value)} />
           </div>
           <div className="flex gap-2 mt-3">
             <button onClick={handleUpload} disabled={uploading || !uploadFile || !uploadTitle.trim()} className="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700 disabled:opacity-50">
-              {uploading ? 'Uploading...' : 'Upload'}
+              {uploading ? t('documents.uploading') : t('documents.upload')}
             </button>
-            <button onClick={() => setShowUpload(false)} className="px-4 py-2 rounded text-sm border border-gray-300 hover:bg-gray-50">Cancel</button>
+            <button onClick={() => setShowUpload(false)} className="px-4 py-2 rounded text-sm border border-gray-300 hover:bg-gray-50">{t('common.cancel')}</button>
           </div>
         </div>
       )}
@@ -217,16 +219,16 @@ export default function DocumentsPage() {
             </button>
           ))}
           {activeTag && (
-            <button onClick={() => setActiveTag(null)} className="text-xs px-3 py-1 rounded-full border border-gray-300 text-gray-400 hover:bg-gray-50">Clear filter</button>
+            <button onClick={() => setActiveTag(null)} className="text-xs px-3 py-1 rounded-full border border-gray-300 text-gray-400 hover:bg-gray-50">{t('documents.clearFilter')}</button>
           )}
         </div>
       )}
 
       {loading ? (
-        <p className="text-gray-500">Loading...</p>
+        <p className="text-gray-500">{t('common.loading')}</p>
       ) : displayed.length === 0 ? (
         <div className="text-center py-12 text-gray-400">
-          <p className="text-lg">No documents yet.</p>
+          <p className="text-lg">{t('documents.noDocs')}</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -253,7 +255,7 @@ export default function DocumentsPage() {
                   <button
                     onClick={() => handleDownload(doc)}
                     disabled={!driveConnected}
-                    title={!driveConnected ? 'Connect Google Drive to download' : 'Download'}
+                    title={!driveConnected ? t('documents.connectDriveToDownload') : t('documents.download')}
                     className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -263,7 +265,7 @@ export default function DocumentsPage() {
                   <button
                     onClick={() => handleDelete(doc.id)}
                     disabled={!driveConnected}
-                    title={!driveConnected ? 'Connect Google Drive to delete' : 'Delete'}
+                    title={!driveConnected ? t('documents.connectDriveToDelete') : t('common.delete')}
                     className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

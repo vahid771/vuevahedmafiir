@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useCalendar } from '../context/CalendarContext';
+import { useTranslation } from 'react-i18next';
 import {
   getReminders,
   createReminder,
@@ -25,6 +26,7 @@ function reminderToForm(r: Reminder): ReminderFormState {
 export default function RemindersPage() {
   const { token } = useAuth();
   const { calendar } = useCalendar();
+  const { t } = useTranslation();
   const { addJob } = useSyncQueue();
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -43,7 +45,7 @@ export default function RemindersPage() {
       setLoading(true);
       setReminders(await getReminders(token!));
     } catch {
-      setError('Failed to load reminders');
+      setError(t('reminders.failedLoad'));
     } finally {
       setLoading(false);
     }
@@ -69,7 +71,7 @@ export default function RemindersPage() {
       setSyncSuccess(true);
       setTimeout(() => setSyncSuccess(false), 2500);
     } catch {
-      setError('Failed to sync from Google Calendar');
+      setError(t('reminders.failedSync'));
     } finally {
       setSyncing(false);
     }
@@ -91,17 +93,17 @@ export default function RemindersPage() {
       const payload = { ...form, notes: form.notes || null };
       if (editId !== null) {
         await (gcalConnected
-          ? addJob(`Update "${form.title}" on Google Calendar`, () => updateReminder(token!, editId, payload).then(() => {}))
+          ? addJob({ key: 'sync.updateCalendar', vars: { name: form.title } }, () => updateReminder(token!, editId, payload).then(() => {}))
           : updateReminder(token!, editId, payload));
       } else {
         await (gcalConnected
-          ? addJob(`Add "${form.title}" to Google Calendar`, () => createReminder(token!, payload).then(() => {}))
+          ? addJob({ key: 'sync.addCalendar', vars: { name: form.title } }, () => createReminder(token!, payload).then(() => {}))
           : createReminder(token!, payload));
       }
       cancelForm();
       await load();
     } catch {
-      setError('Failed to save reminder');
+      setError(t('reminders.failedSave'));
     } finally {
       setSaving(false);
     }
@@ -110,23 +112,23 @@ export default function RemindersPage() {
   async function toggleDone(r: Reminder) {
     try {
       await (gcalConnected
-        ? addJob(`Update "${r.title}" on Google Calendar`, () => updateReminder(token!, r.id, { done: r.done ? 0 : 1 }).then(() => {}))
+        ? addJob({ key: 'sync.updateCalendar', vars: { name: r.title } }, () => updateReminder(token!, r.id, { done: r.done ? 0 : 1 }).then(() => {}))
         : updateReminder(token!, r.id, { done: r.done ? 0 : 1 }));
       await load();
     } catch {
-      setError('Failed to update reminder');
+      setError(t('reminders.failedUpdate'));
     }
   }
 
   async function handleDelete(id: number) {
-    if (!confirm('Delete this reminder?')) return;
+    if (!confirm(t('reminders.deleteConfirm'))) return;
     try {
       await (gcalConnected
-        ? addJob(`Delete reminder from Google Calendar`, () => deleteReminder(token!, id).then(() => {}))
+        ? addJob({ key: 'sync.deleteCalendar' }, () => deleteReminder(token!, id).then(() => {}))
         : deleteReminder(token!, id));
       await load();
     } catch {
-      setError('Failed to delete reminder');
+      setError(t('reminders.failedDelete'));
     }
   }
 
@@ -139,7 +141,7 @@ export default function RemindersPage() {
           {r.notes && <p className="text-sm text-gray-400 mt-0.5 truncate">{r.notes}</p>}
         </div>
         <div className="flex items-center gap-1 ml-3 shrink-0">
-          <button onClick={() => toggleDone(r)} title={r.done ? 'Undo' : 'Mark done'} className={`p-1.5 rounded transition-colors ${r.done ? 'text-gray-400 hover:text-gray-600 hover:bg-gray-50' : 'text-gray-400 hover:text-green-600 hover:bg-green-50'}`}>
+          <button onClick={() => toggleDone(r)} title={r.done ? t('reminders.undo') : t('reminders.markDone')} className={`p-1.5 rounded transition-colors ${r.done ? 'text-gray-400 hover:text-gray-600 hover:bg-gray-50' : 'text-gray-400 hover:text-green-600 hover:bg-green-50'}`}>
             {r.done ? (
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
@@ -150,12 +152,12 @@ export default function RemindersPage() {
               </svg>
             )}
           </button>
-          <button onClick={() => startEdit(r)} title="Edit" className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors">
+          <button onClick={() => startEdit(r)} title={t('common.edit')} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
             </svg>
           </button>
-          <button onClick={() => handleDelete(r.id)} title="Delete" className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors">
+          <button onClick={() => handleDelete(r.id)} title={t('common.delete')} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
             </svg>
@@ -168,7 +170,7 @@ export default function RemindersPage() {
   return (
     <div className="max-w-2xl mx-auto py-6 px-4">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Reminders</h1>
+        <h1 className="text-2xl font-bold text-gray-900">{t('reminders.title')}</h1>
         <div className="flex items-center gap-2">
           {gcalConnected && (
             <button
@@ -176,7 +178,7 @@ export default function RemindersPage() {
               onClick={handleCalendarSync}
               disabled={syncing}
               className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
-              title="Sync from Google Calendar"
+              title={t('reminders.syncFromGoogle')}
             >
               {syncing ? (
                 <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -192,10 +194,10 @@ export default function RemindersPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
               )}
-              {syncing ? 'Syncing…' : syncSuccess ? 'Synced' : 'Sync from Google'}
+              {syncing ? t('reminders.syncing') : syncSuccess ? t('reminders.synced') : t('reminders.syncFromGoogle')}
             </button>
           )}
-          <button onClick={startAdd} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700">+ Add Reminder</button>
+          <button onClick={startAdd} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700">{t('reminders.addReminder')}</button>
         </div>
       </div>
 
@@ -208,7 +210,7 @@ export default function RemindersPage() {
 
       {showForm && (
         <>
-          <h2 className="font-semibold text-gray-800 mb-3">{editId ? 'Edit Reminder' : 'New Reminder'}</h2>
+          <h2 className="font-semibold text-gray-800 mb-3">{editId ? t('reminders.editReminder') : t('reminders.newReminder')}</h2>
           <ReminderForm
             initial={editInitial}
             onSave={handleSave}
@@ -219,20 +221,20 @@ export default function RemindersPage() {
       )}
 
       {loading ? (
-        <p className="text-gray-500">Loading...</p>
+        <p className="text-gray-500">{t('common.loading')}</p>
       ) : (
         <div className="space-y-6">
           {overdue.length > 0 && (
             <section>
-              <h2 className="text-sm font-semibold text-red-600 uppercase tracking-wide mb-2">Overdue</h2>
+              <h2 className="text-sm font-semibold text-red-600 uppercase tracking-wide mb-2">{t('reminders.overdue')}</h2>
               <div className="space-y-2">{overdue.map(r => <ReminderRow key={r.id} r={r} overdue />)}</div>
             </section>
           )}
 
           <section>
-            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2">Upcoming</h2>
+            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2">{t('reminders.upcoming')}</h2>
             {upcoming.length === 0
-              ? <p className="text-gray-400 text-sm">No upcoming reminders.</p>
+              ? <p className="text-gray-400 text-sm">{t('reminders.noUpcoming')}</p>
               : <div className="space-y-2">{upcoming.map(r => <ReminderRow key={r.id} r={r} />)}</div>
             }
           </section>
@@ -240,7 +242,7 @@ export default function RemindersPage() {
           {completed.length > 0 && (
             <section>
               <button onClick={() => setShowCompleted(s => !s)} className="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-2 hover:text-gray-600">
-                Completed ({completed.length}) {showCompleted ? '▲' : '▼'}
+                {t('reminders.completed')} ({completed.length}) {showCompleted ? '▲' : '▼'}
               </button>
               {showCompleted && (
                 <div className="space-y-2 mt-2 opacity-60">{completed.map(r => <ReminderRow key={r.id} r={r} />)}</div>

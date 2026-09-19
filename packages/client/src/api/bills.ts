@@ -1,5 +1,37 @@
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+export interface Loan {
+  id: number;
+  user_id: number;
+  name: string;
+  lender: string | null;
+  total_amount: number;
+  remaining_amount: number;
+  installment: number | null;
+  due_day: number | null;
+  next_payment_date: string | null;
+  notes: string | null;
+  active: number; // 0 | 1
+  created_at: string;
+}
+
+export type CreateLoanData = {
+  name: string;
+  lender?: string;
+  total_amount: number;
+  remaining_amount: number;
+  installment?: number;
+  due_day?: number;
+  next_payment_date?: string;
+  notes?: string;
+  active?: number;
+};
+
+export type UpdateLoanData = Partial<Omit<CreateLoanData, 'total_amount' | 'remaining_amount'>> & {
+  total_amount?: number;
+  remaining_amount?: number;
+};
+
 export interface Bill {
   id: number;
   user_id: number;
@@ -19,6 +51,7 @@ export interface Subscription {
   billing_cycle: 'weekly' | 'monthly' | 'yearly' | null;
   next_billing_date: string | null;
   active: number; // 0 | 1
+  max_repetitions: number | null;
   created_at: string;
 }
 
@@ -38,6 +71,7 @@ export type CreateSubscriptionData = {
   billing_cycle?: 'weekly' | 'monthly' | 'yearly';
   next_billing_date?: string;
   active?: number;
+  max_repetitions?: number | null;
 };
 
 export type UpdateSubscriptionData = Partial<CreateSubscriptionData>;
@@ -123,4 +157,40 @@ export async function deleteSubscription(token: string, id: number): Promise<voi
     headers: authHeaders(token),
   });
   if (!res.ok) throw new Error('Failed to delete subscription');
+}
+
+// ─── Loans ────────────────────────────────────────────────────────────────────
+
+export async function getLoans(token: string): Promise<Loan[]> {
+  const res = await fetch(apiUrl('/api/loans'), { headers: authHeaders(token) });
+  if (!res.ok) throw new Error('Failed to fetch loans');
+  return res.json() as Promise<Loan[]>;
+}
+
+export async function createLoan(token: string, data: CreateLoanData): Promise<Loan> {
+  const res = await fetch(apiUrl('/api/loans'), {
+    method: 'POST',
+    headers: authHeaders(token),
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error('Failed to create loan');
+  return res.json() as Promise<Loan>;
+}
+
+export async function updateLoan(token: string, id: number, data: UpdateLoanData): Promise<Loan> {
+  const res = await fetch(apiUrl(`/api/loans/${id}`), {
+    method: 'PATCH',
+    headers: authHeaders(token),
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error('Failed to update loan');
+  return res.json() as Promise<Loan>;
+}
+
+export async function deleteLoan(token: string, id: number): Promise<void> {
+  const res = await fetch(apiUrl(`/api/loans/${id}`), {
+    method: 'DELETE',
+    headers: authHeaders(token),
+  });
+  if (!res.ok) throw new Error('Failed to delete loan');
 }

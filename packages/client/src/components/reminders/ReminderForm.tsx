@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import DateTimeInput from '../DateTimeInput';
 
 export interface ReminderFormState {
@@ -21,6 +22,7 @@ interface ReminderFormProps {
 }
 
 export default function ReminderForm({ initial = EMPTY_REMINDER_FORM, onSave, onCancel, saving }: ReminderFormProps) {
+  const { t } = useTranslation();
   const [form, setForm] = useState<ReminderFormState>(initial);
 
   return (
@@ -28,7 +30,7 @@ export default function ReminderForm({ initial = EMPTY_REMINDER_FORM, onSave, on
       <div className="space-y-3">
         <input
           className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
-          placeholder="Title *"
+          placeholder={t('reminders.form.titlePlaceholder')}
           value={form.title}
           onChange={e => setForm(p => ({ ...p, title: e.target.value }))}
         />
@@ -40,7 +42,7 @@ export default function ReminderForm({ initial = EMPTY_REMINDER_FORM, onSave, on
         <textarea
           className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
           rows={2}
-          placeholder="Notes (optional)"
+          placeholder={t('reminders.form.notesPlaceholder')}
           value={form.notes}
           onChange={e => setForm(p => ({ ...p, notes: e.target.value }))}
         />
@@ -51,13 +53,13 @@ export default function ReminderForm({ initial = EMPTY_REMINDER_FORM, onSave, on
           disabled={saving}
           className="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700 disabled:opacity-50"
         >
-          Save
+          {t('common.save')}
         </button>
         <button
           onClick={onCancel}
           className="px-4 py-2 rounded text-sm border border-gray-300 hover:bg-gray-50"
         >
-          Cancel
+          {t('common.cancel')}
         </button>
       </div>
     </div>

@@ -209,79 +209,16 @@ router.get('/callback', async (req, res) => {
   res.redirect(`${clientOrigin}/tasks`);
 });
 
-// GET /api/google-tasks/task-lists
-// Returns the user's Google task lists (used if the UI needs to re-fetch)
-router.get('/task-lists', authenticateToken, async (req, res) => {
-  const userId = req.user!.id;
-  const row = (await db.execute({
-    sql: 'SELECT access_token, refresh_token, expiry FROM google_tasks_tokens WHERE user_id = ?',
-    args: [userId],
-  })).rows[0];
-
-  if (!row) {
-    res.status(404).json({ error: 'Not connected to Google Tasks' });
-    return;
-  }
-
-  const auth = getAuthedTasksClient({
-    access_token: row.access_token as string,
-    refresh_token: row.refresh_token as string | null,
-    expiry: row.expiry as string | null,
-  });
-  const lists = await listTaskLists(auth);
-  res.json(lists);
-});
-
-// POST /api/google-tasks/select-list
-// Saves the chosen task list ID for this user
-router.post('/select-list', authenticateToken, async (req, res) => {
-  const userId = req.user!.id;
-  const { taskListId } = req.body as { taskListId: string };
-
-  if (!taskListId) {
-    res.status(400).json({ error: 'taskListId is required' });
-    return;
-  }
-
-  await db.execute({
-    sql: `UPDATE google_tasks_tokens SET task_list_id = ?, updated_at = datetime('now') WHERE user_id = ?`,
-    args: [taskListId, userId],
-  });
-  res.status(204).send();
-});
-
 // GET /api/google-tasks/status
-// Returns connection status and selected task list info
+// Returns connection status
 router.get('/status', authenticateToken, async (req, res) => {
   const userId = req.user!.id;
   const row = (await db.execute({
-    sql: 'SELECT access_token, refresh_token, expiry, task_list_id FROM google_tasks_tokens WHERE user_id = ?',
+    sql: 'SELECT id FROM google_tasks_tokens WHERE user_id = ?',
     args: [userId],
   })).rows[0];
 
-  if (!row) {
-    res.json({ connected: false, taskListId: null, taskListTitle: null });
-    return;
-  }
-
-  const taskListId = (row.task_list_id as string | null) ?? null;
-  let taskListTitle: string | null = null;
-
-  if (taskListId) {
-    try {
-      const auth = getAuthedTasksClient({
-        access_token: row.access_token as string,
-        refresh_token: row.refresh_token as string | null,
-        expiry: row.expiry as string | null,
-      });
-      const lists = await listTaskLists(auth);
-      taskListTitle = lists.find((l) => l.id === taskListId)?.title ?? null;
-    } catch {
-      // Non-fatal — return connected status without title
-    }
-  }
-
-  res.json({ connected: true, taskListId, taskListTitle });
+  res.json({ connected: !!row });
 });
 
 // DELETE /api/google-tasks/disconnect
@@ -316,17 +253,16 @@ router.delete('/disconnect', authenticateToken, async (req, res) => {
 });
 
 // POST /api/google-tasks/sync
-// Pulls all tasks from the user's chosen Google task list and upserts into local DB.
-// Google wins on conflict.
+// Runs a full bidirectional sync between Google Tasks and local DB.
 router.post('/sync', authenticateToken, async (req, res) => {
   const userId = req.user!.id;
   const row = (await db.execute({
-    sql: 'SELECT access_token, refresh_token, expiry, task_list_id FROM google_tasks_tokens WHERE user_id = ?',
+    sql: 'SELECT access_token, refresh_token, expiry FROM google_tasks_tokens WHERE user_id = ?',
     args: [userId],
   })).rows[0];
 
-  if (!row || !row.task_list_id) {
-    res.status(400).json({ error: 'Google Tasks not connected or no task list selected' });
+  if (!row) {
+    res.status(400).json({ error: 'Google Tasks not connected' });
     return;
   }
 
@@ -335,35 +271,9 @@ router.post('/sync', authenticateToken, async (req, res) => {
     refresh_token: row.refresh_token as string | null,
     expiry: row.expiry as string | null,
   });
-  const taskListId = row.task_list_id as string;
 
-  const googleTasks = await listGoogleTasks(auth, taskListId);
+  await performFullSync(userId, auth);
 
-  for (const gt of googleTasks) {
-    const localStatus = gt.status === 'completed' ? 'done' : 'open';
-    // due from Google is RFC 3339 (e.g. "2024-01-15T00:00:00.000Z") — store date part only
-    const dueDate = gt.due ? gt.due.substring(0, 10) : null;
-
-    const existing = (await db.execute({
-      sql: 'SELECT id FROM tasks WHERE google_task_id = ? AND user_id = ?',
-      args: [gt.id, userId],
-    })).rows[0];
-
-    if (existing) {
-      await db.execute({
-        sql: `UPDATE tasks SET title = ?, description = ?, due_date = ?, status = ? WHERE id = ? AND user_id = ?`,
-        args: [gt.title, gt.notes ?? null, dueDate, localStatus, existing.id, userId],
-      });
-    } else {
-      await db.execute({
-        sql: `INSERT INTO tasks (user_id, title, description, due_date, priority, status, google_task_id)
-              VALUES (?, ?, ?, ?, 'medium', ?, ?)`,
-        args: [userId, gt.title, gt.notes ?? null, dueDate, localStatus, gt.id],
-      });
-    }
-  }
-
-  // Return the full updated task list
   const tasks = (await db.execute({
     sql: 'SELECT * FROM tasks WHERE user_id = ? ORDER BY created_at DESC',
     args: [userId],

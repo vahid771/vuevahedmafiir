@@ -125,12 +125,14 @@ subscriptionsRouter.post('/', async (req, res) => {
     billing_cycle,
     next_billing_date,
     active = 1,
+    max_repetitions,
   } = req.body as {
     name?: string;
     amount?: number;
     billing_cycle?: string;
     next_billing_date?: string;
     active?: number;
+    max_repetitions?: number | null;
   };
 
   if (!name) {
@@ -139,8 +141,8 @@ subscriptionsRouter.post('/', async (req, res) => {
   }
 
   const result = await db.execute({
-    sql: 'INSERT INTO subscriptions (user_id, name, amount, billing_cycle, next_billing_date, active) VALUES (?, ?, ?, ?, ?, ?)',
-    args: [userId, name, amount ?? null, billing_cycle ?? null, next_billing_date ?? null, active],
+    sql: 'INSERT INTO subscriptions (user_id, name, amount, billing_cycle, next_billing_date, active, max_repetitions) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    args: [userId, name, amount ?? null, billing_cycle ?? null, next_billing_date ?? null, active, max_repetitions ?? null],
   });
 
   const sub = await fetchById<object>('subscriptions', result.lastInsertRowid!);
@@ -157,12 +159,13 @@ subscriptionsRouter.patch('/:id', async (req, res) => {
     return;
   }
 
-  const { name, amount, billing_cycle, next_billing_date, active } = req.body as {
+  const { name, amount, billing_cycle, next_billing_date, active, max_repetitions } = req.body as {
     name?: string;
     amount?: number | null;
     billing_cycle?: string | null;
     next_billing_date?: string | null;
     active?: number;
+    max_repetitions?: number | null;
   };
 
   const { fields, values } = buildPatch({
@@ -171,6 +174,7 @@ subscriptionsRouter.patch('/:id', async (req, res) => {
     billing_cycle: billing_cycle !== undefined ? (billing_cycle ?? null) : undefined,
     next_billing_date: next_billing_date !== undefined ? (next_billing_date ?? null) : undefined,
     active,
+    max_repetitions: max_repetitions !== undefined ? (max_repetitions ?? null) : undefined,
   });
 
   if (fields.length === 0) {

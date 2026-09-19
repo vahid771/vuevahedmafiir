@@ -1,15 +1,16 @@
 import { NavLink } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 interface NavItem {
   to: string;
-  label: string;
+  labelKey: string;
   icon: JSX.Element;
 }
 
 const navItems: NavItem[] = [
   {
     to: '/dashboard',
-    label: 'Dashboard',
+    labelKey: 'nav.dashboard',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
         <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" />
@@ -19,7 +20,7 @@ const navItems: NavItem[] = [
   },
   {
     to: '/tasks',
-    label: 'Tasks',
+    labelKey: 'nav.tasks',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
         <polyline points="9 11 12 14 22 4" />
@@ -29,7 +30,7 @@ const navItems: NavItem[] = [
   },
   {
     to: '/bills',
-    label: 'Bills & Subs',
+    labelKey: 'nav.bills',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
         <rect x="1" y="4" width="22" height="16" rx="2" ry="2" />
@@ -39,7 +40,7 @@ const navItems: NavItem[] = [
   },
   {
     to: '/reminders',
-    label: 'Reminders',
+    labelKey: 'nav.reminders',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
         <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
@@ -49,7 +50,7 @@ const navItems: NavItem[] = [
   },
   {
     to: '/habits',
-    label: 'Habits',
+    labelKey: 'nav.habits',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
         <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
@@ -58,7 +59,7 @@ const navItems: NavItem[] = [
   },
   {
     to: '/dates',
-    label: 'Important Dates',
+    labelKey: 'nav.dates',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
         <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
@@ -69,7 +70,7 @@ const navItems: NavItem[] = [
   },
   {
     to: '/documents',
-    label: 'Documents',
+    labelKey: 'nav.documents',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -83,7 +84,7 @@ const navItems: NavItem[] = [
 
 const settingsItem: NavItem = {
   to: '/settings',
-  label: 'Settings',
+  labelKey: 'nav.settings',
   icon: (
     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
       <circle cx="12" cy="12" r="3" />
@@ -94,17 +95,38 @@ const settingsItem: NavItem = {
 
 interface SidebarProps {
   collapsed: boolean;
+  mobileOpen: boolean;
+  onClose: () => void;
 }
 
-export default function Sidebar({ collapsed }: SidebarProps) {
+export default function Sidebar({ collapsed, mobileOpen, onClose }: SidebarProps) {
+  const { t } = useTranslation();
+  // On mobile: fixed overlay, slide in/out via translate
+  // On md+: relative, always visible, width toggled by collapsed prop
+  const navLinkClass = (isActive: boolean) =>
+    `flex items-center gap-3 px-3 py-2 mx-2 rounded-md text-sm font-medium transition-colors ${
+      isActive ? 'bg-gray-700 text-white' : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+    } ${collapsed ? 'md:justify-center md:px-0' : ''}`;
+
   return (
-    <nav className={`flex flex-col h-full bg-gray-900 text-gray-300 transition-all duration-200 ${collapsed ? 'w-14' : 'w-56'}`}>
-      <div className={`flex items-center h-14 px-3 border-b border-gray-700 ${collapsed ? 'justify-center' : ''}`}>
-        {!collapsed && (
-          <span className="text-white font-semibold text-sm tracking-wide truncate">Life Dashboard</span>
-        )}
+    <nav
+      className={[
+        'flex flex-col h-full bg-gray-900 dark:bg-gray-950 text-gray-300 transition-transform duration-200',
+        // Mobile: fixed drawer, slides in from left
+        'fixed inset-y-0 left-0 z-40 w-64',
+        mobileOpen ? 'translate-x-0' : '-translate-x-full',
+        // Desktop: relative, no translate, width from collapsed state
+        `md:relative md:inset-auto md:z-auto md:translate-x-0`,
+        collapsed ? 'md:w-14' : 'md:w-56',
+      ].join(' ')}
+    >
+      <div className={`flex items-center h-14 px-3 border-b border-gray-700 dark:border-gray-800 ${collapsed ? 'md:justify-center' : ''}`}>
+        {/* Always show full title in mobile drawer; respect collapsed on desktop */}
+        <span className={`text-white font-semibold text-sm tracking-wide truncate ${collapsed ? 'md:hidden' : ''}`}>
+          {t('layout.appName')}
+        </span>
         {collapsed && (
-          <span className="text-white font-bold text-base">LD</span>
+          <span className="hidden md:block text-white font-bold text-base">{t('layout.appShort')}</span>
         )}
       </div>
       <ul className="flex-1 py-3 space-y-1 overflow-y-auto">
@@ -112,17 +134,12 @@ export default function Sidebar({ collapsed }: SidebarProps) {
           <li key={item.to}>
             <NavLink
               to={item.to}
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2 mx-2 rounded-md text-sm font-medium transition-colors ${
-                  isActive
-                    ? 'bg-gray-700 text-white'
-                    : 'hover:bg-gray-800 hover:text-white'
-                } ${collapsed ? 'justify-center px-0' : ''}`
-              }
-              title={collapsed ? item.label : undefined}
+              onClick={onClose}
+              className={({ isActive }) => navLinkClass(isActive)}
+              title={collapsed ? t(item.labelKey) : undefined}
             >
               {item.icon}
-              {!collapsed && <span className="truncate">{item.label}</span>}
+              <span className={`truncate ${collapsed ? 'md:hidden' : ''}`}>{t(item.labelKey)}</span>
             </NavLink>
           </li>
         ))}
@@ -130,17 +147,12 @@ export default function Sidebar({ collapsed }: SidebarProps) {
       <div className="py-3 border-t border-gray-700">
         <NavLink
           to={settingsItem.to}
-          className={({ isActive }) =>
-            `flex items-center gap-3 px-3 py-2 mx-2 rounded-md text-sm font-medium transition-colors ${
-              isActive
-                ? 'bg-gray-700 text-white'
-                : 'hover:bg-gray-800 hover:text-white'
-            } ${collapsed ? 'justify-center px-0' : ''}`
-          }
-          title={collapsed ? settingsItem.label : undefined}
+          onClick={onClose}
+          className={({ isActive }) => navLinkClass(isActive)}
+          title={collapsed ? t(settingsItem.labelKey) : undefined}
         >
           {settingsItem.icon}
-          {!collapsed && <span className="truncate">{settingsItem.label}</span>}
+          <span className={`truncate ${collapsed ? 'md:hidden' : ''}`}>{t(settingsItem.labelKey)}</span>
         </NavLink>
       </div>
     </nav>

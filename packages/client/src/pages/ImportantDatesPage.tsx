@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useCalendar } from '../context/CalendarContext';
+import { useTranslation } from 'react-i18next';
 import {
   getDates,
   createDate,
@@ -20,17 +21,18 @@ function daysUntil(dateStr: string): number {
   return Math.round((d.getTime() - today.getTime()) / 86400000);
 }
 
-function daysLabel(n: number): string {
-  if (n === 0) return 'Today!';
-  if (n === 1) return 'Tomorrow';
-  if (n < 0) return `${Math.abs(n)} days ago`;
-  return `in ${n} days`;
-}
-
 export default function ImportantDatesPage() {
   const { token } = useAuth();
   const { calendar } = useCalendar();
+  const { t } = useTranslation();
   const { addJob } = useSyncQueue();
+
+  function daysLabel(n: number): string {
+    if (n === 0) return t('dates.today');
+    if (n === 1) return t('dates.tomorrow');
+    if (n < 0) return t('dates.daysAgo', { count: Math.abs(n) });
+    return t('dates.inDays', { count: n });
+  }
   const [dates, setDates] = useState<ImportantDate[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -47,7 +49,7 @@ export default function ImportantDatesPage() {
       setLoading(true);
       setDates(await getDates(token!));
     } catch {
-      setError('Failed to load dates');
+      setError(t('dates.failedLoad'));
     } finally {
       setLoading(false);
     }
@@ -73,7 +75,7 @@ export default function ImportantDatesPage() {
       setSyncSuccess(true);
       setTimeout(() => setSyncSuccess(false), 2500);
     } catch {
-      setError('Failed to sync from Google Calendar');
+      setError(t('dates.failedSync'));
     } finally {
       setSyncing(false);
     }
@@ -94,38 +96,38 @@ export default function ImportantDatesPage() {
       const payload = { title: form.title, date: form.date, recurs_yearly: form.recurs_yearly ? 1 : 0, notes: form.notes || null };
       if (editId !== null) {
         await (gcalConnected
-          ? addJob(`Update "${form.title}" on Google Calendar`, () => updateDate(token!, editId, payload).then(() => {}))
+          ? addJob({ key: 'sync.updateCalendar', vars: { name: form.title } }, () => updateDate(token!, editId, payload).then(() => {}))
           : updateDate(token!, editId, payload));
       } else {
         await (gcalConnected
-          ? addJob(`Add "${form.title}" to Google Calendar`, () => createDate(token!, payload).then(() => {}))
+          ? addJob({ key: 'sync.addCalendar', vars: { name: form.title } }, () => createDate(token!, payload).then(() => {}))
           : createDate(token!, payload));
       }
       cancelForm();
       await load();
     } catch {
-      setError('Failed to save date');
+      setError(t('dates.failedSave'));
     } finally {
       setSaving(false);
     }
   }
 
   async function handleDelete(id: number) {
-    if (!confirm('Delete this date?')) return;
+    if (!confirm(t('dates.deleteConfirm'))) return;
     try {
       await (gcalConnected
-        ? addJob(`Delete date from Google Calendar`, () => deleteDate(token!, id).then(() => {}))
+        ? addJob({ key: 'sync.deleteCalendar' }, () => deleteDate(token!, id).then(() => {}))
         : deleteDate(token!, id));
       await load();
     } catch {
-      setError('Failed to delete date');
+      setError(t('dates.failedDelete'));
     }
   }
 
   return (
     <div className="max-w-2xl mx-auto py-6 px-4">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Important Dates</h1>
+        <h1 className="text-2xl font-bold text-gray-900">{t('dates.title')}</h1>
         <div className="flex items-center gap-2">
           {gcalConnected && (
             <button
@@ -133,7 +135,7 @@ export default function ImportantDatesPage() {
               onClick={handleCalendarSync}
               disabled={syncing}
               className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
-              title="Sync from Google Calendar"
+              title={t('dates.syncFromGoogle')}
             >
               {syncing ? (
                 <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -149,10 +151,10 @@ export default function ImportantDatesPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
               )}
-              {syncing ? 'Syncing…' : syncSuccess ? 'Synced' : 'Sync from Google'}
+              {syncing ? t('dates.syncing') : syncSuccess ? t('dates.synced') : t('dates.syncFromGoogle')}
             </button>
           )}
-          <button onClick={startAdd} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700">+ Add Date</button>
+          <button onClick={startAdd} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700">{t('dates.addDate')}</button>
         </div>
       </div>
 
@@ -174,10 +176,10 @@ export default function ImportantDatesPage() {
       )}
 
       {loading ? (
-        <p className="text-gray-500">Loading...</p>
+        <p className="text-gray-500">{t('common.loading')}</p>
       ) : dates.length === 0 ? (
         <div className="text-center py-12 text-gray-400">
-          <p className="text-lg">No important dates yet.</p>
+          <p className="text-lg">{t('dates.noDates')}</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -195,19 +197,19 @@ export default function ImportantDatesPage() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-medium text-gray-900">{d.title}</span>
-                    {d.recurs_yearly ? <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">Yearly</span> : null}
-                    {isSoon && <span className="text-xs bg-amber-200 text-amber-800 px-2 py-0.5 rounded-full">Soon</span>}
+                    {d.recurs_yearly ? <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">{t('dates.yearly')}</span> : null}
+                    {isSoon && <span className="text-xs bg-amber-200 text-amber-800 px-2 py-0.5 rounded-full">{t('dates.soon')}</span>}
                   </div>
                   <p className="text-sm text-gray-500 mt-0.5">{formatDate(d.date, calendar)} — <span className={isSoon ? 'text-amber-600 font-medium' : 'text-gray-500'}>{daysLabel(days)}</span></p>
                   {d.notes && <p className="text-xs text-gray-400 mt-0.5 truncate">{d.notes}</p>}
                 </div>
                 <div className="flex items-center gap-1 ml-3 shrink-0">
-                  <button onClick={() => startEdit(d)} title="Edit" className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors">
+                  <button onClick={() => startEdit(d)} title={t('common.edit')} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors">
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                     </svg>
                   </button>
-                  <button onClick={() => handleDelete(d.id)} title="Delete" className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors">
+                  <button onClick={() => handleDelete(d.id)} title={t('common.delete')} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors">
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                     </svg>

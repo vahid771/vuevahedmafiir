@@ -47,7 +47,7 @@ The mirror case (Gregorian range for a Shamsi primary) is also needed:
 - Existing helpers: `toJalaali`, `toGregorian`, `jalaaliMonthLength`, `PERSIAN_MONTHS`, `toPersianDigits`
 - For Gregorian last-day-of-month: `new Date(gYear, gMonth, 0).getDate()` (month is 1-based so pass `gMonth` directly)
 
-**Status:** [ ] pending
+**Status:** [x] done
 
 ---
 
@@ -85,7 +85,7 @@ The monthly grid logic differs by primary calendar:
 - `packages/client/src/components/JalaliDatePicker.tsx` — reference for Jalali grid logic (Saturday offset, weekday header generation)
 - Tailwind patterns: `bg-white border border-gray-200 rounded-xl`, `text-sm text-gray-500`, `bg-blue-600 text-white rounded-full`
 
-**Status:** [ ] pending
+**Status:** [x] done
 
 ---
 
@@ -127,7 +127,7 @@ Daily view:
 - `packages/client/src/utils/jalali.ts` — new range helpers from Sub-Task 1
 - For week start calculation when Miladi: `date.getDay()` where Sunday=0; for Shamsi week: Saturday=6, so offset = `(date.getDay() + 1) % 7`
 
-**Status:** [ ] pending
+**Status:** [x] done
 
 ---
 
@@ -149,7 +149,7 @@ Mount the finished widget on the Dashboard. It should appear as a new card secti
 - `packages/client/src/pages/DashboardPage.tsx` — insert after line 92 (closing `</div>` of the AI summary card)
 - Existing container: `max-w-2xl mx-auto py-6 px-4`
 
-**Status:** [ ] pending
+**Status:** [x] done
 
 ---
 

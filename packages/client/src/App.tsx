@@ -1,6 +1,8 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { CalendarProvider } from './context/CalendarContext';
+import { LanguageProvider } from './context/LanguageContext';
+import { ThemeProvider } from './context/ThemeContext';
 import { SyncQueueProvider } from './context/SyncQueueContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import AppLayout from './layouts/AppLayout';
@@ -19,8 +21,10 @@ import AuthCallbackPage from './pages/AuthCallbackPage';
 
 function App() {
   return (
+    <ThemeProvider>
     <AuthProvider>
       <CalendarProvider>
+      <LanguageProvider>
       <SyncQueueProvider>
         <BrowserRouter>
           <Routes>
@@ -48,8 +52,10 @@ function App() {
           </Routes>
         </BrowserRouter>
       </SyncQueueProvider>
+      </LanguageProvider>
       </CalendarProvider>
     </AuthProvider>
+    </ThemeProvider>
   );
 }
 

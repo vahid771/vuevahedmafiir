@@ -133,17 +133,6 @@ router.patch('/:id/set-default', async (req, res) => {
     args: [id, userId],
   });
 
-  // Update the legacy Google Tasks token to point at the new default group's linked list,
-  // so new tasks without an explicit group sync to the correct Google list.
-  if (existing.google_list_id) {
-    try {
-      await db.execute({
-        sql: 'UPDATE google_tasks_tokens SET task_list_id = ? WHERE user_id = ?',
-        args: [existing.google_list_id, userId],
-      });
-    } catch { /* non-fatal */ }
-  }
-
   const groups = (await db.execute({
     sql: 'SELECT * FROM task_groups WHERE user_id = ? ORDER BY sort_order ASC, created_at ASC',
     args: [userId],

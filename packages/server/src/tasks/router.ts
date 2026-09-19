@@ -22,19 +22,26 @@ const router = Router();
 router.use(authenticateToken);
 
 /**
- * Resolves the correct Google Task list ID for a task:
- * - If the task has a group with a google_list_id → use that list
- * - Otherwise fall back to the legacy selected task_list_id in google_tasks_tokens
+ * Resolves the correct Google Task list ID for a task via the task's group's google_list_id.
  */
 async function getGoogleTasksConnection(
   userId: number,
   taskGroupId?: number | null,
 ): Promise<{ auth: OAuth2Client; taskListId: string } | null> {
   const tokenRow = (await db.execute({
-    sql: 'SELECT access_token, refresh_token, expiry, task_list_id FROM google_tasks_tokens WHERE user_id = ?',
+    sql: 'SELECT access_token, refresh_token, expiry FROM google_tasks_tokens WHERE user_id = ?',
     args: [userId],
   })).rows[0];
   if (!tokenRow) return null;
+
+  if (!taskGroupId) return null;
+
+  const groupRow = (await db.execute({
+    sql: 'SELECT google_list_id FROM task_groups WHERE id = ? AND user_id = ?',
+    args: [taskGroupId, userId],
+  })).rows[0];
+  const googleListId = groupRow?.google_list_id as string | null;
+  if (!googleListId) return null;
 
   const auth = getAuthedTasksClient({
     access_token: tokenRow.access_token as string,
@@ -42,19 +49,7 @@ async function getGoogleTasksConnection(
     expiry: tokenRow.expiry as string | null,
   });
 
-  // Prefer the group's linked Google list over the legacy fallback
-  if (taskGroupId) {
-    const groupRow = (await db.execute({
-      sql: 'SELECT google_list_id FROM task_groups WHERE id = ? AND user_id = ?',
-      args: [taskGroupId, userId],
-    })).rows[0];
-    const googleListId = groupRow?.google_list_id as string | null;
-    if (googleListId) return { auth, taskListId: googleListId };
-  }
-
-  // Fall back to legacy selected list
-  if (!tokenRow.task_list_id) return null;
-  return { auth, taskListId: tokenRow.task_list_id as string };
+  return { auth, taskListId: googleListId };
 }
 
 // GET /api/tasks?status=open|done&group_id=N

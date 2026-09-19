@@ -2,10 +2,12 @@ import { useState, FormEvent } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { login as apiLogin, register as apiRegister, getGoogleLoginUrl } from '../api/auth';
 import { useAuth } from '../context/AuthContext';
+import { useTranslation } from 'react-i18next';
 
 type Mode = 'login' | 'register';
 
 export default function LoginPage() {
+  const { t, i18n } = useTranslation();
   const [mode, setMode] = useState<Mode>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -17,8 +19,8 @@ export default function LoginPage() {
 
   const searchError = new URLSearchParams(location.search).get('error');
   const [error, setError] = useState<string | null>(
-    searchError === 'google_failed' ? 'Google sign-in failed. Please try again.' :
-    searchError === 'no_email' ? 'Could not retrieve email from Google.' : null
+    searchError === 'google_failed' ? t('login.googleFailed') :
+    searchError === 'no_email' ? t('login.noEmail') : null
   );
 
   async function handleSubmit(e: FormEvent) {
@@ -40,10 +42,10 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4" dir={i18n.dir()}>
       <div className="bg-white rounded-2xl shadow-md w-full max-w-sm p-8">
         <h1 className="text-2xl font-bold text-gray-800 mb-6 text-center">
-          Personal Life Dashboard
+          {t('login.title')}
         </h1>
 
         {/* Mode toggle */}
@@ -57,7 +59,7 @@ export default function LoginPage() {
                 : 'text-gray-500 hover:bg-gray-50'
             }`}
           >
-            Sign In
+            {t('login.signIn')}
           </button>
           <button
             type="button"
@@ -68,14 +70,14 @@ export default function LoginPage() {
                 : 'text-gray-500 hover:bg-gray-50'
             }`}
           >
-            Register
+            {t('login.register')}
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="email">
-              Email
+              {t('login.email')}
             </label>
             <input
               id="email"
@@ -84,13 +86,13 @@ export default function LoginPage() {
               onChange={(e) => setEmail(e.target.value)}
               required
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="you@example.com"
+              placeholder={t('login.emailPlaceholder')}
             />
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="password">
-              Password
+              {t('login.password')}
             </label>
             <input
               id="password"
@@ -99,7 +101,7 @@ export default function LoginPage() {
               onChange={(e) => setPassword(e.target.value)}
               required
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="••••••••"
+              placeholder={t('login.passwordPlaceholder')}
             />
           </div>
 
@@ -114,13 +116,13 @@ export default function LoginPage() {
             disabled={loading}
             className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 rounded-lg text-sm transition-colors disabled:opacity-50"
           >
-            {loading ? 'Please wait…' : mode === 'login' ? 'Sign In' : 'Create Account'}
+            {loading ? t('login.pleaseWait') : mode === 'login' ? t('login.signIn') : t('login.createAccount')}
           </button>
         </form>
 
         <div className="flex items-center gap-3 my-4">
           <div className="flex-1 h-px bg-gray-200" />
-          <span className="text-xs text-gray-400">or</span>
+          <span className="text-xs text-gray-400">{t('common.or')}</span>
           <div className="flex-1 h-px bg-gray-200" />
         </div>
 
@@ -134,7 +136,7 @@ export default function LoginPage() {
             <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
             <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
           </svg>
-          Continue with Google
+          {t('login.continueWithGoogle')}
         </a>
       </div>
     </div>

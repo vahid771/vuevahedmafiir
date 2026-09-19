@@ -2,6 +2,8 @@ export interface Habit {
   id: number;
   user_id: number;
   name: string;
+  name_en: string | null;
+  name_fa: string | null;
   frequency: 'daily' | 'weekly';
   target_days: string;
   created_at: string;

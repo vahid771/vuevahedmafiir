@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import DateInput from '../DateInput';
 
 export interface BillFormState {
@@ -23,6 +24,7 @@ interface BillFormProps {
 }
 
 export default function BillForm({ initial = EMPTY_BILL_FORM, onSave, onCancel, saving }: BillFormProps) {
+  const { t } = useTranslation();
   const [form, setForm] = useState<BillFormState>(initial);
   function set<K extends keyof BillFormState>(key: K, value: BillFormState[K]) {
     setForm(prev => ({ ...prev, [key]: value }));
@@ -33,30 +35,30 @@ export default function BillForm({ initial = EMPTY_BILL_FORM, onSave, onCancel, 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Name <span className="text-red-500">*</span>
+            {t('bills.form.name')} <span className="text-red-500">*</span>
           </label>
           <input
             type="text"
             value={form.name}
             onChange={e => set('name', e.target.value)}
             className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Bill name"
+            placeholder={t('bills.form.namePlaceholder')}
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Amount</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">{t('bills.form.amount')}</label>
           <input
             type="number"
             min="0"
-            step="0.01"
+            step="1"
             value={form.amount}
             onChange={e => set('amount', e.target.value)}
             className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="0.00"
+            placeholder="0"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Due Date</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">{t('bills.form.dueDate')}</label>
           <DateInput
             value={form.due_date}
             onChange={v => set('due_date', v)}
@@ -64,15 +66,15 @@ export default function BillForm({ initial = EMPTY_BILL_FORM, onSave, onCancel, 
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Recurrence</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">{t('bills.form.recurrence')}</label>
           <select
             value={form.recurrence}
             onChange={e => set('recurrence', e.target.value as BillFormState['recurrence'])}
             className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
           >
-            <option value="once">Once</option>
-            <option value="monthly">Monthly</option>
-            <option value="yearly">Yearly</option>
+            <option value="once">{t('bills.form.once')}</option>
+            <option value="monthly">{t('bills.form.monthly')}</option>
+            <option value="yearly">{t('bills.form.yearly')}</option>
           </select>
         </div>
       </div>
@@ -82,7 +84,7 @@ export default function BillForm({ initial = EMPTY_BILL_FORM, onSave, onCancel, 
           onClick={onCancel}
           className="px-3 py-1.5 text-sm rounded border border-gray-300 text-gray-700 hover:bg-gray-100"
         >
-          Cancel
+          {t('common.cancel')}
         </button>
         <button
           type="button"
@@ -90,7 +92,7 @@ export default function BillForm({ initial = EMPTY_BILL_FORM, onSave, onCancel, 
           disabled={saving || !form.name.trim()}
           className="px-3 py-1.5 text-sm rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
         >
-          {saving ? 'Saving…' : 'Save'}
+          {saving ? t('common.saving') : t('common.save')}
         </button>
       </div>
     </div>

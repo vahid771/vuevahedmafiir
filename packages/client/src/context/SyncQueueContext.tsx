@@ -2,16 +2,21 @@ import { createContext, useContext, useState, useCallback, ReactNode } from 'rea
 
 export type SyncJobStatus = 'pending' | 'done' | 'failed';
 
+export interface SyncLabel {
+  key: string;
+  vars?: Record<string, string>;
+}
+
 export interface SyncJob {
   id: string;
-  label: string;
+  label: SyncLabel;
   status: SyncJobStatus;
   retry?: () => Promise<void>;
 }
 
 interface SyncQueueContextValue {
   jobs: SyncJob[];
-  addJob: (label: string, run: () => Promise<void>) => Promise<void>;
+  addJob: (label: SyncLabel, run: () => Promise<void>) => Promise<void>;
   dismissJob: (id: string) => void;
   dismissAll: () => void;
 }
@@ -27,7 +32,7 @@ export function SyncQueueProvider({ children }: { children: ReactNode }) {
     setJobs(prev => prev.map(j => j.id === id ? { ...j, ...patch } : j));
   }, []);
 
-  const addJob = useCallback(async (label: string, run: () => Promise<void>) => {
+  const addJob = useCallback(async (label: SyncLabel, run: () => Promise<void>) => {
     const id = String(++counter);
     const retry = async () => {
       updateJob(id, { status: 'pending', retry: undefined });

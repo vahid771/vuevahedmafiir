@@ -1,9 +1,70 @@
 import { Router } from 'express';
+import Groq from 'groq-sdk';
 import { db } from '../db';
 import { authenticateToken } from '../middleware/authenticate';
 import { assertOwnership, buildPatch, fetchById } from '../utils/db';
 import { getWeekBounds } from '../utils/dates';
 import { computeStreak } from './service';
+
+/**
+ * Translate a habit name into both English and Persian using Groq.
+ * Returns { name_en, name_fa } on success, or null on any failure so the
+ * caller can store NULL and retry on next load.
+ */
+async function translateHabitName(name: string): Promise<{ name_en: string; name_fa: string } | null> {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) {
+    console.warn('[translateHabitName] GROQ_API_KEY not set — skipping translation');
+    return null;
+  }
+  try {
+    const groq = new Groq({ apiKey });
+    const completion = await groq.chat.completions.create({
+      model: 'groq/compound-mini',
+      messages: [
+        {
+          role: 'system',
+          content: 'You are a translation assistant. You MUST respond with ONLY a raw JSON object — no markdown, no explanation, nothing else. The JSON must have exactly two string keys: "name_en" (habit name in English) and "name_fa" (habit name in Persian/Farsi). Keep the translation concise — it is a short habit name. Example: {"name_en":"Drink water","name_fa":"نوشیدن آب"}',
+        },
+        {
+          role: 'user',
+          content: `Translate this habit name: "${name}"`,
+        },
+      ],
+      max_tokens: 120,
+    });
+    const raw = (completion.choices[0]?.message?.content ?? '').trim();
+    console.log(`[translateHabitName] raw for "${name}":`, raw);
+
+    const cleaned = raw.replace(/^```(?:json)?\s*/im, '').replace(/\s*```\s*$/m, '').trim();
+
+    let name_en: string | null = null;
+    let name_fa: string | null = null;
+
+    try {
+      const parsed = JSON.parse(cleaned) as { name_en?: string; name_fa?: string };
+      name_en = (parsed.name_en ?? '').trim() || null;
+      name_fa = (parsed.name_fa ?? '').trim() || null;
+    } catch {
+      // Regex fallback
+      const enMatch = cleaned.match(/"name_en"\s*:\s*"([^"]+)"/);
+      const faMatch = cleaned.match(/"name_fa"\s*:\s*"([^"]+)"/);
+      name_en = enMatch ? enMatch[1].trim() : null;
+      name_fa = faMatch ? faMatch[1].trim() : null;
+    }
+
+    if (!name_en || !name_fa) {
+      console.error(`[translateHabitName] incomplete result for "${name}": en=${name_en} fa=${name_fa} raw=${raw}`);
+      return null;
+    }
+
+    console.log(`[translateHabitName] ok: en="${name_en}" fa="${name_fa}"`);
+    return { name_en, name_fa };
+  } catch (err) {
+    console.error('[translateHabitName] Groq error:', err instanceof Error ? err.message : err);
+    return null;
+  }
+}
 
 const router = Router();
 router.use(authenticateToken);
@@ -18,12 +79,27 @@ router.get('/', async (req, res) => {
     id: number;
     user_id: number;
     name: string;
+    name_en: string | null;
+    name_fa: string | null;
     frequency: string;
     target_days: string;
     created_at: string;
   }[];
 
-  const { monday, sunday } = getWeekBounds();
+  // Backfill any habits that are missing translations (e.g. created before migration)
+  await Promise.all(habits.map(async h => {
+    if (h.name_en && h.name_fa) return;
+    const t = await translateHabitName(h.name);
+    if (!t) return; // Groq unavailable — leave NULL, retry next load
+    await db.execute({
+      sql: 'UPDATE habits SET name_en = ?, name_fa = ? WHERE id = ? AND user_id = ?',
+      args: [t.name_en, t.name_fa, h.id, userId],
+    });
+    h.name_en = t.name_en;
+    h.name_fa = t.name_fa;
+  }));
+
+  const { start: monday, end: sunday } = getWeekBounds();
 
   const result = await Promise.all(habits.map(async h => {
     const logs = (await db.execute({
@@ -55,9 +131,11 @@ router.post('/', async (req, res) => {
     return;
   }
 
+  const t = await translateHabitName(name);
+
   const result = await db.execute({
-    sql: 'INSERT INTO habits (user_id, name, frequency, target_days) VALUES (?, ?, ?, ?)',
-    args: [userId, name, frequency, target_days],
+    sql: 'INSERT INTO habits (user_id, name, frequency, target_days, name_en, name_fa) VALUES (?, ?, ?, ?, ?, ?)',
+    args: [userId, name, frequency, target_days, t?.name_en ?? null, t?.name_fa ?? null],
   });
 
   const habit = await fetchById<object>('habits', result.lastInsertRowid!);
@@ -77,7 +155,10 @@ router.patch('/:id', async (req, res) => {
     target_days?: string;
   };
 
-  const { fields, values } = buildPatch({ name, frequency, target_days });
+  // If the name is being changed, re-translate both language columns
+  const t = name ? await translateHabitName(name) : null;
+  const translations = t ? { name_en: t.name_en, name_fa: t.name_fa } : name ? { name_en: null, name_fa: null } : {};
+  const { fields, values } = buildPatch({ name, frequency, target_days, ...translations });
 
   if (fields.length === 0) { res.status(400).json({ error: 'No fields to update' }); return; }
 

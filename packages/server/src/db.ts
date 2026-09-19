@@ -105,6 +105,7 @@ export async function runMigrations(): Promise<void> {
       id         INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id    INTEGER UNIQUE NOT NULL REFERENCES users(id),
       calendar   TEXT    NOT NULL DEFAULT 'miladi',
+      language   TEXT    NOT NULL DEFAULT 'en',
       created_at TEXT    DEFAULT (datetime('now')),
       updated_at TEXT    DEFAULT (datetime('now'))
     );
@@ -179,6 +180,80 @@ export async function runMigrations(): Promise<void> {
     'ALTER TABLE task_groups ADD COLUMN is_default INTEGER DEFAULT 0',
     'ALTER TABLE task_groups ADD COLUMN is_google_default INTEGER DEFAULT 0',
     'ALTER TABLE subscriptions ADD COLUMN max_repetitions INTEGER',
+    "ALTER TABLE user_preferences ADD COLUMN language TEXT NOT NULL DEFAULT 'en'",
+    'ALTER TABLE habits ADD COLUMN name_en TEXT',
+    'ALTER TABLE habits ADD COLUMN name_fa TEXT',
+    `CREATE TABLE IF NOT EXISTS ai_summaries (
+      user_id    INTEGER PRIMARY KEY REFERENCES users(id),
+      summary    TEXT    NOT NULL,
+      expires_at TEXT    NOT NULL,
+      created_at TEXT    DEFAULT (datetime('now'))
+    )`,
+    `CREATE TABLE IF NOT EXISTS loans (
+      id                INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id           INTEGER NOT NULL REFERENCES users(id),
+      name              TEXT    NOT NULL,
+      lender            TEXT,
+      total_amount      REAL    NOT NULL,
+      remaining_amount  REAL    NOT NULL,
+      installment       REAL,
+      due_day           INTEGER,
+      next_payment_date TEXT,
+      notes             TEXT,
+      active            INTEGER DEFAULT 1,
+      created_at        TEXT    DEFAULT (datetime('now'))
+    )`,
+    'CREATE INDEX IF NOT EXISTS idx_loans_user_id ON loans(user_id)',
+    'ALTER TABLE user_preferences ADD COLUMN country TEXT DEFAULT NULL',
+    // User holiday overrides: hidden/edited API holidays + custom ones
+    `CREATE TABLE IF NOT EXISTS user_holidays (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id     INTEGER NOT NULL REFERENCES users(id),
+      country     TEXT    NOT NULL,
+      year        INTEGER NOT NULL,
+      date        TEXT    NOT NULL,
+      local_name  TEXT    NOT NULL,
+      name        TEXT    NOT NULL,
+      hidden      INTEGER NOT NULL DEFAULT 0,
+      is_custom   INTEGER NOT NULL DEFAULT 0,
+      created_at  TEXT    DEFAULT (datetime('now')),
+      updated_at  TEXT    DEFAULT (datetime('now')),
+      UNIQUE(user_id, country, year, date)
+    )`,
+    'CREATE INDEX IF NOT EXISTS idx_user_holidays_user ON user_holidays(user_id, country, year)',
+    // User weekend overrides: which days are weekends for the user's country
+    `CREATE TABLE IF NOT EXISTS user_weekends (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id      INTEGER NOT NULL REFERENCES users(id),
+      country      TEXT    NOT NULL,
+      weekend_days TEXT    NOT NULL DEFAULT '[]',
+      created_at   TEXT    DEFAULT (datetime('now')),
+      updated_at   TEXT    DEFAULT (datetime('now')),
+      UNIQUE(user_id, country)
+    )`,
+    'CREATE INDEX IF NOT EXISTS idx_user_weekends_user ON user_weekends(user_id, country)',
+    'ALTER TABLE user_holidays ADD COLUMN name_fa TEXT',
+    // Per-language summary storage: one row per (user_id, summary_lang)
+    `CREATE TABLE IF NOT EXISTS ai_summaries_lang (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id      INTEGER NOT NULL REFERENCES users(id),
+      summary_lang TEXT    NOT NULL DEFAULT 'en',
+      summary      TEXT    NOT NULL,
+      expires_at   TEXT    NOT NULL,
+      created_at   TEXT    NOT NULL,
+      UNIQUE(user_id, summary_lang)
+    )`,
+    'CREATE INDEX IF NOT EXISTS idx_ai_summaries_lang_user ON ai_summaries_lang(user_id, summary_lang)',
+    // History: previous summaries pushed before each regeneration or edit
+    `CREATE TABLE IF NOT EXISTS ai_summary_history (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id      INTEGER NOT NULL REFERENCES users(id),
+      summary      TEXT    NOT NULL,
+      summary_lang TEXT    NOT NULL DEFAULT 'en',
+      expires_at   TEXT    NOT NULL,
+      created_at   TEXT    NOT NULL
+    )`,
+    'CREATE INDEX IF NOT EXISTS idx_ai_summary_history_user ON ai_summary_history(user_id, summary_lang, created_at)',
   ];
   for (const sql of alterStatements) {
     try {

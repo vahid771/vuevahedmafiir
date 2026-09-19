@@ -1,10 +1,13 @@
 import { useEffect, useState, useCallback } from 'react';
+import { motion } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import { useCalendar } from '../context/CalendarContext';
 import {
   getTasks, createTask, updateTask, deleteTask,
   type Task, type CreateTaskData,
 } from '../api/tasks';
+import TasksCharts from '../components/charts/TasksCharts';
 import {
   getTaskGroups, createTaskGroup, renameTaskGroup, deleteTaskGroup, syncGoogleTaskGroups, setDefaultTaskGroup,
   type TaskGroup,
@@ -61,10 +64,14 @@ function TaskRow({
   saving: boolean;
 }) {
   const isDone = task.status === 'done';
+  const { t } = useTranslation();
   const { calendar } = useCalendar();
 
   return (
-    <li className="space-y-2">
+    <motion.li
+      className="space-y-2"
+      variants={{ hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0, transition: { duration: 0.18, ease: 'easeOut' as const } } }}
+    >
       <div className="flex items-start gap-3 py-3 px-4 bg-white rounded-lg border border-gray-200 hover:border-gray-300 transition-colors">
         <button
           type="button"
@@ -72,7 +79,7 @@ function TaskRow({
           className={`mt-0.5 flex-shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
             isDone ? 'bg-green-500 border-green-500 text-white' : 'border-gray-400 hover:border-green-400'
           }`}
-          title={isDone ? 'Mark open' : 'Mark done'}
+          title={isDone ? t('tasks.open') : t('tasks.done')}
         >
           {isDone && (
             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
@@ -97,11 +104,11 @@ function TaskRow({
           )}
         </div>
         <div className="flex gap-1 flex-shrink-0">
-          <button type="button" onClick={() => onEdit(task)} title="Edit"
+          <button type="button" onClick={() => onEdit(task)} title={t('common.edit')}
             className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors">
             <IconEdit />
           </button>
-          <button type="button" onClick={() => onDelete(task.id)} title="Delete"
+          <button type="button" onClick={() => onDelete(task.id)} title={t('common.delete')}
             className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors">
             <IconTrash />
           </button>
@@ -115,7 +122,7 @@ function TaskRow({
           saving={saving}
         />
       )}
-    </li>
+    </motion.li>
   );
 }
 
@@ -129,6 +136,7 @@ function TaskList({
   gcalConnected: boolean;
 }) {
   const { token } = useAuth();
+  const { t } = useTranslation();
   const { addJob } = useSyncQueue();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
@@ -161,9 +169,9 @@ function TaskList({
         priority: form.priority,
         task_group_id: groupId,
       };
-      const label = [gTasksConnected && 'Google Tasks', gcalConnected && form.due_date && 'Google Calendar'].filter(Boolean).join(' & ');
-      if (label) {
-        await addJob(`Add "${form.title.trim()}" to ${label}`, () =>
+      const target = [gTasksConnected && 'Google Tasks', gcalConnected && form.due_date && 'Google Calendar'].filter(Boolean).join(' & ');
+      if (target) {
+        await addJob({ key: 'sync.addItem', vars: { name: form.title.trim(), target } }, () =>
           createTask(token, data).then(created => { setTasks(prev => [created, ...prev]); setShowAddForm(false); }));
       } else {
         const created = await createTask(token, data);
@@ -179,7 +187,7 @@ function TaskList({
     const newStatus = task.status === 'open' ? 'done' : 'open';
     try {
       if (gTasksConnected || gcalConnected) {
-        await addJob(`Update "${task.title}" status`, () =>
+        await addJob({ key: 'sync.updateStatus', vars: { name: task.title } }, () =>
           updateTask(token, task.id, { status: newStatus }).then(u => setTasks(prev => prev.map(t => t.id === u.id ? u : t))));
       } else {
         const u = await updateTask(token, task.id, { status: newStatus });
@@ -194,7 +202,7 @@ function TaskList({
     try {
       const patch = { title: form.title.trim(), description: form.description || undefined, due_date: form.due_date || undefined, priority: form.priority };
       if (gTasksConnected || gcalConnected) {
-        await addJob(`Update "${form.title.trim()}"`, () =>
+        await addJob({ key: 'sync.updateItem', vars: { name: form.title.trim() } }, () =>
           updateTask(token, task.id, patch).then(u => { setTasks(prev => prev.map(t => t.id === u.id ? u : t)); setEditingId(null); }));
       } else {
         const u = await updateTask(token, task.id, patch);
@@ -206,11 +214,11 @@ function TaskList({
   }
 
   async function handleDelete(id: number) {
-    if (!token || !confirm('Delete this task?')) return;
+    if (!token || !confirm(t('tasks.deleteConfirm'))) return;
     const task = tasks.find(t => t.id === id);
     try {
       if ((gTasksConnected || gcalConnected) && task) {
-        await addJob(`Delete "${task.title}"`, () =>
+        await addJob({ key: 'sync.deleteItem', vars: { name: task.title } }, () =>
           deleteTask(token, id).then(() => setTasks(prev => prev.filter(t => t.id !== id))));
       } else {
         await deleteTask(token, id);
@@ -235,7 +243,7 @@ function TaskList({
         <button type="button"
           onClick={() => { setShowAddForm(v => !v); setEditingId(null); }}
           className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-          {showAddForm ? 'Cancel' : '+ Add Task'}
+          {showAddForm ? t('common.cancel') : t('tasks.addTask')}
         </button>
       </div>
 
@@ -244,17 +252,21 @@ function TaskList({
       )}
 
       {loading ? (
-        <p className="text-center text-gray-400 py-12">Loading…</p>
+        <p className="text-center text-gray-400 py-12">{t('tasks.loadingTasks')}</p>
       ) : (
         <div className="space-y-6">
           <section>
             <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
-              Open <span className="font-normal">({openTasks.length})</span>
+              {t('tasks.open')} <span className="font-normal">({openTasks.length})</span>
             </h2>
             {openTasks.length === 0 ? (
-              <p className="text-sm text-gray-400 italic px-4">No open tasks.</p>
+              <p className="text-sm text-gray-400 italic px-4">{t('tasks.noOpenTasks')}</p>
             ) : (
-              <ul className="space-y-2">
+              <motion.ul
+                className="space-y-2"
+                initial="hidden" animate="visible"
+                variants={{ visible: { transition: { staggerChildren: 0.05 } } }}
+              >
                 {openTasks.map(task => (
                   <TaskRow key={task.id} task={task}
                     onToggle={handleToggle} onDelete={handleDelete}
@@ -262,15 +274,19 @@ function TaskList({
                     editingId={editingId} onSaveEdit={handleSaveEdit}
                     onCancelEdit={() => setEditingId(null)} saving={editSaving} />
                 ))}
-              </ul>
+              </motion.ul>
             )}
           </section>
           {doneTasks.length > 0 && (
             <section>
               <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
-                Done <span className="font-normal">({doneTasks.length})</span>
+                {t('tasks.done')} <span className="font-normal">({doneTasks.length})</span>
               </h2>
-              <ul className="space-y-2">
+              <motion.ul
+                className="space-y-2"
+                initial="hidden" animate="visible"
+                variants={{ visible: { transition: { staggerChildren: 0.05 } } }}
+              >
                 {doneTasks.map(task => (
                   <TaskRow key={task.id} task={task}
                     onToggle={handleToggle} onDelete={handleDelete}
@@ -278,7 +294,7 @@ function TaskList({
                     editingId={editingId} onSaveEdit={handleSaveEdit}
                     onCancelEdit={() => setEditingId(null)} saving={editSaving} />
                 ))}
-              </ul>
+              </motion.ul>
             </section>
           )}
         </div>
@@ -291,6 +307,7 @@ function TaskList({
 
 export default function TasksPage() {
   const { token } = useAuth();
+  const { t } = useTranslation();
   const { addJob } = useSyncQueue();
 
   const [groups, setGroups] = useState<TaskGroup[]>([]);
@@ -340,7 +357,7 @@ export default function TasksPage() {
     const name = renameValue.trim();
     setRenamingId(-1);
     try {
-      await addJob(`Rename task group to "${name}"`, async () => {
+      await addJob({ key: 'sync.renameGroup', vars: { name } }, async () => {
         const g = await renameTaskGroup(token, id, name);
         setGroups(prev => prev.map(gr => gr.id === id ? g : gr));
       });
@@ -348,7 +365,7 @@ export default function TasksPage() {
   }
 
   async function handleDeleteGroup(id: number) {
-    if (!token || !confirm('Delete this group? Tasks will be moved to "All Tasks".')) return;
+    if (!token || !confirm(t('tasks.deleteGroupConfirm'))) return;
     try {
       await deleteTaskGroup(token, id);
       setGroups(prev => prev.filter(g => g.id !== id));
@@ -368,7 +385,7 @@ export default function TasksPage() {
     if (!token) return;
     setSyncing(true); setSyncSuccess(false); setError(null);
     try {
-      await addJob('Sync all Google Task lists', async () => {
+      await addJob({ key: 'sync.syncGoogleTasks' }, async () => {
         const updated = await syncGoogleTaskGroups(token);
         setGroups(updated);
         setSyncSuccess(true);
@@ -391,32 +408,32 @@ export default function TasksPage() {
 
   // Tabs: "All" + one per group (no Ungrouped — all tasks belong to a group)
   const tabs = [
-    { id: 'all' as const, label: 'All', isDefault: false, isGoogle: false },
+    { id: 'all' as const, label: t('tasks.all'), isDefault: false, isGoogle: false },
     ...groups.map(g => ({ id: g.id, label: g.name, isDefault: !!g.is_default, isGoogleDefault: !!g.is_google_default, isGoogle: !!g.google_list_id })),
   ];
 
   const activeTab = tabs.find(t => t.id === activeGroupId) ?? tabs[0];
 
   return (
-    <div className="max-w-2xl mx-auto space-y-4">
+    <div className="max-w-2xl mx-auto space-y-4 px-4 py-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-800">Tasks</h1>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h1 className="text-2xl font-bold text-gray-800">{t('tasks.title')}</h1>
         <div className="flex items-center gap-2">
           {gTasksConnected && (
             <button type="button" onClick={handleGoogleSync} disabled={syncing}
               className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
-              title="Sync all Google Task lists">
+              title={t('tasks.syncGoogle')}>
               {syncing ? <IconSync spinning /> : syncSuccess ? <IconCheck /> : <IconSync />}
-              {syncing ? 'Syncing…' : syncSuccess ? 'Synced' : 'Sync Google'}
+              {syncing ? t('tasks.syncing') : syncSuccess ? t('tasks.synced') : t('tasks.syncGoogle')}
             </button>
           )}
           {gcalConnected && (
             <button type="button" onClick={handleCalendarSync} disabled={calSyncing}
               className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
-              title="Sync from Google Calendar">
+              title={t('tasks.syncCalendar')}>
               {calSyncing ? <IconSync spinning /> : calSyncSuccess ? <IconCheck /> : <IconSync />}
-              {calSyncing ? 'Syncing…' : calSyncSuccess ? 'Synced' : 'Sync Calendar'}
+              {calSyncing ? t('tasks.syncing') : calSyncSuccess ? t('tasks.synced') : t('tasks.syncCalendar')}
             </button>
           )}
         </div>
@@ -470,14 +487,14 @@ export default function TasksPage() {
               {isGroup && !isDefault && renamingId === -1 && isActive && (
                 <div className="flex items-center gap-0.5 mr-1">
                   <button onClick={() => handleSetDefault(tab.id as number)}
-                    title="Make default group"
+                    title={t('tasks.makeDefault')}
                     className="p-0.5 text-gray-300 hover:text-amber-500 transition-colors">
                     <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
                       <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
                     </svg>
                   </button>
                   <button onClick={() => { setRenamingId(tab.id as number); setRenameValue(tab.label); }}
-                    title="Rename group"
+                    title={t('tasks.renameGroup')}
                     className="p-0.5 text-gray-300 hover:text-blue-500 transition-colors">
                     <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -485,7 +502,7 @@ export default function TasksPage() {
                   </button>
                   {!isGoogleDefault && (
                     <button onClick={() => handleDeleteGroup(tab.id as number)}
-                      title="Delete group"
+                      title={t('tasks.deleteGroup')}
                       className="p-0.5 text-gray-300 hover:text-red-500 transition-colors">
                       <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -503,7 +520,7 @@ export default function TasksPage() {
           <form onSubmit={e => { e.preventDefault(); handleAddGroup(); }}
             className="flex items-center gap-1 px-2 py-1 shrink-0">
             <input autoFocus value={newGroupName} onChange={e => setNewGroupName(e.target.value)}
-              placeholder="Group name"
+              placeholder={t('tasks.groupName')}
               className="border border-blue-400 rounded px-1.5 py-0.5 text-sm w-28 focus:outline-none" />
             <button type="submit" disabled={groupSaving || !newGroupName.trim()}
               className="text-xs text-blue-600 hover:text-blue-800 disabled:opacity-40">✓</button>
@@ -513,7 +530,7 @@ export default function TasksPage() {
         ) : (
           <button onClick={() => setAddingGroup(true)}
             className="px-2 py-2 text-gray-400 hover:text-blue-600 transition-colors shrink-0"
-            title="Add new group">
+            title={t('tasks.addGroup')}>
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
             </svg>
@@ -541,6 +558,7 @@ export default function TasksPage() {
 
 function AllTasksView({ gTasksConnected, gcalConnected }: { gTasksConnected: boolean; gcalConnected: boolean }) {
   const { token } = useAuth();
+  const { t } = useTranslation();
   const { addJob } = useSyncQueue();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
@@ -566,9 +584,9 @@ function AllTasksView({ gTasksConnected, gcalConnected }: { gTasksConnected: boo
         ...(form.due_date && { due_date: form.due_date }),
         priority: form.priority,
       };
-      const label = [gTasksConnected && 'Google Tasks', gcalConnected && form.due_date && 'Google Calendar'].filter(Boolean).join(' & ');
-      if (label) {
-        await addJob(`Add "${form.title.trim()}" to ${label}`, () =>
+      const target = [gTasksConnected && 'Google Tasks', gcalConnected && form.due_date && 'Google Calendar'].filter(Boolean).join(' & ');
+      if (target) {
+        await addJob({ key: 'sync.addItem', vars: { name: form.title.trim(), target } }, () =>
           createTask(token, data).then(c => { setTasks(prev => [c, ...prev]); setShowAddForm(false); }));
       } else {
         const c = await createTask(token, data);
@@ -600,7 +618,7 @@ function AllTasksView({ gTasksConnected, gcalConnected }: { gTasksConnected: boo
   }
 
   async function handleDelete(id: number) {
-    if (!token || !confirm('Delete this task?')) return;
+    if (!token || !confirm(t('tasks.deleteConfirm'))) return;
     try {
       await deleteTask(token, id);
       setTasks(prev => prev.filter(t => t.id !== id));
@@ -621,38 +639,47 @@ function AllTasksView({ gTasksConnected, gcalConnected }: { gTasksConnected: boo
       <div className="flex justify-end">
         <button type="button" onClick={() => { setShowAddForm(v => !v); setEditingId(null); }}
           className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-          {showAddForm ? 'Cancel' : '+ Add Task'}
+          {showAddForm ? t('common.cancel') : t('tasks.addTask')}
         </button>
       </div>
       {showAddForm && <TaskForm onSave={handleCreate} onCancel={() => setShowAddForm(false)} saving={addSaving} />}
-      {loading ? <p className="text-center text-gray-400 py-12">Loading…</p> : (
+      {loading ? <p className="text-center text-gray-400 py-12">{t('tasks.loadingTasks')}</p> : (
         <div className="space-y-6">
           <section>
-            <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Open <span className="font-normal">({openTasks.length})</span></h2>
-            {openTasks.length === 0 ? <p className="text-sm text-gray-400 italic px-4">No open tasks.</p> : (
-              <ul className="space-y-2">
+            <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">{t('tasks.open')} <span className="font-normal">({openTasks.length})</span></h2>
+            {openTasks.length === 0 ? <p className="text-sm text-gray-400 italic px-4">{t('tasks.noOpenTasks')}</p> : (
+              <motion.ul
+                className="space-y-2"
+                initial="hidden" animate="visible"
+                variants={{ visible: { transition: { staggerChildren: 0.05 } } }}
+              >
                 {openTasks.map(task => (
                   <TaskRow key={task.id} task={task} onToggle={handleToggle} onDelete={handleDelete}
                     onEdit={t => { setEditingId(t.id); setShowAddForm(false); }}
                     editingId={editingId} onSaveEdit={handleSaveEdit} onCancelEdit={() => setEditingId(null)} saving={editSaving} />
                 ))}
-              </ul>
+              </motion.ul>
             )}
           </section>
           {doneTasks.length > 0 && (
             <section>
-              <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Done <span className="font-normal">({doneTasks.length})</span></h2>
-              <ul className="space-y-2">
+              <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">{t('tasks.done')} <span className="font-normal">({doneTasks.length})</span></h2>
+              <motion.ul
+                className="space-y-2"
+                initial="hidden" animate="visible"
+                variants={{ visible: { transition: { staggerChildren: 0.05 } } }}
+              >
                 {doneTasks.map(task => (
                   <TaskRow key={task.id} task={task} onToggle={handleToggle} onDelete={handleDelete}
                     onEdit={t => { setEditingId(t.id); setShowAddForm(false); }}
                     editingId={editingId} onSaveEdit={handleSaveEdit} onCancelEdit={() => setEditingId(null)} saving={editSaving} />
                 ))}
-              </ul>
+              </motion.ul>
             </section>
           )}
         </div>
       )}
+      {!loading && tasks.length > 0 && <TasksCharts tasks={tasks} />}
     </div>
   );
 }

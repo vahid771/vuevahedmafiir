@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useCalendar } from '../context/CalendarContext';
+import { useLanguage } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
+import { useTranslation } from 'react-i18next';
 import type { CalendarType } from '../api/preferences';
+import HolidaysSettingsPanel from '../components/HolidaysSettingsPanel';
 import {
   getGoogleDriveStatus,
   disconnectGoogleDrive,
@@ -12,8 +15,6 @@ import {
   getGoogleTasksStatus,
   getGoogleTasksConnectUrl,
   disconnectGoogleTasks,
-  selectGoogleTaskList,
-  type GoogleTaskList,
 } from '../api/googleTasks';
 import {
   getGoogleCalendarStatus,
@@ -21,27 +22,93 @@ import {
   disconnectGoogleCalendar,
 } from '../api/googleCalendar';
 
-const CALENDAR_OPTIONS: { value: CalendarType; label: string; description: string }[] = [
-  {
-    value: 'miladi',
-    label: 'Miladi (Gregorian)',
-    description: 'Standard international calendar. Dates shown like "Jan 5, 2025".',
-  },
-  {
-    value: 'shamsi',
-    label: 'Shamsi (Jalali / Persian)',
-    description: 'Persian solar calendar. Dates shown like "۱۶ دی ۱۴۰۳".',
-  },
+const COUNTRY_LIST: { code: string; name: string }[] = [
+  { code: 'AF', name: 'Afghanistan' },
+  { code: 'DZ', name: 'Algeria' },
+  { code: 'AR', name: 'Argentina' },
+  { code: 'AU', name: 'Australia' },
+  { code: 'AT', name: 'Austria' },
+  { code: 'BE', name: 'Belgium' },
+  { code: 'BR', name: 'Brazil' },
+  { code: 'CA', name: 'Canada' },
+  { code: 'CL', name: 'Chile' },
+  { code: 'CN', name: 'China' },
+  { code: 'CO', name: 'Colombia' },
+  { code: 'HR', name: 'Croatia' },
+  { code: 'CZ', name: 'Czech Republic' },
+  { code: 'DK', name: 'Denmark' },
+  { code: 'EG', name: 'Egypt' },
+  { code: 'FI', name: 'Finland' },
+  { code: 'FR', name: 'France' },
+  { code: 'DE', name: 'Germany' },
+  { code: 'GR', name: 'Greece' },
+  { code: 'HU', name: 'Hungary' },
+  { code: 'IN', name: 'India' },
+  { code: 'ID', name: 'Indonesia' },
+  { code: 'IR', name: 'Iran' },
+  { code: 'IQ', name: 'Iraq' },
+  { code: 'IE', name: 'Ireland' },
+  { code: 'IL', name: 'Israel' },
+  { code: 'IT', name: 'Italy' },
+  { code: 'JP', name: 'Japan' },
+  { code: 'JO', name: 'Jordan' },
+  { code: 'KZ', name: 'Kazakhstan' },
+  { code: 'KW', name: 'Kuwait' },
+  { code: 'MY', name: 'Malaysia' },
+  { code: 'MX', name: 'Mexico' },
+  { code: 'MA', name: 'Morocco' },
+  { code: 'NL', name: 'Netherlands' },
+  { code: 'NZ', name: 'New Zealand' },
+  { code: 'NG', name: 'Nigeria' },
+  { code: 'NO', name: 'Norway' },
+  { code: 'OM', name: 'Oman' },
+  { code: 'PK', name: 'Pakistan' },
+  { code: 'PE', name: 'Peru' },
+  { code: 'PH', name: 'Philippines' },
+  { code: 'PL', name: 'Poland' },
+  { code: 'PT', name: 'Portugal' },
+  { code: 'QA', name: 'Qatar' },
+  { code: 'RO', name: 'Romania' },
+  { code: 'RU', name: 'Russia' },
+  { code: 'SA', name: 'Saudi Arabia' },
+  { code: 'RS', name: 'Serbia' },
+  { code: 'SG', name: 'Singapore' },
+  { code: 'ZA', name: 'South Africa' },
+  { code: 'KR', name: 'South Korea' },
+  { code: 'ES', name: 'Spain' },
+  { code: 'SE', name: 'Sweden' },
+  { code: 'CH', name: 'Switzerland' },
+  { code: 'TW', name: 'Taiwan' },
+  { code: 'TH', name: 'Thailand' },
+  { code: 'TR', name: 'Turkey' },
+  { code: 'UA', name: 'Ukraine' },
+  { code: 'AE', name: 'United Arab Emirates' },
+  { code: 'GB', name: 'United Kingdom' },
+  { code: 'US', name: 'United States' },
+  { code: 'UZ', name: 'Uzbekistan' },
+  { code: 'VN', name: 'Vietnam' },
 ];
 
 export default function SettingsPage() {
-  const { calendar, setCalendar } = useCalendar();
+  const { calendar, setCalendar, country, setCountry } = useCalendar();
+  const { lang, setLang } = useLanguage();
   const { token } = useAuth();
+  const { t } = useTranslation();
   const location = useLocation();
+
+  const CALENDAR_OPTIONS: { value: CalendarType; labelKey: string; descKey: string }[] = [
+    { value: 'miladi', labelKey: 'settings.miladiLabel', descKey: 'settings.miladiDesc' },
+    { value: 'shamsi', labelKey: 'settings.shamsiLabel', descKey: 'settings.shamsiDesc' },
+  ];
 
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Location state
+  const [locationSaving, setLocationSaving] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
+  const [locationSaved, setLocationSaved] = useState(false);
 
   // Google Drive state
   const [driveConnected, setDriveConnected] = useState(false);
@@ -59,16 +126,10 @@ export default function SettingsPage() {
 
   // Google Tasks state
   const [tasksConnected, setTasksConnected] = useState(false);
-  const [, setTasksTaskListId] = useState<string | null>(null);
-  const [tasksTaskListTitle, setTasksTaskListTitle] = useState<string | null>(null);
   const [tasksLoading, setTasksLoading] = useState(true);
   const [tasksError, setTasksError] = useState<string | null>(null);
   const [tasksSuccessBanner, setTasksSuccessBanner] = useState(false);
   const [tasksDisconnecting, setTasksDisconnecting] = useState(false);
-  // Task list picker (shown after OAuth callback)
-  const [pickerLists, setPickerLists] = useState<GoogleTaskList[] | null>(null);
-  const [pickerSelected, setPickerSelected] = useState<string>('');
-  const [pickerSaving, setPickerSaving] = useState(false);
 
   useEffect(() => {
     // Show success banner if redirected back from Drive OAuth
@@ -79,21 +140,6 @@ export default function SettingsPage() {
     // Show success banner if redirected back from Calendar OAuth
     if (params.get('gcal') === 'connected') {
       setCalendarSuccessBanner(true);
-    }
-    // Show task list picker if redirected back from Tasks OAuth
-    if (params.get('gtasks') === 'pick') {
-      const encodedLists = params.get('lists');
-      if (encodedLists) {
-        try {
-          const binary = atob(encodedLists);
-          const bytes = Uint8Array.from(binary, c => c.charCodeAt(0));
-          const lists: GoogleTaskList[] = JSON.parse(new TextDecoder().decode(bytes));
-          setPickerLists(lists);
-          if (lists.length > 0) setPickerSelected(lists[0].id);
-        } catch {
-          setTasksError('Failed to read task lists from redirect.');
-        }
-      }
     }
   }, [location.search]);
 
@@ -116,11 +162,7 @@ export default function SettingsPage() {
   useEffect(() => {
     if (!token) return;
     getGoogleTasksStatus(token)
-      .then(s => {
-        setTasksConnected(s.connected);
-        setTasksTaskListId(s.taskListId);
-        setTasksTaskListTitle(s.taskListTitle);
-      })
+      .then(s => setTasksConnected(s.connected))
       .catch(() => setTasksError('Failed to load Google Tasks status'))
       .finally(() => setTasksLoading(false));
   }, [token]);
@@ -135,9 +177,77 @@ export default function SettingsPage() {
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch {
-      setError('Failed to save preference. Please try again.');
+      setError(t('settings.failedSave'));
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleDetectLocation() {
+    if (!navigator.geolocation) {
+      setLocationError(t('settings.locationFailed'));
+      return;
+    }
+    setLocationSaving(true);
+    setLocationError(null);
+    setLocationSaved(false);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const { latitude, longitude } = pos.coords;
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`,
+            { headers: { 'User-Agent': 'LifeDashboard/1.0' } }
+          );
+          if (!res.ok) throw new Error('Nominatim error');
+          const data = await res.json();
+          const code: string = (data.address?.country_code ?? '').toUpperCase();
+          if (!code || code.length !== 2) throw new Error('No country code');
+          await setCountry(code);
+          setLocationSaved(true);
+          setTimeout(() => setLocationSaved(false), 2000);
+        } catch {
+          setLocationError(t('settings.locationFailed'));
+        } finally {
+          setLocationSaving(false);
+        }
+      },
+      () => {
+        setLocationError(t('settings.locationFailed'));
+        setLocationSaving(false);
+      }
+    );
+  }
+
+  async function handleCountrySelect(code: string) {
+    setLocationSaving(true);
+    setLocationError(null);
+    setLocationSaved(false);
+    try {
+      await setCountry(code || null);
+      setLocationSaved(true);
+      setTimeout(() => setLocationSaved(false), 2000);
+    } catch {
+      setLocationError(t('settings.locationFailed'));
+    } finally {
+      setLocationSaving(false);
+    }
+  }
+
+  async function handleClearLocation() {
+    try {
+      await setCountry(null);
+      setLocationSaved(false);
+    } catch {
+      /* non-fatal */
+    }
+  }
+
+  async function handleLangChange(l: 'en' | 'fa') {
+    try {
+      await setLang(l);
+    } catch {
+      /* non-fatal */
     }
   }
 
@@ -155,7 +265,7 @@ export default function SettingsPage() {
       setDriveConnected(false);
       setDriveSuccessBanner(false);
     } catch {
-      setDriveError('Failed to disconnect. Please try again.');
+      setDriveError(t('settings.failedDisconnect'));
     } finally {
       setDisconnecting(false);
     }
@@ -175,7 +285,7 @@ export default function SettingsPage() {
       setCalendarConnected(false);
       setCalendarSuccessBanner(false);
     } catch {
-      setCalendarError('Failed to disconnect. Please try again.');
+      setCalendarError(t('settings.failedDisconnect'));
     } finally {
       setCalendarDisconnecting(false);
     }
@@ -193,50 +303,57 @@ export default function SettingsPage() {
     try {
       await disconnectGoogleTasks(token);
       setTasksConnected(false);
-      setTasksTaskListId(null);
-      setTasksTaskListTitle(null);
       setTasksSuccessBanner(false);
     } catch {
-      setTasksError('Failed to disconnect. Please try again.');
+      setTasksError(t('settings.failedDisconnect'));
     } finally {
       setTasksDisconnecting(false);
     }
   }
 
-  async function handlePickerConfirm() {
-    if (!token || !pickerSelected) return;
-    setPickerSaving(true);
-    setTasksError(null);
-    try {
-      await selectGoogleTaskList(token, pickerSelected);
-      const selectedTitle = pickerLists?.find(l => l.id === pickerSelected)?.title ?? null;
-      setPickerLists(null);
-      setTasksConnected(true);
-      setTasksTaskListId(pickerSelected);
-      setTasksTaskListTitle(selectedTitle);
-      setTasksSuccessBanner(true);
-    } catch {
-      setTasksError('Failed to save selected task list. Please try again.');
-    } finally {
-      setPickerSaving(false);
-    }
-  }
-
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
-      <h1 className="text-2xl font-bold text-gray-800">Settings</h1>
+    <div className="max-w-2xl mx-auto space-y-6 px-4 py-4">
+      <h1 className="text-2xl font-bold text-gray-800">{t('settings.title')}</h1>
+
+      {/* Language */}
+      <div className="bg-white border border-gray-200 rounded-lg p-6 space-y-4">
+        <div>
+          <h2 className="text-base font-semibold text-gray-800">{t('settings.language')}</h2>
+          <p className="text-sm text-gray-500 mt-0.5">{t('settings.languageDesc')}</p>
+        </div>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => handleLangChange('en')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium border-2 transition-colors ${
+              lang === 'en' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            {t('settings.english')}
+          </button>
+          <button
+            type="button"
+            onClick={() => handleLangChange('fa')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium border-2 transition-colors ${
+              lang === 'fa' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            {t('settings.persian')}
+          </button>
+        </div>
+      </div>
 
       {/* Calendar System */}
       <div className="bg-white border border-gray-200 rounded-lg p-6 space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-base font-semibold text-gray-800">Calendar System</h2>
+            <h2 className="text-base font-semibold text-gray-800">{t('settings.calendarSystem')}</h2>
             <p className="text-sm text-gray-500 mt-0.5">
-              Choose how dates are displayed and entered throughout the app.
+              {t('settings.calendarSystemDesc')}
             </p>
           </div>
-          {saving && <span className="text-xs text-gray-400">Saving…</span>}
-          {saved && !saving && <span className="text-xs text-green-600 font-medium">✓ Saved</span>}
+          {saving && <span className="text-xs text-gray-400">{t('settings.saving')}</span>}
+          {saved && !saving && <span className="text-xs text-green-600 font-medium">{t('settings.saved')}</span>}
         </div>
 
         {error && (
@@ -262,7 +379,7 @@ export default function SettingsPage() {
             >
               <div className="flex items-center justify-between">
                 <span className={`text-sm font-semibold ${calendar === opt.value ? 'text-blue-700' : 'text-gray-800'}`}>
-                  {opt.label}
+                  {t(opt.labelKey)}
                 </span>
                 {calendar === opt.value && (
                   <svg className="w-4 h-4 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
@@ -270,25 +387,90 @@ export default function SettingsPage() {
                   </svg>
                 )}
               </div>
-              <p className="text-xs text-gray-500 mt-0.5">{opt.description}</p>
+              <p className="text-xs text-gray-500 mt-0.5">{t(opt.descKey)}</p>
             </button>
           ))}
         </div>
       </div>
 
+      {/* Location & Holidays */}
+      <div className="bg-white border border-gray-200 rounded-lg p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-base font-semibold text-gray-800">{t('settings.locationHolidays')}</h2>
+            <p className="text-sm text-gray-500 mt-0.5">{t('settings.locationHolidaysDesc')}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            {locationSaving && <span className="text-xs text-gray-400">{t('settings.saving')}</span>}
+            {locationSaved && !locationSaving && <span className="text-xs text-green-600 font-medium">{t('settings.locationSaved')}</span>}
+          </div>
+        </div>
+
+        {locationError && (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-2 rounded text-sm flex justify-between">
+            <span>{locationError}</span>
+            <button onClick={() => setLocationError(null)} className="ml-4 font-bold">×</button>
+          </div>
+        )}
+
+        <div className="space-y-3">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={handleDetectLocation}
+              disabled={locationSaving}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-300 text-sm text-gray-700 hover:bg-gray-50 hover:border-gray-400 disabled:opacity-50 transition-colors"
+            >
+              <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 11c0-1.105.895-2 2-2s2 .895 2 2-.895 2-2 2-2-.895-2-2z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 2C8.134 2 5 5.134 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.866-3.134-7-7-7z" />
+              </svg>
+              {locationSaving ? t('settings.detecting') : t('settings.detectLocation')}
+            </button>
+            {country && (
+              <button
+                type="button"
+                onClick={handleClearLocation}
+                className="text-sm text-gray-400 hover:text-red-500 transition-colors"
+              >
+                {t('settings.clearLocation')}
+              </button>
+            )}
+          </div>
+
+          <div>
+            <select
+              value={country ?? ''}
+              onChange={e => handleCountrySelect(e.target.value)}
+              disabled={locationSaving}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
+            >
+              <option value="">{t('settings.countryNotSet')}</option>
+              {COUNTRY_LIST.map(c => (
+                <option key={c.code} value={c.code}>{c.name}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Holidays & Weekends management — shown when a country is selected */}
+        {country && token && (
+          <div className="pt-4 border-t border-gray-100">
+            <HolidaysSettingsPanel token={token} />
+          </div>
+        )}
+      </div>
+
       {/* Google Drive */}
       <div className="bg-white border border-gray-200 rounded-lg p-6 space-y-4">
         <div>
-          <h2 className="text-base font-semibold text-gray-800">Google Drive</h2>
-          <p className="text-sm text-gray-500 mt-0.5">
-            Connect your Google account to save uploaded documents directly to your Drive in a
-            folder called <span className="font-medium text-gray-700">"Personal Life Dashboard"</span>.
-          </p>
+          <h2 className="text-base font-semibold text-gray-800">{t('settings.googleDrive')}</h2>
+          <p className="text-sm text-gray-500 mt-0.5">{t('settings.googleDriveDesc')}</p>
         </div>
 
         {driveSuccessBanner && (
           <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-2 rounded text-sm flex justify-between">
-            <span>Google Drive connected successfully.</span>
+            <span>{t('settings.driveConnected')}</span>
             <button onClick={() => setDriveSuccessBanner(false)} className="ml-4 font-bold">×</button>
           </div>
         )}
@@ -301,21 +483,21 @@ export default function SettingsPage() {
         )}
 
         {driveLoading ? (
-          <p className="text-sm text-gray-400">Loading…</p>
+          <p className="text-sm text-gray-400">{t('settings.loading')}</p>
         ) : driveConnected ? (
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-sm text-green-700">
               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
               </svg>
-              Connected
+              {t('settings.connected')}
             </div>
             <button
               onClick={handleDriveDisconnect}
               disabled={disconnecting}
               className="text-sm px-4 py-2 rounded border border-red-300 text-red-600 hover:bg-red-50 disabled:opacity-50"
             >
-              {disconnecting ? 'Disconnecting…' : 'Disconnect'}
+              {disconnecting ? t('settings.disconnecting') : t('settings.disconnect')}
             </button>
           </div>
         ) : (
@@ -331,7 +513,7 @@ export default function SettingsPage() {
               <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/>
               <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 27h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/>
             </svg>
-            Connect Google Drive
+            {t('settings.connectGoogleDrive')}
           </button>
         )}
       </div>
@@ -339,17 +521,13 @@ export default function SettingsPage() {
       {/* Google Tasks */}
       <div className="bg-white border border-gray-200 rounded-lg p-6 space-y-4">
         <div>
-          <h2 className="text-base font-semibold text-gray-800">Google Tasks</h2>
-          <p className="text-sm text-gray-500 mt-0.5">
-            Connect your Google account to sync tasks with Google Tasks. Local changes push to
-            Google automatically; use the "Sync from Google" button on the Tasks page to pull
-            updates back.
-          </p>
+          <h2 className="text-base font-semibold text-gray-800">{t('settings.googleTasks')}</h2>
+          <p className="text-sm text-gray-500 mt-0.5">{t('settings.googleTasksDesc')}</p>
         </div>
 
         {tasksSuccessBanner && (
           <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-2 rounded text-sm flex justify-between">
-            <span>Google Tasks connected successfully.</span>
+            <span>{t('settings.tasksConnected')}</span>
             <button onClick={() => setTasksSuccessBanner(false)} className="ml-4 font-bold">×</button>
           </div>
         )}
@@ -362,72 +540,21 @@ export default function SettingsPage() {
         )}
 
         {tasksLoading ? (
-          <p className="text-sm text-gray-400">Loading…</p>
-        ) : pickerLists ? (
-          /* Task list picker — shown after OAuth callback */
-          <div className="space-y-3">
-            <p className="text-sm text-gray-700 font-medium">Choose a task list to sync with:</p>
-            <div className="space-y-2">
-              {pickerLists.map(list => (
-                <label
-                  key={list.id}
-                  className={[
-                    'flex items-center gap-3 px-4 py-3 rounded-lg border-2 cursor-pointer transition-colors',
-                    pickerSelected === list.id
-                      ? 'border-blue-600 bg-blue-50'
-                      : 'border-gray-200 hover:border-gray-300',
-                  ].join(' ')}
-                >
-                  <input
-                    type="radio"
-                    name="taskList"
-                    value={list.id}
-                    checked={pickerSelected === list.id}
-                    onChange={() => setPickerSelected(list.id)}
-                    className="accent-blue-600"
-                  />
-                  <span className={`text-sm font-medium ${pickerSelected === list.id ? 'text-blue-700' : 'text-gray-800'}`}>
-                    {list.title}
-                  </span>
-                </label>
-              ))}
-            </div>
-            <div className="flex gap-2 pt-1">
-              <button
-                onClick={handlePickerConfirm}
-                disabled={!pickerSelected || pickerSaving}
-                className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
-              >
-                {pickerSaving ? 'Saving…' : 'Confirm'}
-              </button>
-              <button
-                onClick={() => setPickerLists(null)}
-                disabled={pickerSaving}
-                className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
+          <p className="text-sm text-gray-400">{t('settings.loading')}</p>
         ) : tasksConnected ? (
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-sm text-green-700">
               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
               </svg>
-              <span>
-                Connected
-                {tasksTaskListTitle && (
-                  <span className="text-gray-500 font-normal"> · {tasksTaskListTitle}</span>
-                )}
-              </span>
+              <span>{t('settings.connected')}</span>
             </div>
             <button
               onClick={handleTasksDisconnect}
               disabled={tasksDisconnecting}
               className="text-sm px-4 py-2 rounded border border-red-300 text-red-600 hover:bg-red-50 disabled:opacity-50"
             >
-              {tasksDisconnecting ? 'Disconnecting…' : 'Disconnect'}
+              {tasksDisconnecting ? t('settings.disconnecting') : t('settings.disconnect')}
             </button>
           </div>
         ) : (
@@ -443,7 +570,7 @@ export default function SettingsPage() {
               <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/>
               <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 27h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/>
             </svg>
-            Connect Google Tasks
+            {t('settings.connectGoogleTasks')}
           </button>
         )}
       </div>
@@ -451,17 +578,13 @@ export default function SettingsPage() {
       {/* Google Calendar */}
       <div className="bg-white border border-gray-200 rounded-lg p-6 space-y-4">
         <div>
-          <h2 className="text-base font-semibold text-gray-800">Google Calendar</h2>
-          <p className="text-sm text-gray-500 mt-0.5">
-            Connect your Google account to sync reminders, important dates, and tasks with your
-            primary Google Calendar. Local changes push automatically; use "Sync from Google" on
-            each page to pull updates back.
-          </p>
+          <h2 className="text-base font-semibold text-gray-800">{t('settings.googleCalendar')}</h2>
+          <p className="text-sm text-gray-500 mt-0.5">{t('settings.googleCalendarDesc')}</p>
         </div>
 
         {calendarSuccessBanner && (
           <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-2 rounded text-sm flex justify-between">
-            <span>Google Calendar connected successfully.</span>
+            <span>{t('settings.calendarConnected')}</span>
             <button onClick={() => setCalendarSuccessBanner(false)} className="ml-4 font-bold">×</button>
           </div>
         )}
@@ -474,21 +597,21 @@ export default function SettingsPage() {
         )}
 
         {calendarLoading ? (
-          <p className="text-sm text-gray-400">Loading…</p>
+          <p className="text-sm text-gray-400">{t('settings.loading')}</p>
         ) : calendarConnected ? (
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-sm text-green-700">
               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
               </svg>
-              Connected
+              {t('settings.connected')}
             </div>
             <button
               onClick={handleCalendarDisconnect}
               disabled={calendarDisconnecting}
               className="text-sm px-4 py-2 rounded border border-red-300 text-red-600 hover:bg-red-50 disabled:opacity-50"
             >
-              {calendarDisconnecting ? 'Disconnecting…' : 'Disconnect'}
+              {calendarDisconnecting ? t('settings.disconnecting') : t('settings.disconnect')}
             </button>
           </div>
         ) : (
@@ -504,7 +627,7 @@ export default function SettingsPage() {
               <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/>
               <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 27h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/>
             </svg>
-            Connect Google Calendar
+            {t('settings.connectGoogleCalendar')}
           </button>
         )}
       </div>

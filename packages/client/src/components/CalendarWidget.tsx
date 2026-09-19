@@ -1,6 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import { toJalaali, toGregorian, jalaaliMonthLength } from 'jalaali-js';
 import { useCalendar } from '../context/CalendarContext';
+import { useLanguage } from '../context/LanguageContext';
+import { useHolidays, getHolidayDisplayName } from '../hooks/useHolidays';
+import { useWeekends } from '../hooks/useWeekends';
 import {
   PERSIAN_MONTHS,
   toPersianDigits,
@@ -104,10 +107,49 @@ function EventPill({ ev }: { ev: CalEvent }) {
 }
 
 // ---------------------------------------------------------------------------
+// Week-number helpers
+// ---------------------------------------------------------------------------
+
+/** ISO 8601 week number for a Gregorian date. */
+function isoWeekNumber(d: Date): number {
+  const tmp = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  // Set to nearest Thursday: current date + 4 - current day number; Sunday = 7
+  const dayNum = tmp.getUTCDay() || 7;
+  tmp.setUTCDate(tmp.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(tmp.getUTCFullYear(), 0, 1));
+  return Math.ceil((((tmp.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+}
+
+/**
+ * Jalali week number within the Jalali year.
+ * Week 1 starts on the first Shanbe (Saturday) on or before 1 Farvardin.
+ * Each week runs Sat→Fri.
+ */
+function jalaliWeekNumber(jy: number, jm: number, jd: number): number {
+  // Day-of-year in Jalali calendar (1-based)
+  const doyPerMonth = [0, 31, 62, 93, 124, 155, 186, 216, 246, 276, 306, 336];
+  const doy = doyPerMonth[jm - 1] + jd; // 1..365/366
+  // Find what day-of-week Farvardin 1 is (0=Sun..6=Sat)
+  const { gy, gm, gd } = toGregorian(jy, 1, 1);
+  const dow1 = new Date(gy, gm - 1, gd).getDay(); // 0=Sun..6=Sat
+  // Offset from nearest preceding Saturday (6)
+  const offsetToSat = (dow1 - 6 + 7) % 7; // days before Farvardin 1 that the week started
+  return Math.floor((doy + offsetToSat - 1) / 7) + 1;
+}
+
+// ---------------------------------------------------------------------------
 // Month view
 // ---------------------------------------------------------------------------
 
-function MonthGrid({ cursor, shamsi, events }: { cursor: Date; shamsi: boolean; events: CalEvent[] }) {
+function MonthGrid({ cursor, shamsi, events, holidayNames, weekendSet, onDayClick, onWeekClick }: {
+  cursor: Date;
+  shamsi: boolean;
+  events: CalEvent[];
+  holidayNames: Map<string, string>;
+  weekendSet: Set<number>;
+  onDayClick: (d: Date) => void;
+  onWeekClick: (d: Date) => void;
+}) {
   const now = today();
 
   // Index events by YYYY-MM-DD
@@ -131,44 +173,80 @@ function MonthGrid({ cursor, shamsi, events }: { cursor: Date; shamsi: boolean; 
       ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
     ];
     while (cells.length % 7 !== 0) cells.push(null);
+    const rows: (number | null)[][] = [];
+    for (let r = 0; r < cells.length; r += 7) rows.push(cells.slice(r, r + 7));
 
     return (
       <div className="select-none">
-        <div className="grid grid-cols-7 mb-1">
+        <div className="grid grid-cols-[1.5rem_repeat(7,1fr)] mb-1">
+          <div className="text-center text-[9px] font-medium text-gray-300 py-1">W</div>
           {SHORT_EN_DAYS.map(d => (
             <div key={d} className="text-center text-xs font-medium text-gray-400 py-1">{d}</div>
           ))}
         </div>
-        <div className="grid grid-cols-7">
-          {cells.map((day, i) => {
-            if (day === null) return <div key={i} className="min-h-[60px]" />;
-            const cellDate = new Date(year, month, day);
-            const isToday = isSameDay(cellDate, now);
-            const ymd = toYMD(cellDate);
-            const dayEvents = byDay.get(ymd) ?? [];
-            const { jd } = toJalaali(year, month + 1, day);
+        <div className="space-y-1">
+          {rows.map((row, ri) => {
+            const firstDay = row.find(d => d !== null)!;
+            const repDate = new Date(year, month, firstDay);
+            const wn = isoWeekNumber(repDate);
             return (
-              <div key={i} className={`min-h-[60px] p-0.5 border border-transparent ${isToday ? 'bg-blue-50 rounded-lg' : ''}`}>
-                <div className="flex flex-col items-center mb-0.5">
-                  <span className={`w-7 h-7 flex items-center justify-center rounded-full text-xs font-medium
-                    ${isToday ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-100'}`}>
-                    {day}
-                  </span>
-                  <span className={`text-[9px] leading-none ${isToday ? 'text-blue-400' : 'text-gray-300'}`}>
-                    {toPersianDigits(jd)}
-                  </span>
-                </div>
-                {/* dots for up to 3 events, "+N" overflow */}
-                {dayEvents.length > 0 && (
-                  <div className="flex flex-wrap gap-0.5 justify-center px-0.5">
-                    {dayEvents.slice(0, 3).map(ev => (
-                      <span key={ev.id} title={ev.title} className={`w-1.5 h-1.5 rounded-full shrink-0 ${KIND_DOT[ev.kind]} ${ev.done ? 'opacity-40' : ''}`} />
-                    ))}
-                    {dayEvents.length > 3 && (
-                      <span className="text-[9px] text-gray-400 leading-none">+{dayEvents.length - 3}</span>
-                    )}
-                  </div>
-                )}
+              <div key={ri} className="grid grid-cols-[1.5rem_repeat(7,1fr)] gap-1">
+                <button
+                  onClick={() => onWeekClick(repDate)}
+                  className="flex items-center justify-center text-[9px] font-semibold text-gray-300 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                  title={`Week ${wn}`}
+                >
+                  {wn}
+                </button>
+                {row.map((day, ci) => {
+                  if (day === null) return <div key={ci} className="min-h-[60px]" />;
+                  const cellDate = new Date(year, month, day);
+                  const isToday = isSameDay(cellDate, now);
+                  const ymd = toYMD(cellDate);
+                  const dayEvents = byDay.get(ymd) ?? [];
+                  const { jd } = toJalaali(year, month + 1, day);
+                  const isWeekend = weekendSet.has(cellDate.getDay());
+                  const holidayName = holidayNames.get(ymd);
+                  return (
+                    <div
+                      key={ci}
+                      onClick={() => onDayClick(cellDate)}
+                      className={`min-h-[60px] p-0.5 rounded-lg border cursor-pointer
+                        ${isToday
+                          ? 'bg-blue-50 border-blue-300'
+                          : holidayName
+                            ? 'bg-red-50 border-red-300'
+                            : isWeekend
+                              ? 'bg-red-50 border-red-200'
+                              : 'border-gray-100 hover:border-gray-300'}`}
+                    >
+                      <div className="flex flex-col items-center mb-0.5">
+                        <span className={`w-7 h-7 flex items-center justify-center rounded-full text-xs font-medium
+                          ${isToday ? 'bg-blue-600 text-white' : isWeekend ? 'text-red-600 hover:bg-red-100' : 'text-gray-700 hover:bg-gray-100'}`}>
+                          {day}
+                        </span>
+                        <span className={`text-[9px] leading-none ${isToday ? 'text-blue-400' : 'text-gray-300'}`}>
+                          {toPersianDigits(jd)}
+                        </span>
+                      </div>
+                      {holidayName && (
+                        <p className="text-[8px] leading-tight text-red-500 text-center truncate px-0.5 mb-0.5 w-full" title={holidayName}>
+                          {holidayName}
+                        </p>
+                      )}
+                      {dayEvents.length > 0 && (
+                        <div className="flex flex-wrap gap-0.5 justify-center px-0.5">
+                          {dayEvents.slice(0, 3).map(ev => (
+                            <span key={ev.id} title={ev.title} className={`w-1.5 h-1.5 rounded-full shrink-0 ${KIND_DOT[ev.kind]} ${ev.done ? 'opacity-40' : ''}`} />
+                          ))}
+                          {dayEvents.length > 3 && (
+                            <span className="text-[9px] text-gray-400 leading-none">+{dayEvents.length - 3}</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             );
           })}
@@ -190,42 +268,81 @@ function MonthGrid({ cursor, shamsi, events }: { cursor: Date; shamsi: boolean; 
   while (cells.length % 7 !== 0) cells.push(null);
   const { jy: ty, jm: tm, jd: td } = toJalaali(now.getFullYear(), now.getMonth() + 1, now.getDate());
   const todayIsInMonth = ty === jy && tm === jm;
+  const shamsiRows: (number | null)[][] = [];
+  for (let r = 0; r < cells.length; r += 7) shamsiRows.push(cells.slice(r, r + 7));
 
   return (
     <div className="select-none" dir="rtl">
-      <div className="grid grid-cols-7 mb-1">
+      <div className="grid grid-cols-[repeat(7,1fr)_1.5rem] mb-1">
         {PERSIAN_SHORT_DAYS.map(d => (
           <div key={d} className="text-center text-xs font-medium text-gray-400 py-1">{d}</div>
         ))}
+        <div className="text-center text-[9px] font-medium text-gray-300 py-1">ه</div>
       </div>
-      <div className="grid grid-cols-7">
-        {cells.map((jDay, i) => {
-          if (jDay === null) return <div key={i} className="min-h-[60px]" />;
-          const isToday = todayIsInMonth && td === jDay;
-          const { gy, gm: gmonth, gd } = toGregorian(jy, jm, jDay);
-          const ymd = `${gy}-${String(gmonth).padStart(2, '0')}-${String(gd).padStart(2, '0')}`;
-          const dayEvents = byDay.get(ymd) ?? [];
+      <div className="space-y-1">
+        {shamsiRows.map((row, ri) => {
+          const firstJDay = row.find(d => d !== null)!;
+          const { gy: ry, gm: rgm, gd: rgd } = toGregorian(jy, jm, firstJDay);
+          const repDate = new Date(ry, rgm - 1, rgd);
+          const wn = jalaliWeekNumber(jy, jm, firstJDay);
           return (
-            <div key={i} className={`min-h-[60px] p-0.5 border border-transparent ${isToday ? 'bg-blue-50 rounded-lg' : ''}`}>
-              <div className="flex flex-col items-center mb-0.5">
-                <span className={`w-7 h-7 flex items-center justify-center rounded-full text-xs font-medium
-                  ${isToday ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-100'}`}>
-                  {toPersianDigits(jDay)}
-                </span>
-                <span className={`text-[9px] leading-none ${isToday ? 'text-blue-400' : 'text-gray-300'}`}>
-                  {gd}
-                </span>
-              </div>
-              {dayEvents.length > 0 && (
-                <div className="flex flex-wrap gap-0.5 justify-center px-0.5">
-                  {dayEvents.slice(0, 3).map(ev => (
-                    <span key={ev.id} title={ev.title} className={`w-1.5 h-1.5 rounded-full shrink-0 ${KIND_DOT[ev.kind]} ${ev.done ? 'opacity-40' : ''}`} />
-                  ))}
-                  {dayEvents.length > 3 && (
-                    <span className="text-[9px] text-gray-400 leading-none">+{dayEvents.length - 3}</span>
-                  )}
-                </div>
-              )}
+            <div key={ri} className="grid grid-cols-[repeat(7,1fr)_1.5rem] gap-1">
+              {row.map((jDay, ci) => {
+                if (jDay === null) return <div key={ci} className="min-h-[60px]" />;
+                const isToday = todayIsInMonth && td === jDay;
+                const { gy, gm: gmonth, gd } = toGregorian(jy, jm, jDay);
+                const ymd = `${gy}-${String(gmonth).padStart(2, '0')}-${String(gd).padStart(2, '0')}`;
+                const cellDate = new Date(gy, gmonth - 1, gd);
+                const isWeekend = weekendSet.has(cellDate.getDay());
+                const holidayName = holidayNames.get(ymd);
+                const dayEvents = byDay.get(ymd) ?? [];
+                return (
+                  <div
+                    key={ci}
+                    onClick={() => onDayClick(cellDate)}
+                    className={`min-h-[60px] p-0.5 rounded-lg border cursor-pointer
+                      ${isToday
+                        ? 'bg-blue-50 border-blue-300'
+                        : holidayName
+                          ? 'bg-red-50 border-red-300'
+                          : isWeekend
+                            ? 'bg-red-50 border-red-200'
+                            : 'border-gray-100 hover:border-gray-300'}`}
+                  >
+                    <div className="flex flex-col items-center mb-0.5">
+                      <span className={`w-7 h-7 flex items-center justify-center rounded-full text-xs font-medium
+                        ${isToday ? 'bg-blue-600 text-white' : isWeekend ? 'text-red-600 hover:bg-red-100' : 'text-gray-700 hover:bg-gray-100'}`}>
+                        {toPersianDigits(jDay)}
+                      </span>
+                      <span className={`text-[9px] leading-none ${isToday ? 'text-blue-400' : 'text-gray-300'}`}>
+                        {gd}
+                      </span>
+                    </div>
+                    {holidayName && (
+                      <p className="text-[8px] leading-tight text-red-500 text-center truncate px-0.5 mb-0.5 w-full" title={holidayName}>
+                        {holidayName}
+                      </p>
+                    )}
+                    {dayEvents.length > 0 && (
+                      <div className="flex flex-wrap gap-0.5 justify-center px-0.5">
+                        {dayEvents.slice(0, 3).map(ev => (
+                          <span key={ev.id} title={ev.title} className={`w-1.5 h-1.5 rounded-full shrink-0 ${KIND_DOT[ev.kind]} ${ev.done ? 'opacity-40' : ''}`} />
+                        ))}
+                        {dayEvents.length > 3 && (
+                          <span className="text-[9px] text-gray-400 leading-none">+{dayEvents.length - 3}</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              <button
+                onClick={() => onWeekClick(repDate)}
+                className="flex items-center justify-center text-[9px] font-semibold text-gray-300 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                title={`هفته ${toPersianDigits(wn)}`}
+              >
+                {toPersianDigits(wn)}
+              </button>
             </div>
           );
         })}
@@ -238,7 +355,14 @@ function MonthGrid({ cursor, shamsi, events }: { cursor: Date; shamsi: boolean; 
 // Week view
 // ---------------------------------------------------------------------------
 
-function WeekPanel({ cursor, shamsi, events }: { cursor: Date; shamsi: boolean; events: CalEvent[] }) {
+function WeekPanel({ cursor, shamsi, events, holidayNames, weekendSet, onDayClick }: {
+  cursor: Date;
+  shamsi: boolean;
+  events: CalEvent[];
+  holidayNames: Map<string, string>;
+  weekendSet: Set<number>;
+  onDayClick: (d: Date) => void;
+}) {
   const now = today();
   const ws = weekStart(cursor, shamsi);
   const days = Array.from({ length: 7 }, (_, i) => addDays(ws, i));
@@ -274,16 +398,29 @@ function WeekPanel({ cursor, shamsi, events }: { cursor: Date; shamsi: boolean; 
           const nameIdx = shamsi
             ? (d.getDay() === 6 ? 0 : d.getDay() + 1)
             : d.getDay();
+          const ymd = toYMD(d);
+          const isWeekend = weekendSet.has(d.getDay());
+          const holidayName = holidayNames.get(ymd);
           return (
-            <div key={i} className={`flex flex-col items-center py-2 border-r last:border-r-0 border-gray-200 ${isToday ? 'bg-blue-50' : 'bg-white'}`}>
-              <span className="text-xs text-gray-400 mb-1">{dayNames[nameIdx]}</span>
+            <div
+              key={i}
+              onClick={() => onDayClick(d)}
+              className={`flex flex-col items-center py-2 border-r last:border-r-0 border-gray-200 cursor-pointer
+                ${isToday ? 'bg-blue-50' : isWeekend ? 'bg-red-50 hover:bg-red-100' : 'bg-white hover:bg-gray-50'}`}
+            >
+              <span className={`text-xs mb-1 ${isWeekend && !isToday ? 'text-red-400' : 'text-gray-400'}`}>{dayNames[nameIdx]}</span>
               <span className={`w-7 h-7 flex items-center justify-center rounded-full text-sm font-medium
-                ${isToday ? 'bg-blue-600 text-white' : 'text-gray-700'}`}>
+                ${isToday ? 'bg-blue-600 text-white' : isWeekend ? 'text-red-600' : 'text-gray-700'}`}>
                 {label}
               </span>
               <span className={`text-[9px] leading-none mt-0.5 ${isToday ? 'text-blue-400' : 'text-gray-300'}`}>
                 {secondaryLabel}
               </span>
+              {holidayName && (
+                <p className="text-[8px] leading-tight text-red-500 text-center truncate px-0.5 mt-0.5 w-full" title={holidayName}>
+                  {holidayName}
+                </p>
+              )}
             </div>
           );
         })}
@@ -293,10 +430,12 @@ function WeekPanel({ cursor, shamsi, events }: { cursor: Date; shamsi: boolean; 
       <div className="grid grid-cols-7 border-x border-b border-gray-200 rounded-b-lg overflow-hidden min-h-[80px]">
         {days.map((d, i) => {
           const isToday = isSameDay(d, now);
+          const isWeekend = weekendSet.has(d.getDay());
           const ymd = toYMD(d);
           const dayEvents = byDay.get(ymd) ?? [];
           return (
-            <div key={i} className={`p-1 border-r last:border-r-0 border-gray-100 space-y-0.5 ${isToday ? 'bg-blue-50' : ''}`}>
+            <div key={i} className={`p-1 border-r last:border-r-0 border-gray-100 space-y-0.5
+              ${isToday ? 'bg-blue-50' : isWeekend ? 'bg-red-50' : ''}`}>
               {dayEvents.map(ev => <EventPill key={ev.id} ev={ev} />)}
             </div>
           );
@@ -304,13 +443,25 @@ function WeekPanel({ cursor, shamsi, events }: { cursor: Date; shamsi: boolean; 
       </div>
 
       {/* Legend */}
-      <div className="flex items-center gap-3 mt-2 px-1">
+      <div className="flex items-center flex-wrap gap-x-3 gap-y-1 mt-2 px-1">
         {(['task', 'reminder', 'date'] as CalEvent['kind'][]).map(k => (
           <div key={k} className="flex items-center gap-1">
             <span className={`w-2 h-2 rounded-full ${KIND_DOT[k]}`} />
             <span className="text-xs text-gray-400 capitalize">{k === 'date' ? 'important date' : k}</span>
           </div>
         ))}
+        {weekendSet.size > 0 && (
+          <div className="flex items-center gap-1">
+            <span className="w-2 h-2 rounded bg-red-100 border border-red-200" />
+            <span className="text-xs text-gray-400">{shamsi ? 'آخر هفته' : 'Weekend'}</span>
+          </div>
+        )}
+        {holidayNames.size > 0 && (
+          <div className="flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-red-400" />
+            <span className="text-xs text-gray-400">{shamsi ? 'تعطیل رسمی' : 'Holiday'}</span>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -320,7 +471,13 @@ function WeekPanel({ cursor, shamsi, events }: { cursor: Date; shamsi: boolean; 
 // Day view
 // ---------------------------------------------------------------------------
 
-function DayPanel({ cursor, shamsi, events }: { cursor: Date; shamsi: boolean; events: CalEvent[] }) {
+function DayPanel({ cursor, shamsi, events, holidayNames, weekendSet }: {
+  cursor: Date;
+  shamsi: boolean;
+  events: CalEvent[];
+  holidayNames: Map<string, string>;
+  weekendSet: Set<number>;
+}) {
   const now = today();
   const isToday = isSameDay(cursor, now);
   const currentHour = new Date().getHours();
@@ -349,8 +506,19 @@ function DayPanel({ cursor, shamsi, events }: { cursor: Date; shamsi: boolean; e
 
   const hours = Array.from({ length: 24 }, (_, i) => i);
 
+  const isWeekend = weekendSet.has(cursor.getDay());
+  const holidayName = holidayNames.get(ymd);
+
   return (
     <div className="select-none" dir={shamsi ? 'rtl' : 'ltr'}>
+      {/* Holiday / weekend banner */}
+      {(holidayName || isWeekend) && (
+        <div className={`mb-2 px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5
+          ${holidayName ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-red-50 text-red-400 border border-red-100'}`}>
+          <span className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />
+          {holidayName ?? (shamsi ? 'آخر هفته' : 'Weekend')}
+        </div>
+      )}
       {/* All-day events strip */}
       {allDayEvents.length > 0 && (
         <div className="mb-2 p-2 border border-gray-200 rounded-lg bg-gray-50">
@@ -385,13 +553,25 @@ function DayPanel({ cursor, shamsi, events }: { cursor: Date; shamsi: boolean; e
       </div>
 
       {/* Legend */}
-      <div className="flex items-center gap-3 mt-2 px-1">
+      <div className="flex items-center flex-wrap gap-x-3 gap-y-1 mt-2 px-1">
         {(['task', 'reminder', 'date'] as CalEvent['kind'][]).map(k => (
           <div key={k} className="flex items-center gap-1">
             <span className={`w-2 h-2 rounded-full ${KIND_DOT[k]}`} />
             <span className="text-xs text-gray-400 capitalize">{k === 'date' ? 'important date' : k}</span>
           </div>
         ))}
+        {weekendSet.size > 0 && (
+          <div className="flex items-center gap-1">
+            <span className="w-2 h-2 rounded bg-red-100 border border-red-200" />
+            <span className="text-xs text-gray-400">{shamsi ? 'آخر هفته' : 'Weekend'}</span>
+          </div>
+        )}
+        {holidayNames.size > 0 && (
+          <div className="flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-red-400" />
+            <span className="text-xs text-gray-400">{shamsi ? 'تعطیل رسمی' : 'Holiday'}</span>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -402,12 +582,37 @@ function DayPanel({ cursor, shamsi, events }: { cursor: Date; shamsi: boolean; e
 // ---------------------------------------------------------------------------
 
 export default function CalendarWidget() {
-  const { calendar } = useCalendar();
+  const { calendar, country } = useCalendar();
+  const { lang } = useLanguage();
   const { token } = useAuth();
   const shamsi = calendar === 'shamsi';
   const [view, setView] = useState<View>('month');
   const [cursor, setCursor] = useState<Date>(today);
   const [events, setEvents] = useState<CalEvent[]>([]);
+
+  // Holiday data — always fetch the adjacent year too, because:
+  // • Shamsi months routinely span two Gregorian years (e.g. Dey straddles Dec/Jan)
+  // • Week view can show days from the previous month
+  const cursorYear = cursor.getFullYear();
+  const holidaysThisYear  = useHolidays(country, cursorYear, token);
+  const holidaysPrevYear  = useHolidays(country, cursorYear - 1, token);
+  const holidaysNextYear  = useHolidays(country, cursorYear + 1, token);
+  const allHolidays = useMemo(
+    () => [...holidaysPrevYear, ...holidaysThisYear, ...holidaysNextYear],
+    [holidaysPrevYear, holidaysThisYear, holidaysNextYear],
+  );
+
+  // Build O(1) lookup: date → display name (language-aware)
+  const holidayNames = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const h of allHolidays) {
+      if (!h.hidden) m.set(h.date, getHolidayDisplayName(h, lang));
+    }
+    return m;
+  }, [allHolidays, lang]);
+
+  const weekendDays = useWeekends(country, token);
+  const weekendSet = useMemo(() => new Set(weekendDays), [weekendDays]);
 
   // Fetch all data once on mount
   useEffect(() => {
@@ -535,10 +740,10 @@ export default function CalendarWidget() {
         <div className={`flex items-center gap-2 shrink-0 ${shamsi ? 'flex-row-reverse' : ''}`}>
           <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden">
             <button onClick={() => navigate(-1)} className="px-2.5 py-1.5 text-gray-500 hover:bg-gray-100 transition-colors text-sm" aria-label="Previous">
-              {shamsi ? '›' : '‹'}
+              ‹
             </button>
             <button onClick={() => navigate(1)} className="px-2.5 py-1.5 text-gray-500 hover:bg-gray-100 transition-colors border-l border-gray-200 text-sm" aria-label="Next">
-              {shamsi ? '‹' : '›'}
+              ›
             </button>
           </div>
           <button onClick={() => setCursor(today())} className="px-3 py-1.5 text-xs font-medium border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors">
@@ -557,9 +762,14 @@ export default function CalendarWidget() {
       </div>
 
       {/* Body */}
-      {view === 'month' && <MonthGrid cursor={cursor} shamsi={shamsi} events={events} />}
-      {view === 'week' && <WeekPanel cursor={cursor} shamsi={shamsi} events={events} />}
-      {view === 'day' && <DayPanel cursor={cursor} shamsi={shamsi} events={events} />}
+      {view === 'month' && <MonthGrid cursor={cursor} shamsi={shamsi} events={events} holidayNames={holidayNames} weekendSet={weekendSet}
+        onDayClick={d => { setCursor(d); setView('day'); }}
+        onWeekClick={d => { setCursor(d); setView('week'); }}
+      />}
+      {view === 'week' && <WeekPanel cursor={cursor} shamsi={shamsi} events={events} holidayNames={holidayNames} weekendSet={weekendSet}
+        onDayClick={d => { setCursor(d); setView('day'); }}
+      />}
+      {view === 'day' && <DayPanel cursor={cursor} shamsi={shamsi} events={events} holidayNames={holidayNames} weekendSet={weekendSet} />}
     </div>
   );
 }
