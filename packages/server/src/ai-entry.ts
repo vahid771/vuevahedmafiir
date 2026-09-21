@@ -22,6 +22,10 @@ app.use((req, res, next) => {
   req.on('error', () => next());
 });
 
+app.get('/api/ai/_health', (_req, res) => {
+  res.json({ ok: true, ts: new Date().toISOString() });
+});
+
 app.use('/api/ai', aiRouter);
 
 export default app;

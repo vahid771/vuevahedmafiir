@@ -40741,10 +40741,12 @@ var CALENDAR_NAMES = {
   ethiopian: "Ethiopian (Ge'ez)"
 };
 router.post("/summary", async (req, res) => {
+  const t0 = Date.now();
   try {
     const userId = req.user.id;
     const language = req.body?.language ?? "en";
     const calendar = req.body?.calendar ?? "miladi";
+    console.log(`[summary] start uid=${userId} lang=${language} cal=${calendar}`);
     const isFarsi = language === "fa";
     const isArabic = language === "ar";
     const isShamsi = calendar === "shamsi";
@@ -40752,11 +40754,13 @@ router.post("/summary", async (req, res) => {
     const fmtDateTime = (isoStr) => isShamsi ? formatJalaliDateTime(isoStr) : isoStr;
     const currencyLabel = isFarsi ? "\u0631\u06CC\u0627\u0644" : "IRR";
     const todayOverride = req.body?.today;
+    console.log(`[summary] step=prefs t=${Date.now() - t0}ms`);
     const prefsRow = (await db.execute({
       sql: "SELECT country FROM user_preferences WHERE user_id = ?",
       args: [userId]
     })).rows[0];
     const country = prefsRow?.country ?? null;
+    console.log(`[summary] step=gather country=${country} t=${Date.now() - t0}ms`);
     const {
       today,
       weekStartStr,
@@ -40770,6 +40774,7 @@ router.post("/summary", async (req, res) => {
       upcomingLoans,
       upcomingHolidays
     } = await gatherUserData(userId, calendar, todayOverride, country);
+    console.log(`[summary] step=gathered tasks=${openTasks.length} t=${Date.now() - t0}ms`);
     const todayLabel = isShamsi ? formatJalaliWithWeekday(today) : today.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
     const weekLabel = isShamsi ? formatJalaliWeekRange(weekStartStr, weekEndStr) : `${weekStartStr} to ${weekEndStr}`;
     const tomorrowDate = new Date(today.getTime() + 864e5);
@@ -40865,6 +40870,7 @@ router.post("/summary", async (req, res) => {
     const shamsiInstruction = isShamsi ? isFarsi ? "\n\u062A\u0645\u0627\u0645 \u062A\u0627\u0631\u06CC\u062E\u200C\u0647\u0627 \u062F\u0631 \u062F\u0627\u062F\u0647\u200C\u0647\u0627 \u0628\u0647 \u062A\u0642\u0648\u06CC\u0645 \u0634\u0645\u0633\u06CC \u0647\u0633\u062A\u0646\u062F \u2014 \u0647\u0645\u0627\u0646\u200C\u0647\u0627 \u0631\u0627 \u0639\u06CC\u0646\u0627\u064B \u062F\u0631 \u062E\u0631\u0648\u062C\u06CC \u0627\u0633\u062A\u0641\u0627\u062F\u0647 \u06A9\u0646\u06CC\u062F. \u0647\u0631\u06AF\u0632 \u062A\u0627\u0631\u06CC\u062E \u0645\u06CC\u0644\u0627\u062F\u06CC \u06CC\u0627 \u0639\u062F\u062F \u0645\u0627\u0647 \u0630\u06A9\u0631 \u0646\u06A9\u0646\u06CC\u062F." : isArabic ? "\n\u062C\u0645\u064A\u0639 \u0627\u0644\u062A\u0648\u0627\u0631\u064A\u062E \u0641\u064A \u0627\u0644\u0628\u064A\u0627\u0646\u0627\u062A \u0628\u0627\u0644\u062A\u0642\u0648\u064A\u0645 \u0627\u0644\u0634\u0645\u0633\u064A (\u0627\u0644\u062C\u0644\u0627\u0644\u064A) \u2014 \u0627\u0646\u0633\u062E\u0647\u0627 \u0643\u0645\u0627 \u0647\u064A \u0641\u064A \u0627\u0644\u0625\u062E\u0631\u0627\u062C. \u0644\u0627 \u062A\u0630\u0643\u0631 \u0623\u0628\u062F\u0627\u064B \u062A\u0648\u0627\u0631\u064A\u062E \u0645\u064A\u0644\u0627\u062F\u064A\u0629 \u0623\u0648 \u0623\u0631\u0642\u0627\u0645 \u0623\u0634\u0647\u0631." : "\nAll dates in the data are already in the Shamsi (Jalali) calendar \u2014 copy them verbatim. Never mention Gregorian dates or numeric month numbers." : "";
     const basePrompt = SYSTEM_PROMPTS[language] ?? SYSTEM_PROMPTS["en"];
     const systemPrompt = basePrompt.replace("{SHAMSI_INSTRUCTION}", shamsiInstruction);
+    console.log(`[summary] step=groq-start t=${Date.now() - t0}ms`);
     try {
       const apiKey = process.env.GROQ_API_KEY;
       if (!apiKey) {
@@ -40880,6 +40886,7 @@ router.post("/summary", async (req, res) => {
         ],
         max_tokens: 1500
       });
+      console.log(`[summary] step=groq-done t=${Date.now() - t0}ms finish=${completion.choices[0]?.finish_reason}`);
       const raw = completion.choices[0]?.message?.content ?? "";
       let summary;
       let expiresAt;
@@ -40902,6 +40909,7 @@ router.post("/summary", async (req, res) => {
       })();
       const expiresAtFinal = validExpiry.toISOString();
       const createdAt = (/* @__PURE__ */ new Date()).toISOString();
+      console.log(`[summary] step=db-save t=${Date.now() - t0}ms`);
       const existingRow = (await db.execute({
         sql: "SELECT summary, expires_at, created_at FROM ai_summaries_lang WHERE user_id = ? AND summary_lang = ? AND summary_calendar = ?",
         args: [userId, language, calendar]
@@ -40927,15 +40935,16 @@ router.post("/summary", async (req, res) => {
             VALUES (?, ?, ?, ?, ?, ?)`,
         args: [userId, language, calendar, summary, expiresAtFinal, createdAt]
       });
+      console.log(`[summary] step=done t=${Date.now() - t0}ms`);
       res.json({ summary, expires_at: expiresAtFinal, created_at: createdAt, summary_lang: language, summary_calendar: calendar });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      console.error("Groq error:", message);
-      res.status(502).json({ error: `Groq error: ${message}` });
+      console.error(`[summary] inner-error t=${Date.now() - t0}ms:`, message);
+      if (!res.headersSent) res.status(502).json({ error: `AI error: ${message}` });
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error("[summary] unhandled error:", message);
+    console.error(`[summary] outer-error t=${Date.now() - t0}ms:`, message);
     if (!res.headersSent) res.status(500).json({ error: message });
   }
 });
@@ -41013,6 +41022,9 @@ app.use((req, res, next) => {
     next();
   });
   req.on("error", () => next());
+});
+app.get("/api/ai/_health", (_req, res) => {
+  res.json({ ok: true, ts: (/* @__PURE__ */ new Date()).toISOString() });
 });
 app.use("/api/ai", router_default);
 var ai_entry_default = app;

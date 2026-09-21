@@ -226,10 +226,12 @@ const CALENDAR_NAMES: Record<string, string> = {
 
 // POST /api/ai/summary
 router.post('/summary', async (req, res) => {
+  const t0 = Date.now();
   try {
   const userId = req.user!.id;
   const language: string = req.body?.language ?? 'en';
   const calendar: string = req.body?.calendar ?? 'miladi';
+  console.log(`[summary] start uid=${userId} lang=${language} cal=${calendar}`);
   const isFarsi = language === 'fa';
   const isArabic = language === 'ar';
   const isShamsi = calendar === 'shamsi';
@@ -246,11 +248,13 @@ router.post('/summary', async (req, res) => {
   const todayOverride: string | undefined = req.body?.today;
 
   // Fetch user's country from preferences (for holiday context)
+  console.log(`[summary] step=prefs t=${Date.now()-t0}ms`);
   const prefsRow = (await db.execute({
     sql: 'SELECT country FROM user_preferences WHERE user_id = ?',
     args: [userId],
   })).rows[0] as unknown as { country: string | null } | undefined;
   const country = prefsRow?.country ?? null;
+  console.log(`[summary] step=gather country=${country} t=${Date.now()-t0}ms`);
 
   const {
     today,
@@ -265,6 +269,7 @@ router.post('/summary', async (req, res) => {
     upcomingLoans,
     upcomingHolidays,
   } = await gatherUserData(userId, calendar, todayOverride, country);
+  console.log(`[summary] step=gathered tasks=${openTasks.length} t=${Date.now()-t0}ms`);
 
   // "Today" and week range lines
   const todayLabel = isShamsi
@@ -395,6 +400,7 @@ router.post('/summary', async (req, res) => {
   const basePrompt = SYSTEM_PROMPTS[language] ?? SYSTEM_PROMPTS['en'];
   const systemPrompt = basePrompt.replace('{SHAMSI_INSTRUCTION}', shamsiInstruction);
 
+  console.log(`[summary] step=groq-start t=${Date.now()-t0}ms`);
   try {
     const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) {
@@ -410,6 +416,7 @@ router.post('/summary', async (req, res) => {
       ],
       max_tokens: 1500,
     });
+    console.log(`[summary] step=groq-done t=${Date.now()-t0}ms finish=${completion.choices[0]?.finish_reason}`);
 
     const raw = completion.choices[0]?.message?.content ?? '';
 
@@ -442,6 +449,7 @@ router.post('/summary', async (req, res) => {
 
     const createdAt = new Date().toISOString();
 
+    console.log(`[summary] step=db-save t=${Date.now()-t0}ms`);
     // Push existing summary for this lang+calendar to history before overwriting
     const existingRow = (await db.execute({
       sql: 'SELECT summary, expires_at, created_at FROM ai_summaries_lang WHERE user_id = ? AND summary_lang = ? AND summary_calendar = ?',
@@ -474,16 +482,17 @@ router.post('/summary', async (req, res) => {
       args: [userId, language, calendar, summary, expiresAtFinal, createdAt],
     });
 
+    console.log(`[summary] step=done t=${Date.now()-t0}ms`);
     res.json({ summary, expires_at: expiresAtFinal, created_at: createdAt, summary_lang: language, summary_calendar: calendar });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error('Groq error:', message);
-    res.status(502).json({ error: `Groq error: ${message}` });
+    console.error(`[summary] inner-error t=${Date.now()-t0}ms:`, message);
+    if (!res.headersSent) res.status(502).json({ error: `AI error: ${message}` });
   }
 
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error('[summary] unhandled error:', message);
+    console.error(`[summary] outer-error t=${Date.now()-t0}ms:`, message);
     if (!res.headersSent) res.status(500).json({ error: message });
   }
 });
