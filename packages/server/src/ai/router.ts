@@ -470,11 +470,12 @@ router.post('/summary', async (req, res) => {
       });
     }
 
-    // Delete existing row then insert — avoids ON CONFLICT ambiguity between the old
-    // UNIQUE(user_id, summary_lang) table constraint and the new 3-column index.
+    // Delete ALL rows for this user+lang (covers both old 2-col and new 3-col schema)
+    // then insert fresh. This avoids any unique-constraint conflict regardless of
+    // which schema version the live table has.
     await db.execute({
-      sql: 'DELETE FROM ai_summaries_lang WHERE user_id = ? AND summary_lang = ? AND summary_calendar = ?',
-      args: [userId, language, calendar],
+      sql: 'DELETE FROM ai_summaries_lang WHERE user_id = ? AND summary_lang = ?',
+      args: [userId, language],
     });
     await db.execute({
       sql: `INSERT INTO ai_summaries_lang (user_id, summary_lang, summary_calendar, summary, expires_at, created_at)

@@ -40927,8 +40927,8 @@ router.post("/summary", async (req, res) => {
         });
       }
       await db.execute({
-        sql: "DELETE FROM ai_summaries_lang WHERE user_id = ? AND summary_lang = ? AND summary_calendar = ?",
-        args: [userId, language, calendar]
+        sql: "DELETE FROM ai_summaries_lang WHERE user_id = ? AND summary_lang = ?",
+        args: [userId, language]
       });
       await db.execute({
         sql: `INSERT INTO ai_summaries_lang (user_id, summary_lang, summary_calendar, summary, expires_at, created_at)
