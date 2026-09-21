@@ -18,8 +18,9 @@ export interface SummaryHistoryEntry {
 export async function getCachedSummary(
   token: string,
   lang = 'en',
+  calendar = 'miladi',
 ): Promise<(SummaryResult & { history: SummaryHistoryEntry[] }) | null> {
-  const res = await fetch(apiUrl(`/api/ai/summary?lang=${lang}`), { headers: authHeaders(token) });
+  const res = await fetch(apiUrl(`/api/ai/summary?lang=${lang}&calendar=${calendar}`), { headers: authHeaders(token) });
   if (!res.ok) return null;
   const data = await res.json() as {
     summary: string | null;
@@ -54,18 +55,27 @@ export async function getSummary(token: string, language = 'en', calendar = 'mil
     body: JSON.stringify({ language, calendar, today: localDate }),
   });
   if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error((data as { error?: string }).error ?? 'Failed to generate summary');
+    const text = await res.text().catch(() => '');
+    let msg = `Failed to generate summary (${res.status})`;
+    try {
+      const data = JSON.parse(text) as { error?: string; stage?: string };
+      if (data.error) msg = data.error;
+    } catch {
+      // Cloudflare/CDN HTML error page — strip tags, show first meaningful line
+      const plain = text.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      if (plain) msg = plain.slice(0, 300);
+    }
+    throw new Error(msg);
   }
   const data = await res.json() as { summary: string; expires_at: string; created_at: string; summary_lang: string };
   return { summary: data.summary, expiresAt: data.expires_at, generatedAt: data.created_at, summaryLang: data.summary_lang ?? language };
 }
 
-export async function updateSummary(token: string, lang: string, summary: string): Promise<SummaryResult> {
+export async function updateSummary(token: string, lang: string, calendar: string, summary: string): Promise<SummaryResult> {
   const res = await fetch(apiUrl('/api/ai/summary'), {
     method: 'PATCH',
     headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
-    body: JSON.stringify({ lang, summary }),
+    body: JSON.stringify({ lang, calendar, summary }),
   });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));

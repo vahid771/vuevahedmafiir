@@ -414,7 +414,7 @@ router.post('/summary', async (req, res) => {
         { role: 'system', content: systemPrompt },
         { role: 'user', content: prompt },
       ],
-      max_tokens: 1500,
+      max_tokens: 900,
     });
     console.log(`[summary] step=groq-done t=${Date.now()-t0}ms finish=${completion.choices[0]?.finish_reason}`);
 
