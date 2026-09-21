@@ -41002,29 +41002,43 @@ var router_default = router;
 // packages/server/src/ai-entry.ts
 var app = (0, import_express2.default)();
 app.use((req, res, next) => {
-  const ct = req.headers["content-type"] || "";
   if (req.body !== void 0) return next();
-  if (!req.readable) {
-    if (ct.includes("application/json") && req.body === void 0) req.body = {};
-    return next();
-  }
+  const ct = req.headers["content-type"] || "";
+  const isJson = ct.includes("application/json");
   const chunks = [];
-  req.on("data", (chunk) => chunks.push(chunk));
-  req.on("end", () => {
+  let done = false;
+  function finish() {
+    if (done) return;
+    done = true;
     const raw = Buffer.concat(chunks);
-    if (ct.includes("application/json") && raw.length > 0) {
+    if (isJson && raw.length > 0) {
       try {
         req.body = JSON.parse(raw.toString("utf8"));
       } catch {
         req.body = {};
       }
+    } else if (req.body === void 0) {
+      req.body = {};
     }
     next();
+  }
+  const timer = setTimeout(finish, 3e3);
+  req.on("data", (chunk) => chunks.push(chunk));
+  req.on("end", () => {
+    clearTimeout(timer);
+    finish();
   });
-  req.on("error", () => next());
+  req.on("close", () => {
+    clearTimeout(timer);
+    finish();
+  });
+  req.on("error", () => {
+    clearTimeout(timer);
+    finish();
+  });
 });
 app.get("/api/ai/_health", (_req, res) => {
-  res.json({ ok: true, ts: (/* @__PURE__ */ new Date()).toISOString() });
+  res.json({ ok: true, ts: (/* @__PURE__ */ new Date()).toISOString(), env: { groq: !!process.env.GROQ_API_KEY, turso: !!process.env.TURSO_DATABASE_URL, jwt: !!process.env.JWT_SECRET } });
 });
 app.use("/api/ai", router_default);
 var ai_entry_default = app;
