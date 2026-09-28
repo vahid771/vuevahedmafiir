@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import Holidays from 'date-holidays';
+import Groq from 'groq-sdk';
 import { db } from '../db';
 import { authenticateToken } from '../middleware/authenticate';
 
@@ -462,6 +463,86 @@ router.post('/import', async (req, res) => {
       });
     }
     res.json({ imported: rows.length, country, year });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    res.status(500).json({ error: message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/holidays/translate
+// Batch-translates English holiday names into the requested language using AI.
+// Body: { names: string[], lang: string }
+// Returns: { translations: Record<string, string> }
+// ---------------------------------------------------------------------------
+const LANG_NAMES: Record<string, string> = {
+  fa: 'Persian (Farsi)', ar: 'Arabic', de: 'German', fr: 'French',
+  es: 'Spanish', pt: 'Portuguese', ru: 'Russian', tr: 'Turkish',
+  zh: 'Chinese (Simplified)', hi: 'Hindi', id: 'Indonesian',
+  en: 'English',
+};
+
+router.post('/translate', async (req, res) => {
+  const { names, lang } = req.body as { names?: unknown; lang?: unknown };
+
+  if (!Array.isArray(names) || names.length === 0 || names.some(n => typeof n !== 'string')) {
+    res.status(400).json({ error: 'names must be a non-empty array of strings' });
+    return;
+  }
+  if (typeof lang !== 'string' || !lang) {
+    res.status(400).json({ error: 'lang is required' });
+    return;
+  }
+  if (lang === 'en') {
+    // Nothing to translate — return identity map
+    const translations: Record<string, string> = {};
+    for (const n of names as string[]) translations[n] = n;
+    res.json({ translations });
+    return;
+  }
+
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) {
+    res.status(503).json({ error: 'AI translation not available (GROQ_API_KEY not set)' });
+    return;
+  }
+
+  const targetLang = LANG_NAMES[lang] ?? lang;
+  const nameList = (names as string[]).join('\n');
+
+  try {
+    const groq = new Groq({ apiKey });
+    const completion = await groq.chat.completions.create({
+      model: 'llama-3.3-70b-versatile',
+      temperature: 0.1,
+      messages: [
+        {
+          role: 'system',
+          content: `You are a professional translator specializing in official holiday and public event names.
+Translate each holiday name from English into ${targetLang}.
+Rules:
+- Output ONLY a JSON object mapping each original English name to its ${targetLang} translation.
+- Use the most widely accepted official or common translation.
+- Preserve proper nouns (names of people, places) as transliterations when no standard translation exists.
+- Do not add explanations, comments, or extra text — only the JSON object.
+Example output format: {"New Year's Day": "...", "Christmas Day": "..."}`,
+        },
+        {
+          role: 'user',
+          content: nameList,
+        },
+      ],
+    });
+
+    const raw = completion.choices[0]?.message?.content?.trim() ?? '';
+    // Extract JSON object from the response (model may wrap it in markdown)
+    const jsonMatch = raw.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      res.status(500).json({ error: 'AI returned unexpected format' });
+      return;
+    }
+    const translations = JSON.parse(jsonMatch[0]) as Record<string, string>;
+    res.json({ translations });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     res.status(500).json({ error: message });

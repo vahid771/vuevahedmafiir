@@ -10,6 +10,7 @@ import {
   saveWeekends,
   resetWeekends,
   importHolidays,
+  translateHolidays,
   type Holiday,
 } from '../api/holidays';
 import type { CalendarType } from '../api/preferences';
@@ -259,6 +260,11 @@ export default function HolidaysSettingsPanel({ token }: Props) {
   const [importResult, setImportResult] = useState<{ imported: number } | null>(null);
   const [importError, setImportError] = useState('');
 
+  // ── Translate state ─────────────────────────────────────────────────────────
+  const [translating, setTranslating] = useState(false);
+  const [translateResult, setTranslateResult] = useState<{ count: number } | null>(null);
+  const [translateError, setTranslateError] = useState('');
+
   // ── Edit / add form ─────────────────────────────────────────────────────────
   const [editingDate, setEditingDate] = useState<string | null>(null);
   const [form, setForm] = useState<EditForm>(EMPTY_FORM);
@@ -447,6 +453,50 @@ export default function HolidaysSettingsPanel({ token }: Props) {
     }
   }
 
+  // ── Translate all holidays to current language ──────────────────────────────
+  async function handleTranslate() {
+    if (!country || holidays.length === 0 || lang === 'en') return;
+    setTranslating(true);
+    setTranslateError('');
+    setTranslateResult(null);
+    try {
+      // Collect unique English names from the visible (non-hidden) holidays
+      const names = [...new Set(holidays.filter(h => !h.hidden).map(h => h.name))];
+      const translations = await translateHolidays(token, names, lang);
+      // Cache each translation so getHolidayDisplayName picks it up immediately
+      let count = 0;
+      for (const [englishName, translated] of Object.entries(translations)) {
+        if (translated && translated !== englishName) {
+          cacheHolidayTranslation(lang, englishName, translated);
+          count++;
+        }
+      }
+      // For fa/ar also persist to the DB so the server translation memory is updated
+      if (lang === 'fa' || lang === 'ar') {
+        const { gy1, gy2 } = calYearHelpers(calendar).toGregorianRange(selectedYear);
+        const gyears = gy1 === gy2 ? [gy1] : [gy1, gy2];
+        for (const h of holidays) {
+          const translated = translations[h.name];
+          if (!translated || translated === h.name) continue;
+          const [gy] = h.date.split('-').map(Number);
+          if (!gyears.includes(gy)) continue;
+          await upsertHoliday(token, country, gy, h.date, h.localName, h.name, translated, h.hidden, h.isCustom);
+        }
+        invalidateAllHolidayCacheForCountry(country);
+        await loadHolidays();
+      } else {
+        // Force a re-render so cached translations are applied immediately
+        setHolidays(prev => [...prev]);
+      }
+      setTranslateResult({ count });
+      setTimeout(() => setTranslateResult(null), 3000);
+    } catch (e) {
+      setTranslateError(e instanceof Error ? e.message : 'Translation failed');
+    } finally {
+      setTranslating(false);
+    }
+  }
+
   // ── Delete override ─────────────────────────────────────────────────────────
   async function handleDeleteOverride(h: Holiday) {
     if (!country) return;
@@ -562,8 +612,8 @@ export default function HolidaysSettingsPanel({ token }: Props) {
             <h3 className="text-sm font-semibold text-gray-700">{t('settings.holidaysTitle')}</h3>
             <p className="text-xs text-gray-400 mt-0.5">{t('settings.holidaysDesc')}</p>
           </div>
-          {/* Year selector + Import button */}
-          <div className="flex items-center gap-2">
+          {/* Year selector + Import + Translate buttons */}
+          <div className="flex items-center gap-2 flex-wrap justify-end">
             <select
               value={selectedYear}
               onChange={e => setSelectedYear(Number(e.target.value))}
@@ -576,7 +626,7 @@ export default function HolidaysSettingsPanel({ token }: Props) {
             <button
               type="button"
               onClick={handleImport}
-              disabled={importing}
+              disabled={importing || translating}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-60 transition-colors"
             >
               {importing && (
@@ -585,10 +635,35 @@ export default function HolidaysSettingsPanel({ token }: Props) {
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                 </svg>
               )}
-              {importing ? 'Importing…' : 'Import Official Holidays'}
+              {importing ? 'Importing…' : 'Import'}
             </button>
+            {/* Translate button — hidden when lang is English (nothing to translate) */}
+            {lang !== 'en' && (
+              <button
+                type="button"
+                onClick={handleTranslate}
+                disabled={translating || importing || holidays.length === 0}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 text-white text-sm rounded-lg hover:bg-violet-700 disabled:opacity-60 transition-colors"
+                title="Translate holiday names to current language using AI"
+              >
+                {translating ? (
+                  <svg className="animate-spin h-3.5 w-3.5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                ) : (
+                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
+                  </svg>
+                )}
+                {translating ? 'Translating…' : 'Translate'}
+              </button>
+            )}
             {importResult && (
               <span className="text-xs text-green-600 font-medium">✓ {importResult.imported} imported</span>
+            )}
+            {translateResult && (
+              <span className="text-xs text-green-600 font-medium">✓ {translateResult.count} translated</span>
             )}
           </div>
         </div>
@@ -597,6 +672,12 @@ export default function HolidaysSettingsPanel({ token }: Props) {
           <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2 flex justify-between">
             <span>{importError}</span>
             <button onClick={() => setImportError('')} className="font-bold ml-2">×</button>
+          </div>
+        )}
+        {translateError && (
+          <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2 flex justify-between">
+            <span>{translateError}</span>
+            <button onClick={() => setTranslateError('')} className="font-bold ml-2">×</button>
           </div>
         )}
 

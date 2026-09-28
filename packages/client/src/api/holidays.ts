@@ -102,3 +102,21 @@ export async function importHolidays(
   }
   return res.json();
 }
+
+export async function translateHolidays(
+  token: string,
+  names: string[],
+  lang: string,
+): Promise<Record<string, string>> {
+  const res = await fetch(apiUrl('/api/holidays/translate'), {
+    method: 'POST',
+    headers: authHeaders(token),
+    body: JSON.stringify({ names, lang }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({})) as { error?: string };
+    throw new Error(body.error ?? 'Failed to translate holidays');
+  }
+  const data = await res.json() as { translations: Record<string, string> };
+  return data.translations;
+}
