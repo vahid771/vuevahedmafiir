@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { Skeleton } from '../components/ui/Skeleton';
 import { useAuth } from '../context/AuthContext';
 import { getSummary, getCachedSummary, updateSummary, type SummaryHistoryEntry } from '../api/ai';
 import CalendarWidget from '../components/CalendarWidget';
@@ -79,6 +80,7 @@ export default function DashboardPage() {
   const [chartHabits, setChartHabits] = useState<Habit[]>([]);
   const [chartBills, setChartBills]   = useState<Bill[]>([]);
   const [chartLoans, setChartLoans]   = useState<Loan[]>([]);
+  const [chartsLoading, setChartsLoading] = useState(true);
 
   // Re-load when language or calendar changes — each (lang, calendar) pair has its own cache
   useEffect(() => {
@@ -113,6 +115,7 @@ export default function DashboardPage() {
   // Chart data fetch — runs once on mount
   useEffect(() => {
     if (!token) return;
+    setChartsLoading(true);
     Promise.allSettled([
       getTasks(token),
       getHabits(token),
@@ -123,7 +126,7 @@ export default function DashboardPage() {
       if (habits.status  === 'fulfilled') setChartHabits(habits.value);
       if (bills.status   === 'fulfilled') setChartBills(bills.value);
       if (loans.status   === 'fulfilled') setChartLoans(loans.value);
-    });
+    }).finally(() => setChartsLoading(false));
   }, [token]);
 
   async function handleSummarize() {
@@ -362,7 +365,17 @@ export default function DashboardPage() {
       </div>
 
       {/* Statistical overview */}
-      {(chartTasks.length > 0 || chartHabits.length > 0 || chartBills.length > 0 || chartLoans.length > 0) && (
+      {chartsLoading ? (
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-6 space-y-3">
+          <Skeleton className="h-5 w-40" />
+          <Skeleton className="h-40 w-full" />
+          <div className="flex gap-3">
+            <Skeleton className="h-24 flex-1" />
+            <Skeleton className="h-24 flex-1" />
+            <Skeleton className="h-24 flex-1" />
+          </div>
+        </div>
+      ) : (chartTasks.length > 0 || chartHabits.length > 0 || chartBills.length > 0 || chartLoans.length > 0) && (
         <DashboardCharts
           tasks={chartTasks}
           habits={chartHabits}

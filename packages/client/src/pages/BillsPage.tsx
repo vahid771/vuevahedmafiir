@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { SkeletonList } from '../components/ui/Skeleton';
 import { useAuth } from '../context/AuthContext';
 import { useCalendar } from '../context/CalendarContext';
 import { useTranslation } from 'react-i18next';
@@ -396,7 +397,7 @@ function BillsSection({ token }: { token: string }) {
       )}
 
       {loading ? (
-        <p className="text-center text-gray-400 py-12">{t('bills.loadingBills')}</p>
+        <SkeletonList count={4} />
       ) : bills.length === 0 ? (
         <p className="text-sm text-gray-400 italic px-4 py-8 text-center">{t('bills.noBills')}</p>
       ) : (
@@ -529,7 +530,7 @@ function SubscriptionsSection({ token }: { token: string }) {
       )}
 
       {loading ? (
-        <p className="text-center text-gray-400 py-12">{t('bills.loadingSubs')}</p>
+        <SkeletonList count={4} />
       ) : subs.length === 0 ? (
         <p className="text-sm text-gray-400 italic px-4 py-8 text-center">{t('bills.noSubs')}</p>
       ) : (
@@ -670,7 +671,7 @@ function LoansSection({ token }: { token: string }) {
       )}
 
       {loading ? (
-        <p className="text-center text-gray-400 py-12">{t('bills.loadingLoans')}</p>
+        <SkeletonList count={3} />
       ) : loans.length === 0 ? (
         <p className="text-sm text-gray-400 italic px-4 py-8 text-center">{t('bills.noLoans')}</p>
       ) : (

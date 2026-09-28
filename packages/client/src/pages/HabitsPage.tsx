@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { SkeletonList } from '../components/ui/Skeleton';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import { useTranslation } from 'react-i18next';
@@ -153,7 +154,7 @@ export default function HabitsPage() {
       )}
 
       {loading ? (
-        <p className="text-gray-500">{t('common.loading')}</p>
+        <SkeletonList count={3} />
       ) : habits.length === 0 ? (
         <div className="text-center py-12 text-gray-400">
           <p className="text-lg">{t('habits.noHabits')}</p>

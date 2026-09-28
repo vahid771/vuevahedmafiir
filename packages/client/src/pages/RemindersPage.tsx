@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { SkeletonList } from '../components/ui/Skeleton';
 import { useAuth } from '../context/AuthContext';
 import { useCalendar } from '../context/CalendarContext';
 import { useTranslation } from 'react-i18next';
@@ -221,7 +222,7 @@ export default function RemindersPage() {
       )}
 
       {loading ? (
-        <p className="text-gray-500">{t('common.loading')}</p>
+        <SkeletonList count={4} />
       ) : (
         <div className="space-y-6">
           {overdue.length > 0 && (

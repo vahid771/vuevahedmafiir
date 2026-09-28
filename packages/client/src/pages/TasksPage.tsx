@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { SkeletonList } from '../components/ui/Skeleton';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
@@ -252,7 +253,7 @@ function TaskList({
       )}
 
       {loading ? (
-        <p className="text-center text-gray-400 py-12">{t('tasks.loadingTasks')}</p>
+        <SkeletonList count={4} />
       ) : (
         <div className="space-y-6">
           <section>
@@ -643,7 +644,7 @@ function AllTasksView({ gTasksConnected, gcalConnected }: { gTasksConnected: boo
         </button>
       </div>
       {showAddForm && <TaskForm onSave={handleCreate} onCancel={() => setShowAddForm(false)} saving={addSaving} />}
-      {loading ? <p className="text-center text-gray-400 py-12">{t('tasks.loadingTasks')}</p> : (
+      {loading ? <SkeletonList count={4} /> : (
         <div className="space-y-6">
           <section>
             <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">{t('tasks.open')} <span className="font-normal">({openTasks.length})</span></h2>

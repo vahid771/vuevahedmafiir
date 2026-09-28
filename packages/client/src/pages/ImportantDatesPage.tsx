@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { SkeletonList } from '../components/ui/Skeleton';
 import { useAuth } from '../context/AuthContext';
 import { useCalendar } from '../context/CalendarContext';
 import { useTranslation } from 'react-i18next';
@@ -176,7 +177,7 @@ export default function ImportantDatesPage() {
       )}
 
       {loading ? (
-        <p className="text-gray-500">{t('common.loading')}</p>
+        <SkeletonList count={4} />
       ) : dates.length === 0 ? (
         <div className="text-center py-12 text-gray-400">
           <p className="text-lg">{t('dates.noDates')}</p>

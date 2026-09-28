@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { SkeletonList } from '../components/ui/Skeleton';
 import { useAuth } from '../context/AuthContext';
 import { useTranslation } from 'react-i18next';
 import {
@@ -133,7 +134,15 @@ export default function DocumentsPage() {
     }
   }
 
-  if (driveStatusLoading) return null;
+  if (driveStatusLoading) return (
+    <div className="max-w-3xl mx-auto py-6 px-4 space-y-3">
+      <div className="flex items-center justify-between mb-6">
+        <div className="h-8 w-40 animate-pulse rounded bg-gray-200 dark:bg-gray-700" />
+        <div className="h-9 w-24 animate-pulse rounded bg-gray-200 dark:bg-gray-700" />
+      </div>
+      <SkeletonList count={4} />
+    </div>
+  );
 
   return (
     <div className="max-w-3xl mx-auto py-6 px-4">
@@ -225,7 +234,7 @@ export default function DocumentsPage() {
       )}
 
       {loading ? (
-        <p className="text-gray-500">{t('common.loading')}</p>
+        <SkeletonList count={4} />
       ) : displayed.length === 0 ? (
         <div className="text-center py-12 text-gray-400">
           <p className="text-lg">{t('documents.noDocs')}</p>
