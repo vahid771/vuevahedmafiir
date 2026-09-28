@@ -4,6 +4,8 @@ import { useCalendar } from '../../context/CalendarContext';
 import { useTranslation } from 'react-i18next';
 import { useCountryList, useCountryName } from './CalendarSettingsPage';
 import FlagImg from '../../components/FlagImg';
+import WorldMapPicker from '../../components/WorldMapPicker';
+import { useLanguage } from '../../context/LanguageContext';
 
 
 function SelectedCountryBadge({ code }: { code: string }) {
@@ -38,6 +40,7 @@ function CountrySelect({ value, disabled, onChange }: { value: string; disabled:
 export default function LocationSettingsPage() {
   const { country, setCountry } = useCalendar();
   const { t } = useTranslation();
+  const { lang } = useLanguage();
 
   const [locationSaving, setLocationSaving] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
@@ -125,6 +128,8 @@ export default function LocationSettingsPage() {
         )}
 
         <div className="space-y-3">
+          <WorldMapPicker selected={country} onSelect={handleCountrySelect} lang={lang} />
+
           <div className="flex items-center gap-3">
             <button
               type="button"
@@ -152,11 +157,16 @@ export default function LocationSettingsPage() {
           {/* Selected-country flag badge */}
           {country && <SelectedCountryBadge code={country} />}
 
-          <CountrySelect
-            value={country ?? ''}
-            disabled={locationSaving}
-            onChange={handleCountrySelect}
-          />
+          <details>
+            <summary className="text-xs text-gray-400 hover:text-gray-600 cursor-pointer select-none mt-1">
+              Search by name
+            </summary>
+            <CountrySelect
+              value={country ?? ''}
+              disabled={locationSaving}
+              onChange={handleCountrySelect}
+            />
+          </details>
         </div>
 
         {country && (
