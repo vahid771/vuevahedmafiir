@@ -3,8 +3,11 @@ import documentsRouter from './documents/router';
 import googleRouter from './google/router';
 import googleTasksRouter from './google/tasks.router';
 import googleCalendarRouter from './google/calendar.router';
+import { runMigrations } from './db';
 
 const app = express();
+
+runMigrations().catch(e => console.error('[google-entry] migration error:', e));
 
 app.use((req, res, next) => {
   const ct = req.headers['content-type'] || '';
