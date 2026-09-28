@@ -267,6 +267,20 @@ export async function runMigrations(): Promise<void> {
     `ALTER TABLE users ADD COLUMN password_hash TEXT`,
     // Per-language + per-calendar AI summary history index
     `CREATE INDEX IF NOT EXISTS idx_ai_summary_history_user_lang ON ai_summary_history(user_id, summary_lang, summary_calendar, created_at)`,
+    `CREATE TABLE IF NOT EXISTS holidays_seed (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      country    TEXT    NOT NULL,
+      year       INTEGER NOT NULL,
+      date       TEXT    NOT NULL,
+      local_name TEXT    NOT NULL,
+      name       TEXT    NOT NULL,
+      name_fa    TEXT,
+      types      TEXT,
+      source     TEXT    NOT NULL DEFAULT 'date-holidays',
+      created_at TEXT    DEFAULT (datetime('now')),
+      UNIQUE(country, year, date)
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_holidays_seed_country_year ON holidays_seed(country, year)`,
   ]);
 
   // ── Table-rebuild migration: drop old 2-column UNIQUE constraint ──────────

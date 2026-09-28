@@ -9,6 +9,7 @@ import {
   getWeekends,
   saveWeekends,
   resetWeekends,
+  importHolidays,
   type Holiday,
 } from '../api/holidays';
 import type { CalendarType } from '../api/preferences';
@@ -253,6 +254,11 @@ export default function HolidaysSettingsPanel({ token }: Props) {
   const [savingWeekends, setSavingWeekends] = useState(false);
   const [weekendSaved, setWeekendSaved] = useState(false);
 
+  // ── Import state ────────────────────────────────────────────────────────────
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<{ imported: number } | null>(null);
+  const [importError, setImportError] = useState('');
+
   // ── Edit / add form ─────────────────────────────────────────────────────────
   const [editingDate, setEditingDate] = useState<string | null>(null);
   const [form, setForm] = useState<EditForm>(EMPTY_FORM);
@@ -421,6 +427,26 @@ export default function HolidaysSettingsPanel({ token }: Props) {
     }
   }
 
+  // ── Import official holidays ────────────────────────────────────────────────
+  async function handleImport() {
+    if (!country) return;
+    setImporting(true);
+    setImportError('');
+    setImportResult(null);
+    try {
+      const { gy1 } = calYearHelpers(calendar).toGregorianRange(selectedYear);
+      const result = await importHolidays(token, country, gy1);
+      invalidateHolidayCache(country, gy1);
+      await loadHolidays();
+      setImportResult({ imported: result.imported });
+      setTimeout(() => setImportResult(null), 3000);
+    } catch (e) {
+      setImportError(e instanceof Error ? e.message : 'Import failed');
+    } finally {
+      setImporting(false);
+    }
+  }
+
   // ── Delete override ─────────────────────────────────────────────────────────
   async function handleDeleteOverride(h: Holiday) {
     if (!country) return;
@@ -536,17 +562,43 @@ export default function HolidaysSettingsPanel({ token }: Props) {
             <h3 className="text-sm font-semibold text-gray-700">{t('settings.holidaysTitle')}</h3>
             <p className="text-xs text-gray-400 mt-0.5">{t('settings.holidaysDesc')}</p>
           </div>
-          {/* Year selector — options are in the primary calendar's year space */}
-          <select
-            value={selectedYear}
-            onChange={e => setSelectedYear(Number(e.target.value))}
-            className="text-sm border border-gray-200 rounded-lg px-2 py-1 text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            {yearOptions.map(y => (
-              <option key={y} value={y}>{yearHelpers.formatYear(y)}</option>
-            ))}
-          </select>
+          {/* Year selector + Import button */}
+          <div className="flex items-center gap-2">
+            <select
+              value={selectedYear}
+              onChange={e => setSelectedYear(Number(e.target.value))}
+              className="text-sm border border-gray-200 rounded-lg px-2 py-1 text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {yearOptions.map(y => (
+                <option key={y} value={y}>{yearHelpers.formatYear(y)}</option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={handleImport}
+              disabled={importing}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-60 transition-colors"
+            >
+              {importing && (
+                <svg className="animate-spin h-3.5 w-3.5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+              )}
+              {importing ? 'Importing…' : 'Import Official Holidays'}
+            </button>
+            {importResult && (
+              <span className="text-xs text-green-600 font-medium">✓ {importResult.imported} imported</span>
+            )}
+          </div>
         </div>
+
+        {importError && (
+          <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2 flex justify-between">
+            <span>{importError}</span>
+            <button onClick={() => setImportError('')} className="font-bold ml-2">×</button>
+          </div>
+        )}
 
         {holidayError && (
           <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2 flex justify-between">

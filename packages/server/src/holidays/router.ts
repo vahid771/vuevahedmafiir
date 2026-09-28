@@ -40,6 +40,18 @@ interface UserWeekendRow {
   weekend_days: string; // JSON array of day indices
 }
 
+interface HolidaysSeedRow {
+  id: number;
+  country: string;
+  year: number;
+  date: string;
+  local_name: string;
+  name: string;
+  name_fa: string | null;
+  types: string | null;
+  source: string;
+}
+
 // ---------------------------------------------------------------------------
 // CLDR-sourced weekend day indices per country (fallback / initial defaults)
 // Date.getDay(): 0=Sun 1=Mon 2=Tue 3=Wed 4=Thu 5=Fri 6=Sat
@@ -342,19 +354,19 @@ async function fetchCalendarific(country: string, year: number): Promise<Holiday
 }
 
 /**
- * Fetch Iranian holidays for a Gregorian year using the date-holidays package.
- * Returns all public holidays with native Persian names.
+ * Fetch public holidays for any country using the date-holidays package.
+ * Returns an empty array if the country is not supported.
  */
-function fetchDateHolidaysIR(year: number): Holiday[] {
+function fetchDateHolidays(country: string, year: number): Holiday[] {
   try {
-    const hd = new Holidays('IR');
+    const hd = new Holidays(country);
     return (hd.getHolidays(year) as { date: string; name: string; type: string }[])
       .filter(h => h.type === 'public')
       .map(h => ({
         date: h.date.slice(0, 10),
         localName: h.name,
         name: h.name,
-        nameFa: h.name,
+        nameFa: resolveNameFa(country, h.name, h.name),
         types: ['Public'],
         hidden: false,
         isCustom: false,
@@ -362,6 +374,48 @@ function fetchDateHolidaysIR(year: number): Holiday[] {
   } catch {
     return [];
   }
+}
+
+type SeedHoliday = Holiday & { source: string };
+
+/**
+ * Fetch holidays for a country+year from the best available source.
+ * date-holidays is tried first (offline, no API key); if it returns nothing,
+ * Calendarific then Nager.Date are used as fallbacks.
+ * Each returned Holiday is tagged with a `source` field for upsert tracking.
+ */
+async function fetchAllSources(country: string, year: number): Promise<SeedHoliday[]> {
+  let holidays: Holiday[] = fetchDateHolidays(country, year);
+  let source = 'date-holidays';
+
+  if (holidays.length === 0) {
+    try {
+      holidays = await fetchCalendarific(country, year);
+      source = 'calendarific';
+    } catch {
+      try {
+        holidays = await fetchNager(country, year);
+        source = 'nager';
+      } catch {
+        holidays = [];
+      }
+    }
+  }
+
+  // Deduplicate by date
+  const seen = new Set<string>();
+  const deduped: SeedHoliday[] = [];
+  for (const h of holidays) {
+    if (!seen.has(h.date)) {
+      seen.add(h.date);
+      deduped.push({
+        ...h,
+        nameFa: resolveNameFa(country, h.localName, h.name),
+        source,
+      });
+    }
+  }
+  return deduped;
 }
 
 async function fetchNager(country: string, year: number): Promise<Holiday[]> {
@@ -378,6 +432,41 @@ async function fetchNager(country: string, year: number): Promise<Holiday[]> {
     isCustom: false,
   }));
 }
+
+// ---------------------------------------------------------------------------
+// POST /api/holidays/import
+// Fetches official holidays for a country+year and upserts into holidays_seed.
+// Body: { country: "DE", year: 2025 }
+// ---------------------------------------------------------------------------
+router.post('/import', async (req, res) => {
+  const { country, year: yearRaw } = req.body as { country?: unknown; year?: unknown };
+
+  if (typeof country !== 'string' || !/^[A-Z]{2}$/.test(country)) {
+    res.status(400).json({ error: 'country must be a 2-letter uppercase ISO code' });
+    return;
+  }
+  const year = Number(yearRaw);
+  if (!Number.isInteger(year) || year < 1900 || year > 2100) {
+    res.status(400).json({ error: 'year must be an integer between 1900 and 2100' });
+    return;
+  }
+
+  try {
+    const rows = await fetchAllSources(country, year);
+    for (const h of rows) {
+      await db.execute({
+        sql: `INSERT OR REPLACE INTO holidays_seed
+              (country, year, date, local_name, name, name_fa, types, source)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        args: [country, year, h.date, h.localName, h.name, h.nameFa, JSON.stringify(h.types), h.source],
+      });
+    }
+    res.json({ imported: rows.length, country, year });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    res.status(500).json({ error: message });
+  }
+});
 
 // ---------------------------------------------------------------------------
 // GET /api/holidays?country=IR&year=2025
@@ -422,34 +511,53 @@ router.get('/', async (req, res) => {
     if (row.name_fa) learnedNameFa.set(row.name, row.name_fa);
   }
 
-  // Fetch API holidays (unless all dates are covered by custom entries only)
+  // Check holidays_seed first; fall back to live API fetch only when no seed exists.
   let apiHolidays: Holiday[] = [];
-  try {
-    apiHolidays = await fetchCalendarific(country, year);
-  } catch {
-    try {
-      apiHolidays = await fetchNager(country, year);
-    } catch {
-      apiHolidays = [];
-    }
-  }
+  const seedResult = await db.execute({
+    sql: 'SELECT * FROM holidays_seed WHERE country = ? AND year = ?',
+    args: [country, year],
+  });
 
-  // For Iran, merge date-holidays results (native Persian names, includes lunar holidays).
-  // date-holidays wins on nameFa for any date it covers; Calendarific/Nager fills the rest.
-  if (country === 'IR') {
-    const dhHolidays = fetchDateHolidaysIR(year);
-    const byDate = new Map<string, Holiday>();
-    for (const h of apiHolidays) byDate.set(h.date, h);
-    for (const h of dhHolidays) {
-      const existing = byDate.get(h.date);
-      if (existing) {
-        // Override Persian name with date-holidays' native Persian
-        byDate.set(h.date, { ...existing, nameFa: h.nameFa, localName: h.localName });
-      } else {
-        byDate.set(h.date, h);
+  if (seedResult.rows.length > 0) {
+    // Seed data available — map rows to Holiday shape, skip live API calls entirely.
+    apiHolidays = (seedResult.rows as unknown as HolidaysSeedRow[]).map(row => ({
+      date: row.date,
+      localName: row.local_name,
+      name: row.name,
+      nameFa: row.name_fa ?? resolveNameFa(country, row.local_name, row.name),
+      types: JSON.parse(row.types ?? '["Public"]') as string[],
+      hidden: false,
+      isCustom: false,
+    }));
+  } else {
+    // No seed — use live API fetch cascade (Calendarific → Nager fallback).
+    try {
+      apiHolidays = await fetchCalendarific(country, year);
+    } catch {
+      try {
+        apiHolidays = await fetchNager(country, year);
+      } catch {
+        apiHolidays = [];
       }
     }
-    apiHolidays = Array.from(byDate.values());
+
+    // For Iran, merge date-holidays results (native Persian names, includes lunar holidays).
+    // date-holidays wins on nameFa for any date it covers; Calendarific/Nager fills the rest.
+    if (country === 'IR') {
+      const dhHolidays = fetchDateHolidays(country, year);
+      const byDate = new Map<string, Holiday>();
+      for (const h of apiHolidays) byDate.set(h.date, h);
+      for (const h of dhHolidays) {
+        const existing = byDate.get(h.date);
+        if (existing) {
+          // Override Persian name with date-holidays' native Persian
+          byDate.set(h.date, { ...existing, nameFa: h.nameFa, localName: h.localName });
+        } else {
+          byDate.set(h.date, h);
+        }
+      }
+      apiHolidays = Array.from(byDate.values());
+    }
   }
 
   // Deduplicate API results by date

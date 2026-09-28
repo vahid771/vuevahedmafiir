@@ -85,3 +85,20 @@ export async function resetWeekends(token: string, country: string): Promise<Wee
   if (!res.ok) throw new Error('Failed to reset weekends');
   return res.json();
 }
+
+export async function importHolidays(
+  token: string,
+  country: string,
+  year: number,
+): Promise<{ imported: number; country: string; year: number }> {
+  const res = await fetch(apiUrl('/api/holidays/import'), {
+    method: 'POST',
+    headers: authHeaders(token),
+    body: JSON.stringify({ country, year }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({})) as { error?: string };
+    throw new Error(body.error ?? 'Failed to import holidays');
+  }
+  return res.json();
+}
