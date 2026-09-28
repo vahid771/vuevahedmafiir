@@ -13,3 +13,6 @@ api/db.js
 
 .vercel
 .env*
+
+# Bob scratch files
+.bob/
