@@ -27,6 +27,7 @@ html.dark {
 @layer base {
   body {
     font-family: 'Vazirmatn', ui-sans-serif, system-ui, -apple-system, sans-serif;
+    cursor: default;
   }
 
   button, input, select, textarea {
