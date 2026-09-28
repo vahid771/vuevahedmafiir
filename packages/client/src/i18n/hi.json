@@ -1,4 +1,4 @@
-{
+﻿{
   "common": {
     "save": "सहेजें",
     "saving": "सहेज रहे हैं…",
@@ -300,6 +300,20 @@
     "sakaDesc": "भारतीय राष्ट्रीय सौर कैलेंडर",
     "ethiopianLabel": "इथियोपियाई (गे'एज़)",
     "ethiopianDesc": "13 महीने का सौर – इथियोपिया और इरिट्रिया",
+    "miladiSymbol": "🌍",
+    "miladiInfo": "Used worldwide · 365 days/year · 12 months",
+    "shamsiSymbol": "☀️",
+    "shamsiInfo": "Used in Iran & Afghanistan · solar · 12 months",
+    "qamariSymbol": "🌙",
+    "qamariInfo": "Used in Islamic countries · lunar · 354–355 days/year",
+    "hebrewSymbol": "✡️",
+    "hebrewInfo": "Used in Israel · lunisolar · 13-month leap years",
+    "chineseSymbol": "🐉",
+    "chineseInfo": "Used in East Asia · lunisolar · tied to zodiac cycle",
+    "sakaSymbol": "🪷",
+    "sakaInfo": "India's national calendar · solar · starts ~March 22",
+    "ethiopianSymbol": "⭐",
+    "ethiopianInfo": "Used in Ethiopia & Eritrea · 13 months · ~7 years behind Gregorian",
     "tabCalendar": "कैलेंडर",
     "tabLanguage": "भाषा",
     "tabLocation": "स्थान",

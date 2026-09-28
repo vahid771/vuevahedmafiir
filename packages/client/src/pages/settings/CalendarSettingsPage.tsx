@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
+import { getTodayInCalendar } from '../../utils/calendarDate';
 import { useCalendar } from '../../context/CalendarContext';
 import { useTranslation } from 'react-i18next';
 import { useLanguage } from '../../context/LanguageContext';
@@ -49,15 +50,30 @@ export default function CalendarSettingsPage() {
   } = useCalendar();
   const { t } = useTranslation();
 
-  const CALENDAR_OPTIONS: { value: CalendarType; labelKey: string; descKey: string }[] = [
-    { value: 'miladi',    labelKey: 'settings.miladiLabel',    descKey: 'settings.miladiDesc' },
-    { value: 'shamsi',    labelKey: 'settings.shamsiLabel',    descKey: 'settings.shamsiDesc' },
-    { value: 'qamari',   labelKey: 'settings.qamariLabel',    descKey: 'settings.qamariDesc' },
-    { value: 'hebrew',   labelKey: 'settings.hebrewLabel',    descKey: 'settings.hebrewDesc' },
-    { value: 'chinese',  labelKey: 'settings.chineseLabel',   descKey: 'settings.chineseDesc' },
-    { value: 'saka',     labelKey: 'settings.sakaLabel',      descKey: 'settings.sakaDesc' },
-    { value: 'ethiopian',labelKey: 'settings.ethiopianLabel', descKey: 'settings.ethiopianDesc' },
+  const CALENDAR_OPTIONS: { value: CalendarType; labelKey: string; symbolKey: string; infoKey: string }[] = [
+    { value: 'miladi',    labelKey: 'settings.miladiLabel',    symbolKey: 'settings.miladiSymbol',    infoKey: 'settings.miladiInfo' },
+    { value: 'shamsi',    labelKey: 'settings.shamsiLabel',    symbolKey: 'settings.shamsiSymbol',    infoKey: 'settings.shamsiInfo' },
+    { value: 'qamari',   labelKey: 'settings.qamariLabel',    symbolKey: 'settings.qamariSymbol',    infoKey: 'settings.qamariInfo' },
+    { value: 'hebrew',   labelKey: 'settings.hebrewLabel',    symbolKey: 'settings.hebrewSymbol',    infoKey: 'settings.hebrewInfo' },
+    { value: 'chinese',  labelKey: 'settings.chineseLabel',   symbolKey: 'settings.chineseSymbol',   infoKey: 'settings.chineseInfo' },
+    { value: 'saka',     labelKey: 'settings.sakaLabel',      symbolKey: 'settings.sakaSymbol',      infoKey: 'settings.sakaInfo' },
+    { value: 'ethiopian',labelKey: 'settings.ethiopianLabel', symbolKey: 'settings.ethiopianSymbol', infoKey: 'settings.ethiopianInfo' },
   ];
+
+  // Pre-compute today's date in every calendar system (memoised — stable for a given day)
+  const todayStrings = useRef<Partial<Record<CalendarType, string>>>({});
+  useEffect(() => {
+    for (const opt of CALENDAR_OPTIONS) {
+      todayStrings.current[opt.value] = getTodayInCalendar(opt.value);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  // Also compute synchronously on first render so SSR / first paint is not blank
+  if (Object.keys(todayStrings.current).length === 0) {
+    for (const opt of CALENDAR_OPTIONS) {
+      todayStrings.current[opt.value] = getTodayInCalendar(opt.value);
+    }
+  }
 
   const ALL_CALS: CalendarType[] = ['miladi', 'shamsi', 'qamari', 'hebrew', 'chinese', 'saka', 'ethiopian'];
 
@@ -116,33 +132,53 @@ export default function CalendarSettingsPage() {
           </div>
         )}
 
-        <div className="space-y-3">
-          {CALENDAR_OPTIONS.map(opt => (
-            <button
-              key={opt.value}
-              type="button"
-              disabled={saving}
-              onClick={() => handleCalendarSelect(opt.value)}
-              className={[
-                'w-full text-left px-4 py-3 rounded-lg border-2 transition-colors disabled:opacity-50',
-                calendar === opt.value
-                  ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20'
-                  : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 bg-white dark:bg-gray-800',
-              ].join(' ')}
-            >
-              <div className="flex items-center justify-between">
-                <span className={`text-sm font-semibold ${calendar === opt.value ? 'text-blue-700 dark:text-blue-400' : 'text-gray-800 dark:text-gray-100'}`}>
-                  {t(opt.labelKey)}
-                </span>
-                {calendar === opt.value && (
-                  <svg className="w-4 h-4 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                  </svg>
+        <div className="grid grid-cols-2 gap-3">
+          {CALENDAR_OPTIONS.map(opt => {
+            const isSelected = calendar === opt.value;
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                disabled={saving}
+                onClick={() => handleCalendarSelect(opt.value)}
+                className={[
+                  'relative text-left p-4 rounded-xl border-2 transition-all disabled:opacity-50',
+                  isSelected
+                    ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20 shadow-sm'
+                    : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500 bg-white dark:bg-gray-800',
+                ].join(' ')}
+              >
+                {/* Checkmark badge */}
+                {isSelected && (
+                  <span className="absolute top-2.5 right-2.5">
+                    <svg className="w-4 h-4 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    </svg>
+                  </span>
                 )}
-              </div>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{t(opt.descKey)}</p>
-            </button>
-          ))}
+
+                {/* Symbol */}
+                <div className="text-2xl mb-2 leading-none" aria-hidden="true">
+                  {t(opt.symbolKey)}
+                </div>
+
+                {/* Name */}
+                <div className={`text-sm font-semibold leading-tight ${isSelected ? 'text-blue-700 dark:text-blue-400' : 'text-gray-800 dark:text-gray-100'}`}>
+                  {t(opt.labelKey)}
+                </div>
+
+                {/* Today's date in this calendar */}
+                <div className={`mt-1 text-xs font-mono tabular-nums ${isSelected ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-gray-500'}`}>
+                  {todayStrings.current[opt.value]}
+                </div>
+
+                {/* Info line */}
+                <div className="mt-1.5 text-xs text-gray-400 dark:text-gray-500 leading-tight">
+                  {t(opt.infoKey)}
+                </div>
+              </button>
+            );
+          })}
         </div>
       </div>
 
