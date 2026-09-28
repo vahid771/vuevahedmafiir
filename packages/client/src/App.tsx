@@ -7,6 +7,7 @@ import { SyncQueueProvider } from './context/SyncQueueContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import AppLayout from './layouts/AppLayout';
 import LoginPage from './pages/LoginPage';
+import LandingPage from './pages/LandingPage';
 import DashboardPage from './pages/DashboardPage';
 import TasksPage from './pages/TasksPage';
 import BillsPage from './pages/BillsPage';
@@ -60,7 +61,7 @@ function App() {
                 <Route path="integrations" element={<IntegrationsSettingsPage />} />
               </Route>
             </Route>
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/" element={<LandingPage />} />
           </Routes>
         </BrowserRouter>
       </SyncQueueProvider>
