@@ -513,7 +513,7 @@ router.post('/translate', async (req, res) => {
   try {
     const groq = new Groq({ apiKey });
     const completion = await groq.chat.completions.create({
-      model: 'llama-3.3-70b-versatile',
+      model: 'qwen/qwen3-27b',
       temperature: 0.1,
       messages: [
         {
