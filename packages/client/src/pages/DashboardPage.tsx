@@ -3,6 +3,7 @@ import { Skeleton } from '../components/ui/Skeleton';
 import { useAuth } from '../context/AuthContext';
 import { getSummary, getCachedSummary, updateSummary, type SummaryHistoryEntry } from '../api/ai';
 import CalendarWidget from '../components/CalendarWidget';
+import LiveClockWidget from '../components/LiveClockWidget';
 import { useTranslation } from 'react-i18next';
 import { useLanguage } from '../context/LanguageContext';
 import { useCalendar } from '../context/CalendarContext';
@@ -387,8 +388,9 @@ export default function DashboardPage() {
 
         </div>{/* end left column */}
 
-        {/* ── Right column: calendar ── */}
-        <div className="w-full lg:w-[420px] xl:w-[460px] shrink-0">
+        {/* ── Right column: clock + calendar ── */}
+        <div className="w-full lg:w-[420px] xl:w-[460px] shrink-0 space-y-4">
+          <LiveClockWidget />
           <CalendarWidget />
         </div>
 

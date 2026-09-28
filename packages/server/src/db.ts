@@ -281,6 +281,7 @@ export async function runMigrations(): Promise<void> {
       UNIQUE(country, year, date)
     )`,
     `CREATE INDEX IF NOT EXISTS idx_holidays_seed_country_year ON holidays_seed(country, year)`,
+    `ALTER TABLE user_preferences ADD COLUMN timezone TEXT DEFAULT NULL`,
   ]);
 
   // ── Table-rebuild migration: drop old 2-column UNIQUE constraint ──────────

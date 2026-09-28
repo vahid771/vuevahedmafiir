@@ -13,6 +13,7 @@ type PreferencesRow = {
   country: string | null;
   secondary_calendar: string | null;
   tertiary_calendar: string | null;
+  timezone: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -46,9 +47,10 @@ router.get('/', async (req, res) => {
 // PATCH /api/preferences
 router.patch('/', async (req, res) => {
   const userId = req.user!.id;
-  const { calendar, language, country, secondary_calendar, tertiary_calendar } = req.body as {
+  const { calendar, language, country, secondary_calendar, tertiary_calendar, timezone } = req.body as {
     calendar?: string; language?: string; country?: string | null;
     secondary_calendar?: string | null; tertiary_calendar?: string | null;
+    timezone?: string | null;
   };
 
   const VALID_CALS = ['miladi', 'shamsi', 'qamari', 'hebrew', 'chinese', 'saka', 'ethiopian'];
@@ -72,8 +74,12 @@ router.patch('/', async (req, res) => {
     res.status(400).json({ error: 'tertiary_calendar must be null or a valid calendar type' });
     return;
   }
+  if (timezone !== undefined && timezone !== null && typeof timezone !== 'string') {
+    res.status(400).json({ error: 'timezone must be null or an IANA timezone string' });
+    return;
+  }
   if (calendar === undefined && language === undefined && country === undefined &&
-      secondary_calendar === undefined && tertiary_calendar === undefined) {
+      secondary_calendar === undefined && tertiary_calendar === undefined && timezone === undefined) {
     res.status(400).json({ error: 'Provide at least one field to update' });
     return;
   }
@@ -108,6 +114,12 @@ router.patch('/', async (req, res) => {
     await db.execute({
       sql: `UPDATE user_preferences SET tertiary_calendar = ?, updated_at = datetime('now') WHERE user_id = ?`,
       args: [tertiary_calendar, userId],
+    });
+  }
+  if (timezone !== undefined) {
+    await db.execute({
+      sql: `UPDATE user_preferences SET timezone = ?, updated_at = datetime('now') WHERE user_id = ?`,
+      args: [timezone, userId],
     });
   }
 

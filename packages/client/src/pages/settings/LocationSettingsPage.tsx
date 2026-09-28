@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useCalendar } from '../../context/CalendarContext';
 import { useTranslation } from 'react-i18next';
@@ -6,6 +6,7 @@ import { useCountryList, useCountryName } from './CalendarSettingsPage';
 import FlagImg from '../../components/FlagImg';
 import WorldMapPicker from '../../components/WorldMapPicker';
 import { useLanguage } from '../../context/LanguageContext';
+import { getAllTimezones, getTimezoneOffset, guessTimezoneForCountry } from '../../utils/timezones';
 
 
 function SelectedCountryBadge({ code }: { code: string }) {
@@ -38,13 +39,34 @@ function CountrySelect({ value, disabled, onChange }: { value: string; disabled:
 
 
 export default function LocationSettingsPage() {
-  const { country, setCountry } = useCalendar();
+  const { country, setCountry, timezone, setTimezone } = useCalendar();
   const { t } = useTranslation();
   const { lang } = useLanguage();
 
   const [locationSaving, setLocationSaving] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [locationSaved, setLocationSaved] = useState(false);
+
+  const [tzSaving, setTzSaving] = useState(false);
+  const [tzSaved, setTzSaved] = useState(false);
+
+  const allTimezones = useMemo(() => getAllTimezones(), []);
+
+  const suggestedTz = country ? guessTimezoneForCountry(country) : null;
+
+  const browserTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+  async function handleTimezoneChange(tz: string | null) {
+    setTzSaving(true);
+    setTzSaved(false);
+    try {
+      await setTimezone(tz);
+      setTzSaved(true);
+      setTimeout(() => setTzSaved(false), 2000);
+    } finally {
+      setTzSaving(false);
+    }
+  }
 
   async function handleDetectLocation() {
     if (!navigator.geolocation) {
@@ -179,6 +201,75 @@ export default function LocationSettingsPage() {
             </Link>
           </div>
         )}
+      </div>
+
+      {/* ── Timezone ─────────────────────────────────────────── */}
+      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100">{t('settings.timezone', { defaultValue: 'Timezone' })}</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{t('settings.timezoneDesc', { defaultValue: 'Used for the live clock and date calculations.' })}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            {tzSaving && <span className="text-xs text-gray-400">{t('settings.saving')}</span>}
+            {tzSaved && !tzSaving && <span className="text-xs text-green-600 font-medium">{t('settings.saved', { defaultValue: 'Saved' })}</span>}
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          {/* Current / active timezone display */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm text-gray-600 dark:text-gray-300 font-medium">
+              {timezone ?? browserTz}
+            </span>
+            <span className="text-xs text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded">
+              {getTimezoneOffset(timezone ?? browserTz)}
+            </span>
+            {!timezone && (
+              <span className="text-xs text-gray-400 italic">{t('settings.browserDefault', { defaultValue: 'browser default' })}</span>
+            )}
+          </div>
+
+          {/* Suggestion from country */}
+          {suggestedTz && suggestedTz !== (timezone ?? browserTz) && (
+            <div className="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400">
+              <span>{t('settings.suggestedTimezone', { defaultValue: 'Suggested for your country:' })}</span>
+              <button
+                type="button"
+                disabled={tzSaving}
+                onClick={() => handleTimezoneChange(suggestedTz)}
+                className="underline hover:no-underline disabled:opacity-50"
+              >
+                {suggestedTz}
+              </button>
+            </div>
+          )}
+
+          {/* Full IANA dropdown */}
+          <select
+            value={timezone ?? ''}
+            disabled={tzSaving}
+            onChange={e => handleTimezoneChange(e.target.value || null)}
+            className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
+          >
+            <option value="">{t('settings.useBrowserTime', { defaultValue: 'Use browser time' })}</option>
+            {allTimezones.map(tz => (
+              <option key={tz} value={tz}>{tz} ({getTimezoneOffset(tz)})</option>
+            ))}
+          </select>
+
+          {/* Reset to browser time */}
+          {timezone && (
+            <button
+              type="button"
+              disabled={tzSaving}
+              onClick={() => handleTimezoneChange(null)}
+              className="text-sm text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50"
+            >
+              {t('settings.resetTooBrowserTime', { defaultValue: 'Reset to browser time' })}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

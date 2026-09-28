@@ -11,6 +11,7 @@ export interface UserPreferences {
   country: string | null;
   secondary_calendar: CalendarType | null;
   tertiary_calendar: CalendarType | null;
+  timezone: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -26,6 +27,7 @@ export async function updatePreferences(
   data: {
     calendar?: CalendarType; language?: LanguageType; country?: string | null;
     secondary_calendar?: CalendarType | null; tertiary_calendar?: CalendarType | null;
+    timezone?: string | null;
   }
 ): Promise<UserPreferences> {
   const res = await fetch(apiUrl('/api/preferences'), {

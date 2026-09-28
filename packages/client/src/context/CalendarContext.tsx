@@ -11,6 +11,8 @@ interface CalendarContextValue {
   setSecondaryCalendar: (c: CalendarType | null) => Promise<void>;
   tertiaryCalendar: CalendarType | null;
   setTertiaryCalendar: (c: CalendarType | null) => Promise<void>;
+  timezone: string | null;
+  setTimezone: (tz: string | null) => Promise<void>;
 }
 
 const CalendarContext = createContext<CalendarContextValue | null>(null);
@@ -21,6 +23,7 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
   const [country, setCountryState] = useState<string | null>(null);
   const [secondaryCalendar, setSecondaryCalendarState] = useState<CalendarType | null>(null);
   const [tertiaryCalendar, setTertiaryCalendarState] = useState<CalendarType | null>(null);
+  const [timezone, setTimezoneState] = useState<string | null>(null);
 
   useEffect(() => {
     if (!token) return;
@@ -30,6 +33,7 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
         setCountryState(prefs.country ?? null);
         setSecondaryCalendarState(prefs.secondary_calendar ?? null);
         setTertiaryCalendarState(prefs.tertiary_calendar ?? null);
+        setTimezoneState(prefs.timezone ?? null);
       })
       .catch(() => {/* keep defaults */});
   }, [token]);
@@ -65,12 +69,19 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
     setTertiaryCalendarState(c);
   }
 
+  async function setTimezone(tz: string | null) {
+    if (!token) return;
+    await updatePreferences(token, { timezone: tz });
+    setTimezoneState(tz);
+  }
+
   return (
     <CalendarContext.Provider value={{
       calendar, setCalendar,
       country, setCountry,
       secondaryCalendar, setSecondaryCalendar,
       tertiaryCalendar, setTertiaryCalendar,
+      timezone, setTimezone,
     }}>
       {children}
     </CalendarContext.Provider>
