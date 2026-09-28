@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { toJalaali, toGregorian, jalaaliMonthLength } from 'jalaali-js';
 import { useCalendar } from '../context/CalendarContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -8,22 +9,222 @@ import {
   PERSIAN_MONTHS,
   toPersianDigits,
   jalaliDaysInMonth,
-  jalaliMonthRangeForGregorianMonth,
   gregorianMonthRangeForJalaliMonth,
   jalaliWeekRange,
-  gregorianWeekRange,
   toJalaliDisplay,
+  gregorianToJalali,
 } from '../utils/jalali';
+import {
+  HIJRI_MONTHS,
+  toArabicDigits,
+  gregorianToHijri,
+  hijriToGregorian,
+  hijriDaysInMonth,
+  hijriMonthRangeForGregorianMonth,
+  gregorianMonthRangeForHijriMonth,
+  hijriWeekRange,
+  hijriWeekNumber,
+} from '../utils/hijri';
+import {
+  HEBREW_MONTHS,
+  toHebrewDigits,
+  gregorianToHebrew,
+  hebrewToGregorian,
+  hebrewDaysInMonth,
+  hebrewMonthRangeForGregorianMonth,
+  gregorianMonthRangeForHebrewMonth,
+  hebrewWeekRange,
+  hebrewWeekNumber,
+  toHebrewDisplay,
+} from '../utils/hebrew';
+import {
+  CHINESE_MONTHS,
+  toChineseDigits,
+  gregorianToChinese,
+  chineseToGregorian,
+  chineseDaysInMonth,
+  chineseMonthRangeForGregorianMonth,
+  gregorianMonthRangeForChineseMonth,
+  chineseWeekRange,
+  chineseWeekNumber,
+  toChineseDisplay,
+} from '../utils/chinese';
+import {
+  SAKA_MONTHS,
+  toSakaDigits,
+  gregorianToSaka,
+  sakaToGregorian,
+  sakaDaysInMonth,
+  sakaMonthRangeForGregorianMonth,
+  gregorianMonthRangeForSakaMonth,
+  sakaWeekRange,
+  sakaWeekNumber,
+  toSakaDisplay,
+} from '../utils/saka';
+import {
+  ETHIOPIAN_MONTHS,
+  toEthiopianDigits,
+  gregorianToEthiopian,
+  ethiopianToGregorian,
+  ethiopianDaysInMonth,
+  ethiopianMonthRangeForGregorianMonth,
+  gregorianMonthRangeForEthiopianMonth,
+  ethiopianWeekRange,
+  ethiopianWeekNumber,
+  toEthiopianDisplay,
+} from '../utils/ethiopian';
 import { getTasks, type Task } from '../api/tasks';
+import type { CalendarType } from '../api/preferences';
 import { getReminders, type Reminder } from '../api/reminders';
 import { getDates, type ImportantDate } from '../api/dates';
 import { useAuth } from '../context/AuthContext';
 
 type View = 'month' | 'week' | 'day';
 
-const SHORT_EN_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const SHORT_EN_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-const PERSIAN_SHORT_DAYS = ['ش', 'ی', 'د', 'س', 'چ', 'پ', 'ج']; // Sat→Fri
+// ---------------------------------------------------------------------------
+// calRangeLabel — returns the month/week/day range label for any calendar
+// used to render secondary and tertiary calendar headers
+// ---------------------------------------------------------------------------
+
+function calRangeLabel(cal: CalendarType, cursor: Date, view: 'month' | 'week' | 'day', primaryMode: CalendarType, monthsShort: string[], daysShort: string[]): string {
+  const ymd = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`;
+  const gYear = cursor.getFullYear();
+  const gMonth = cursor.getMonth() + 1;
+
+  // week-start is determined by the PRIMARY calendar's orientation
+  function ws() { return weekStart(cursor, primaryMode); }
+  function we() { return addDays(ws(), 6); }
+
+  if (view === 'day') {
+    if (cal === 'miladi') return `${daysShort[cursor.getDay()]} ${monthsShort[cursor.getMonth()]} ${cursor.getDate()}, ${cursor.getFullYear()}`;
+    if (cal === 'shamsi') return toJalaliDisplay(ymd);
+    if (cal === 'qamari') {
+      const { year: hy, month: hm, day: hd } = gregorianToHijri(ymd);
+      return `${hd} ${HIJRI_MONTHS[hm - 1]} ${toArabicDigits(hy)}`;
+    }
+    if (cal === 'hebrew') return toHebrewDisplay(ymd);
+    if (cal === 'chinese') return toChineseDisplay(ymd);
+    if (cal === 'saka') return toSakaDisplay(ymd);
+    if (cal === 'ethiopian') return toEthiopianDisplay(ymd);
+  }
+
+  if (view === 'week') {
+    const s = ws(); const e = we();
+    if (cal === 'miladi') return `${monthsShort[s.getMonth()]} ${s.getDate()} – ${monthsShort[e.getMonth()]} ${e.getDate()}, ${e.getFullYear()}`;
+    if (cal === 'shamsi') return jalaliWeekRange(s, e);
+    if (cal === 'qamari') return hijriWeekRange(s, e);
+    if (cal === 'hebrew') return hebrewWeekRange(s, e);
+    if (cal === 'chinese') return chineseWeekRange(s, e);
+    if (cal === 'saka') return sakaWeekRange(s, e);
+    if (cal === 'ethiopian') return ethiopianWeekRange(s, e);
+  }
+
+  // month view — show what range of *this* calendar covers the primary calendar's current month.
+  // For miladi as secondary, return the Gregorian date range the primary month spans.
+  if (cal === 'miladi') {
+    if (primaryMode === 'shamsi') {
+      const { year: jy, month: jm } = gregorianToJalali(ymd);
+      return gregorianMonthRangeForJalaliMonth(jy, jm);
+    }
+    if (primaryMode === 'qamari') {
+      const { year: hy, month: hm } = gregorianToHijri(ymd);
+      return gregorianMonthRangeForHijriMonth(hy, hm);
+    }
+    if (primaryMode === 'hebrew') {
+      const { year: hy, month: hm } = gregorianToHebrew(ymd);
+      return gregorianMonthRangeForHebrewMonth(hy, hm);
+    }
+    if (primaryMode === 'chinese') {
+      const { year: cy, month: cm } = gregorianToChinese(ymd);
+      return gregorianMonthRangeForChineseMonth(cy, cm);
+    }
+    if (primaryMode === 'saka') {
+      const { year: sy, month: sm } = gregorianToSaka(ymd);
+      return gregorianMonthRangeForSakaMonth(sy, sm);
+    }
+    if (primaryMode === 'ethiopian') {
+      const { year: ey, month: em } = gregorianToEthiopian(ymd);
+      return gregorianMonthRangeForEthiopianMonth(ey, em);
+    }
+    // primary is also miladi — just show the month name (they're the same grid)
+    return cursor.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  }
+  if (cal === 'shamsi') {
+    const { year: jy, month: jm } = gregorianToJalali(ymd);
+    return gregorianMonthRangeForJalaliMonth(jy, jm);
+  }
+  if (cal === 'qamari') {
+    return hijriMonthRangeForGregorianMonth(gYear, gMonth);
+  }
+  if (cal === 'hebrew') {
+    return hebrewMonthRangeForGregorianMonth(gYear, gMonth);
+  }
+  if (cal === 'chinese') {
+    return chineseMonthRangeForGregorianMonth(gYear, gMonth);
+  }
+  if (cal === 'saka') {
+    return sakaMonthRangeForGregorianMonth(gYear, gMonth);
+  }
+  // ethiopian
+  return ethiopianMonthRangeForGregorianMonth(gYear, gMonth);
+}
+
+/**
+ * Returns localised short weekday names for Mon-first calendars (miladi, saka, qamari).
+ * Uses the i18n `settings.days` array (Sun=0…Sat=6) and reorders to Mon-first.
+ */
+function useMonFirstDays(): string[] {
+  const { t } = useTranslation();
+  const raw = t('settings.days', { returnObjects: true }) as string[];
+  // raw is [Sun, Mon, Tue, Wed, Thu, Fri, Sat] → reorder to Mon-first
+  return [raw[1], raw[2], raw[3], raw[4], raw[5], raw[6], raw[0]];
+}
+
+/** Returns i18n short weekday names (Sun=0…Sat=6) in the active language. */
+function useDaysShort(): string[] {
+  const { t } = useTranslation();
+  return t('settings.days', { returnObjects: true }) as string[];
+}
+
+/** Returns i18n short month names (Jan=0…Dec=11) in the active language. */
+function useMonthsShort(): string[] {
+  const { t } = useTranslation();
+  return t('settings.months', { returnObjects: true }) as string[];
+}
+
+/** Returns i18n long month names (January=0…December=11) in the active language. */
+function useMonthsLong(): string[] {
+  const { t } = useTranslation();
+  return t('settings.monthsLong', { returnObjects: true }) as string[];
+}
+
+/** Returns i18n long weekday names (Sun=0…Sat=6) in the active language. */
+function useDaysLong(): string[] {
+  const { t } = useTranslation();
+  return t('settings.daysLong', { returnObjects: true }) as string[];
+}
+
+/**
+ * Returns localised month names for all non-Gregorian calendar systems.
+ * Falls back to the native-script arrays when the active language has no translation.
+ */
+function useCalendarMonths(): Record<string, string[]> {
+  const { t } = useTranslation();
+  const i18n = t('settings.calendarMonths', { returnObjects: true, defaultValue: null }) as Record<string, string[]> | null;
+  return {
+    shamsi:    i18n?.shamsi    ?? PERSIAN_MONTHS,
+    qamari:    i18n?.qamari    ?? HIJRI_MONTHS,
+    hebrew:    i18n?.hebrew    ?? HEBREW_MONTHS,
+    chinese:   i18n?.chinese   ?? CHINESE_MONTHS,
+    saka:      i18n?.saka      ?? SAKA_MONTHS,
+    ethiopian: i18n?.ethiopian ?? ETHIOPIAN_MONTHS,
+  };
+}
+// Week-start offsets: 0 = Sunday-first, 1 = Monday-first, 6 = Saturday-first
+// Hebrew: Sunday-first → getDay() as-is (Sun=0)
+// Chinese: Sunday-first
+// Saka: Monday-first (same as miladi/qamari)
+// Ethiopian: Sunday-first
 
 // ---------------------------------------------------------------------------
 // Types
@@ -65,10 +266,63 @@ function toYMD(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-function weekStart(d: Date, shamsi: boolean): Date {
+// ---------------------------------------------------------------------------
+// Language-aware digit renderer for the primary calendar number
+// ---------------------------------------------------------------------------
+
+/** Convert n to the digit script of the active UI language. */
+function toLangDigits(n: string | number, lang: string): string {
+  if (lang === 'fa') return toPersianDigits(n);
+  if (lang === 'ar') return toArabicDigits(n);
+  if (lang === 'hi') return toSakaDigits(n); // Devanagari: same Unicode block ०-९
+  return String(n);
+}
+
+// ---------------------------------------------------------------------------
+// Per-cell day-number formatter for any calendar system
+// ---------------------------------------------------------------------------
+
+function calDayNumber(cal: CalendarType, d: Date): string {
+  if (cal === 'miladi') return String(d.getDate());
+  if (cal === 'shamsi') {
+    const { jd } = toJalaali(d.getFullYear(), d.getMonth() + 1, d.getDate());
+    return toPersianDigits(jd);
+  }
+  if (cal === 'qamari') {
+    const { day } = gregorianToHijri(toYMD(d));
+    return toArabicDigits(day);
+  }
+  if (cal === 'hebrew') {
+    const { day } = gregorianToHebrew(toYMD(d));
+    return toHebrewDigits(day);
+  }
+  if (cal === 'chinese') {
+    const { day } = gregorianToChinese(toYMD(d));
+    return toChineseDigits(day);
+  }
+  if (cal === 'saka') {
+    const { day } = gregorianToSaka(toYMD(d));
+    return toSakaDigits(day);
+  }
+  // ethiopian
+  const { day } = gregorianToEthiopian(toYMD(d));
+  return toEthiopianDigits(day);
+}
+
+/** Returns the start of the week for the given date and calendar mode. */
+function weekStart(d: Date, calMode: CalendarType): Date {
   const dow = d.getDay();
-  const offset = shamsi ? (dow === 6 ? 0 : dow + 1) : dow;
-  return addDays(d, -offset);
+  if (calMode === 'shamsi') {
+    // Shamsi: week starts Saturday (6)
+    const offset = dow === 6 ? 0 : (dow + 1) % 7;
+    return addDays(d, -offset);
+  }
+  if (calMode === 'hebrew' || calMode === 'chinese' || calMode === 'ethiopian') {
+    // Sunday-first: offset = getDay() (Sun=0 → offset 0, Mon=1 → offset 1, …)
+    return addDays(d, -dow);
+  }
+  // miladi, qamari, saka: Monday-first (ISO 8601)
+  return addDays(d, -(( dow + 6) % 7));
 }
 
 // ---------------------------------------------------------------------------
@@ -141,9 +395,12 @@ function jalaliWeekNumber(jy: number, jm: number, jd: number): number {
 // Month view
 // ---------------------------------------------------------------------------
 
-function MonthGrid({ cursor, shamsi, events, holidayNames, weekendSet, onDayClick, onWeekClick }: {
+function MonthGrid({ cursor, calMode, secondaryCal, tertiaryCal, lang, events, holidayNames, weekendSet, onDayClick, onWeekClick }: {
   cursor: Date;
-  shamsi: boolean;
+  calMode: CalendarType;
+  secondaryCal: CalendarType | null;
+  tertiaryCal: CalendarType | null;
+  lang: string;
   events: CalEvent[];
   holidayNames: Map<string, string>;
   weekendSet: Set<number>;
@@ -151,6 +408,12 @@ function MonthGrid({ cursor, shamsi, events, holidayNames, weekendSet, onDayClic
   onWeekClick: (d: Date) => void;
 }) {
   const now = today();
+  const monFirstDays = useMonFirstDays();
+  const daysShort = useDaysShort(); // [Sun, Mon, Tue, Wed, Thu, Fri, Sat]
+  // Sat-first for shamsi
+  const satFirstDays = [daysShort[6], daysShort[0], daysShort[1], daysShort[2], daysShort[3], daysShort[4], daysShort[5]];
+  // Sun-first for hebrew, chinese, ethiopian
+  const sunFirstDays = [...daysShort];
 
   // Index events by YYYY-MM-DD
   const byDay = useMemo(() => {
@@ -163,10 +426,501 @@ function MonthGrid({ cursor, shamsi, events, holidayNames, weekendSet, onDayClic
     return map;
   }, [events]);
 
-  if (!shamsi) {
+  if (calMode === 'qamari') {
+    const { year: hy, month: hm } = gregorianToHijri(toYMD(cursor));
+    const daysInMonth = hijriDaysInMonth(hy, hm);
+    const firstGregStr = hijriToGregorian(hy, hm, 1);
+    const firstGregDate = new Date(firstGregStr + 'T00:00:00');
+    const firstDow = (firstGregDate.getDay() + 6) % 7; // Mon=0 … Sun=6
+    const cells: (number | null)[] = [
+      ...Array(firstDow).fill(null),
+      ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+    ];
+    while (cells.length % 7 !== 0) cells.push(null);
+    const qamariRows: (number | null)[][] = [];
+    for (let r = 0; r < cells.length; r += 7) qamariRows.push(cells.slice(r, r + 7));
+
+    return (
+      <div className="select-none" dir="rtl">
+        <div className="grid grid-cols-[repeat(7,1fr)_1.5rem] mb-1">
+          {monFirstDays.map(d => (
+            <div key={d} className="text-center text-xs font-medium text-gray-400 py-1">{d}</div>
+          ))}
+          <div className="text-center text-[9px] font-medium text-gray-300 py-1">W</div>
+        </div>
+        <div className="space-y-1">
+          {qamariRows.map((row, ri) => {
+            const firstHDay = row.find(d => d !== null)!;
+            const repGregStr = hijriToGregorian(hy, hm, firstHDay);
+            const repDate = new Date(repGregStr + 'T00:00:00');
+            const wn = hijriWeekNumber(hy, hm, firstHDay);
+            return (
+              <div key={ri} className="grid grid-cols-[repeat(7,1fr)_1.5rem] gap-1">
+                {row.map((hDay, ci) => {
+                  if (hDay === null) return <div key={ci} className="min-h-[60px]" />;
+                  const gregStr = hijriToGregorian(hy, hm, hDay);
+                  const cellDate = new Date(gregStr + 'T00:00:00');
+                  const isToday = isSameDay(cellDate, now);
+                  const ymd = toYMD(cellDate);
+                  const dayEvents = byDay.get(ymd) ?? [];
+                  const isWeekend = weekendSet.has(cellDate.getDay());
+                  const holidayName = holidayNames.get(ymd);
+                  return (
+                    <div
+                      key={ci}
+                      onClick={() => onDayClick(cellDate)}
+                      className={`min-h-[60px] p-0.5 rounded-lg border cursor-pointer overflow-hidden
+                        ${isToday
+                          ? 'bg-blue-50 border-blue-300'
+                          : holidayName
+                            ? 'bg-red-50 border-red-300'
+                            : isWeekend
+                              ? 'bg-red-50 border-red-200'
+                              : 'border-gray-100 hover:border-gray-300'}`}
+                    >
+                      <div className="flex flex-col items-center mb-0.5">
+                        <span className={`w-6 h-6 flex items-center justify-center text-xs font-medium
+                          ${isToday ? 'bg-blue-600 text-white rounded-md' : isWeekend ? 'text-red-600 hover:bg-red-100 rounded-full' : 'text-gray-700 hover:bg-gray-100 rounded-full'}`}>
+                          {toLangDigits(hDay, lang)}
+                        </span>
+                        {(secondaryCal || tertiaryCal) && (
+                          <div className="flex w-full justify-between px-0.5 mt-0.5">
+                            <span className={`text-[9px] leading-none ${isToday ? 'text-blue-400' : 'text-gray-300'}`}>{secondaryCal && secondaryCal !== 'qamari' ? calDayNumber(secondaryCal, cellDate) : ''}</span>
+                            <span className={`text-[9px] leading-none ${isToday ? 'text-blue-400' : 'text-gray-300'}`}>{tertiaryCal && tertiaryCal !== 'qamari' ? calDayNumber(tertiaryCal, cellDate) : ''}</span>
+                          </div>
+                        )}
+                      </div>
+                      {holidayName && (
+                        <p className="text-[8px] leading-tight text-red-500 text-center truncate px-0.5 mb-0.5 w-full" title={holidayName}>
+                          {holidayName}
+                        </p>
+                      )}
+                      {dayEvents.length > 0 && (
+                        <div className="flex flex-wrap gap-0.5 justify-center px-0.5">
+                          {dayEvents.slice(0, 3).map(ev => (
+                            <span key={ev.id} title={ev.title} className={`w-1.5 h-1.5 rounded-full shrink-0 ${KIND_DOT[ev.kind]} ${ev.done ? 'opacity-40' : ''}`} />
+                          ))}
+                          {dayEvents.length > 3 && (
+                            <span className="text-[9px] text-gray-400 leading-none">+{dayEvents.length - 3}</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                <button
+                  onClick={() => onWeekClick(repDate)}
+                  className="flex items-center justify-center text-[9px] font-semibold text-gray-300 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                  title={`أسبوع ${toArabicDigits(wn)}`}
+                >
+                  {toArabicDigits(wn)}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+
+  // ── Hebrew month grid (RTL, Sunday-first) ─────────────────────────────────
+  if (calMode === 'hebrew') {
+    const { year: hYear, month: hMonth } = gregorianToHebrew(toYMD(cursor));
+    const daysInHMonth = hebrewDaysInMonth(hYear, hMonth);
+    const firstGregStr = hebrewToGregorian(hYear, hMonth, 1);
+    const firstGregDate = new Date(firstGregStr + 'T00:00:00');
+    const firstDow = firstGregDate.getDay(); // Sun=0 … Sat=6 (Sunday-first)
+    const cells: (number | null)[] = [
+      ...Array(firstDow).fill(null),
+      ...Array.from({ length: daysInHMonth }, (_, i) => i + 1),
+    ];
+    while (cells.length % 7 !== 0) cells.push(null);
+    const hebrewRows: (number | null)[][] = [];
+    for (let r = 0; r < cells.length; r += 7) hebrewRows.push(cells.slice(r, r + 7));
+
+    return (
+      <div className="select-none" dir="rtl">
+        <div className="grid grid-cols-[repeat(7,1fr)_1.5rem] mb-1">
+          {sunFirstDays.map(d => (
+            <div key={d} className="text-center text-xs font-medium text-gray-400 py-1">{d}</div>
+          ))}
+          <div className="text-center text-[9px] font-medium text-gray-300 py-1">W</div>
+        </div>
+        <div className="space-y-1">
+          {hebrewRows.map((row, ri) => {
+            const firstHDay = row.find(d => d !== null)!;
+            const repGregStr = hebrewToGregorian(hYear, hMonth, firstHDay);
+            const repDate = new Date(repGregStr + 'T00:00:00');
+            const wn = hebrewWeekNumber(hYear, hMonth, firstHDay);
+            return (
+              <div key={ri} className="grid grid-cols-[repeat(7,1fr)_1.5rem] gap-1">
+                {row.map((hDay, ci) => {
+                  if (hDay === null) return <div key={ci} className="min-h-[60px]" />;
+                  const gregStr = hebrewToGregorian(hYear, hMonth, hDay);
+                  const cellDate = new Date(gregStr + 'T00:00:00');
+                  const isToday = isSameDay(cellDate, now);
+                  const ymd = toYMD(cellDate);
+                  const dayEvents = byDay.get(ymd) ?? [];
+                  const isWeekend = weekendSet.has(cellDate.getDay());
+                  const holidayName = holidayNames.get(ymd);
+                  return (
+                    <div
+                      key={ci}
+                      onClick={() => onDayClick(cellDate)}
+                      className={`min-h-[60px] p-0.5 rounded-lg border cursor-pointer overflow-hidden
+                        ${isToday
+                          ? 'bg-blue-50 border-blue-300'
+                          : holidayName
+                            ? 'bg-red-50 border-red-300'
+                            : isWeekend
+                              ? 'bg-red-50 border-red-200'
+                              : 'border-gray-100 hover:border-gray-300'}`}
+                    >
+                      <div className="flex flex-col items-center mb-0.5">
+                        <span className={`w-6 h-6 flex items-center justify-center text-xs font-medium
+                          ${isToday ? 'bg-blue-600 text-white rounded-md' : isWeekend ? 'text-red-600 hover:bg-red-100 rounded-full' : 'text-gray-700 hover:bg-gray-100 rounded-full'}`}>
+                          {toLangDigits(hDay, lang)}
+                        </span>
+                        {(secondaryCal || tertiaryCal) && (
+                          <div className="flex w-full justify-between px-0.5 mt-0.5">
+                            <span className={`text-[9px] leading-none ${isToday ? 'text-blue-400' : 'text-gray-300'}`}>{secondaryCal && secondaryCal !== 'hebrew' ? calDayNumber(secondaryCal, cellDate) : ''}</span>
+                            <span className={`text-[9px] leading-none ${isToday ? 'text-blue-400' : 'text-gray-300'}`}>{tertiaryCal && tertiaryCal !== 'hebrew' ? calDayNumber(tertiaryCal, cellDate) : ''}</span>
+                          </div>
+                        )}
+                      </div>
+                      {holidayName && (
+                        <p className="text-[8px] leading-tight text-red-500 text-center truncate px-0.5 mb-0.5 w-full" title={holidayName}>
+                          {holidayName}
+                        </p>
+                      )}
+                      {dayEvents.length > 0 && (
+                        <div className="flex flex-wrap gap-0.5 justify-center px-0.5">
+                          {dayEvents.slice(0, 3).map(ev => (
+                            <span key={ev.id} title={ev.title} className={`w-1.5 h-1.5 rounded-full shrink-0 ${KIND_DOT[ev.kind]} ${ev.done ? 'opacity-40' : ''}`} />
+                          ))}
+                          {dayEvents.length > 3 && (
+                            <span className="text-[9px] text-gray-400 leading-none">+{dayEvents.length - 3}</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                <button
+                  onClick={() => onWeekClick(repDate)}
+                  className="flex items-center justify-center text-[9px] font-semibold text-gray-300 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                  title={`שבוע ${toHebrewDigits(wn)}`}
+                >
+                  {toHebrewDigits(wn)}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  // ── Chinese month grid (LTR, Sunday-first) ────────────────────────────────
+  if (calMode === 'chinese') {
+    const { year: cYear, month: cMonth } = gregorianToChinese(toYMD(cursor));
+    const daysInCMonth = chineseDaysInMonth(cYear, cMonth);
+    const firstGregStr = chineseToGregorian(cYear, cMonth, 1);
+    const firstGregDate = new Date(firstGregStr + 'T00:00:00');
+    const firstDow = firstGregDate.getDay(); // Sun=0 … Sat=6
+    const cells: (number | null)[] = [
+      ...Array(firstDow).fill(null),
+      ...Array.from({ length: daysInCMonth }, (_, i) => i + 1),
+    ];
+    while (cells.length % 7 !== 0) cells.push(null);
+    const chineseRows: (number | null)[][] = [];
+    for (let r = 0; r < cells.length; r += 7) chineseRows.push(cells.slice(r, r + 7));
+
+    return (
+      <div className="select-none">
+        <div className="grid grid-cols-[1.5rem_repeat(7,1fr)] mb-1">
+          <div className="text-center text-[9px] font-medium text-gray-300 py-1">W</div>
+          {sunFirstDays.map(d => (
+            <div key={d} className="text-center text-xs font-medium text-gray-400 py-1">{d}</div>
+          ))}
+        </div>
+        <div className="space-y-1">
+          {chineseRows.map((row, ri) => {
+            const firstCDay = row.find(d => d !== null)!;
+            const repGregStr = chineseToGregorian(cYear, cMonth, firstCDay);
+            const repDate = new Date(repGregStr + 'T00:00:00');
+            const wn = chineseWeekNumber(cYear, cMonth, firstCDay);
+            return (
+              <div key={ri} className="grid grid-cols-[1.5rem_repeat(7,1fr)] gap-1">
+                <button
+                  onClick={() => onWeekClick(repDate)}
+                  className="flex items-center justify-center text-[9px] font-semibold text-gray-300 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                  title={`第${toChineseDigits(wn)}周`}
+                >
+                  {toChineseDigits(wn)}
+                </button>
+                {row.map((cDay, ci) => {
+                  if (cDay === null) return <div key={ci} className="min-h-[60px]" />;
+                  const gregStr = chineseToGregorian(cYear, cMonth, cDay);
+                  const cellDate = new Date(gregStr + 'T00:00:00');
+                  const isToday = isSameDay(cellDate, now);
+                  const ymd = toYMD(cellDate);
+                  const dayEvents = byDay.get(ymd) ?? [];
+                  const isWeekend = weekendSet.has(cellDate.getDay());
+                  const holidayName = holidayNames.get(ymd);
+                  return (
+                    <div
+                      key={ci}
+                      onClick={() => onDayClick(cellDate)}
+                      className={`min-h-[60px] p-0.5 rounded-lg border cursor-pointer overflow-hidden
+                        ${isToday
+                          ? 'bg-blue-50 border-blue-300'
+                          : holidayName
+                            ? 'bg-red-50 border-red-300'
+                            : isWeekend
+                              ? 'bg-red-50 border-red-200'
+                              : 'border-gray-100 hover:border-gray-300'}`}
+                    >
+                      <div className="flex flex-col items-center mb-0.5">
+                        <span className={`w-6 h-6 flex items-center justify-center text-xs font-medium
+                          ${isToday ? 'bg-blue-600 text-white rounded-md' : isWeekend ? 'text-red-600 hover:bg-red-100 rounded-full' : 'text-gray-700 hover:bg-gray-100 rounded-full'}`}>
+                          {toLangDigits(cDay, lang)}
+                        </span>
+                        {(secondaryCal || tertiaryCal) && (
+                          <div className="flex w-full justify-between px-0.5 mt-0.5">
+                            <span className={`text-[9px] leading-none ${isToday ? 'text-blue-400' : 'text-gray-300'}`}>{secondaryCal && secondaryCal !== 'chinese' ? calDayNumber(secondaryCal, cellDate) : ''}</span>
+                            <span className={`text-[9px] leading-none ${isToday ? 'text-blue-400' : 'text-gray-300'}`}>{tertiaryCal && tertiaryCal !== 'chinese' ? calDayNumber(tertiaryCal, cellDate) : ''}</span>
+                          </div>
+                        )}
+                      </div>
+                      {holidayName && (
+                        <p className="text-[8px] leading-tight text-red-500 text-center truncate px-0.5 mb-0.5 w-full" title={holidayName}>
+                          {holidayName}
+                        </p>
+                      )}
+                      {dayEvents.length > 0 && (
+                        <div className="flex flex-wrap gap-0.5 justify-center px-0.5">
+                          {dayEvents.slice(0, 3).map(ev => (
+                            <span key={ev.id} title={ev.title} className={`w-1.5 h-1.5 rounded-full shrink-0 ${KIND_DOT[ev.kind]} ${ev.done ? 'opacity-40' : ''}`} />
+                          ))}
+                          {dayEvents.length > 3 && (
+                            <span className="text-[9px] text-gray-400 leading-none">+{dayEvents.length - 3}</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  // ── Saka month grid (LTR, Monday-first) ──────────────────────────────────
+  if (calMode === 'saka') {
+    const { year: sYear, month: sMonth } = gregorianToSaka(toYMD(cursor));
+    const daysInSMonth = sakaDaysInMonth(sYear, sMonth);
+    const firstGregStr = sakaToGregorian(sYear, sMonth, 1);
+    const firstGregDate = new Date(firstGregStr + 'T00:00:00');
+    const firstDow = (firstGregDate.getDay() + 6) % 7; // Mon=0 … Sun=6
+    const cells: (number | null)[] = [
+      ...Array(firstDow).fill(null),
+      ...Array.from({ length: daysInSMonth }, (_, i) => i + 1),
+    ];
+    while (cells.length % 7 !== 0) cells.push(null);
+    const sakaRows: (number | null)[][] = [];
+    for (let r = 0; r < cells.length; r += 7) sakaRows.push(cells.slice(r, r + 7));
+
+    return (
+      <div className="select-none">
+        <div className="grid grid-cols-[1.5rem_repeat(7,1fr)] mb-1">
+          <div className="text-center text-[9px] font-medium text-gray-300 py-1">W</div>
+          {monFirstDays.map(d => (
+            <div key={d} className="text-center text-xs font-medium text-gray-400 py-1">{d}</div>
+          ))}
+        </div>
+        <div className="space-y-1">
+          {sakaRows.map((row, ri) => {
+            const firstSDay = row.find(d => d !== null)!;
+            const repGregStr = sakaToGregorian(sYear, sMonth, firstSDay);
+            const repDate = new Date(repGregStr + 'T00:00:00');
+            const wn = sakaWeekNumber(sYear, sMonth, firstSDay);
+            return (
+              <div key={ri} className="grid grid-cols-[1.5rem_repeat(7,1fr)] gap-1">
+                <button
+                  onClick={() => onWeekClick(repDate)}
+                  className="flex items-center justify-center text-[9px] font-semibold text-gray-300 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                  title={`सप्ताह ${toSakaDigits(wn)}`}
+                >
+                  {toSakaDigits(wn)}
+                </button>
+                {row.map((sDay, ci) => {
+                  if (sDay === null) return <div key={ci} className="min-h-[60px]" />;
+                  const gregStr = sakaToGregorian(sYear, sMonth, sDay);
+                  const cellDate = new Date(gregStr + 'T00:00:00');
+                  const isToday = isSameDay(cellDate, now);
+                  const ymd = toYMD(cellDate);
+                  const dayEvents = byDay.get(ymd) ?? [];
+                  const isWeekend = weekendSet.has(cellDate.getDay());
+                  const holidayName = holidayNames.get(ymd);
+                  return (
+                    <div
+                      key={ci}
+                      onClick={() => onDayClick(cellDate)}
+                      className={`min-h-[60px] p-0.5 rounded-lg border cursor-pointer overflow-hidden
+                        ${isToday
+                          ? 'bg-blue-50 border-blue-300'
+                          : holidayName
+                            ? 'bg-red-50 border-red-300'
+                            : isWeekend
+                              ? 'bg-red-50 border-red-200'
+                              : 'border-gray-100 hover:border-gray-300'}`}
+                    >
+                      <div className="flex flex-col items-center mb-0.5">
+                        <span className={`w-6 h-6 flex items-center justify-center text-xs font-medium
+                          ${isToday ? 'bg-blue-600 text-white rounded-md' : isWeekend ? 'text-red-600 hover:bg-red-100 rounded-full' : 'text-gray-700 hover:bg-gray-100 rounded-full'}`}>
+                          {toLangDigits(sDay, lang)}
+                        </span>
+                        {(secondaryCal || tertiaryCal) && (
+                          <div className="flex w-full justify-between px-0.5 mt-0.5">
+                            <span className={`text-[9px] leading-none ${isToday ? 'text-blue-400' : 'text-gray-300'}`}>{secondaryCal && secondaryCal !== 'saka' ? calDayNumber(secondaryCal, cellDate) : ''}</span>
+                            <span className={`text-[9px] leading-none ${isToday ? 'text-blue-400' : 'text-gray-300'}`}>{tertiaryCal && tertiaryCal !== 'saka' ? calDayNumber(tertiaryCal, cellDate) : ''}</span>
+                          </div>
+                        )}
+                      </div>
+                      {holidayName && (
+                        <p className="text-[8px] leading-tight text-red-500 text-center truncate px-0.5 mb-0.5 w-full" title={holidayName}>
+                          {holidayName}
+                        </p>
+                      )}
+                      {dayEvents.length > 0 && (
+                        <div className="flex flex-wrap gap-0.5 justify-center px-0.5">
+                          {dayEvents.slice(0, 3).map(ev => (
+                            <span key={ev.id} title={ev.title} className={`w-1.5 h-1.5 rounded-full shrink-0 ${KIND_DOT[ev.kind]} ${ev.done ? 'opacity-40' : ''}`} />
+                          ))}
+                          {dayEvents.length > 3 && (
+                            <span className="text-[9px] text-gray-400 leading-none">+{dayEvents.length - 3}</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  // ── Ethiopian month grid (LTR, Sunday-first) ──────────────────────────────
+  if (calMode === 'ethiopian') {
+    const { year: eYear, month: eMonth } = gregorianToEthiopian(toYMD(cursor));
+    const daysInEMonth = ethiopianDaysInMonth(eYear, eMonth);
+    const firstGregStr = ethiopianToGregorian(eYear, eMonth, 1);
+    const firstGregDate = new Date(firstGregStr + 'T00:00:00');
+    const firstDow = firstGregDate.getDay(); // Sun=0 … Sat=6
+    const cells: (number | null)[] = [
+      ...Array(firstDow).fill(null),
+      ...Array.from({ length: daysInEMonth }, (_, i) => i + 1),
+    ];
+    while (cells.length % 7 !== 0) cells.push(null);
+    const ethiopianRows: (number | null)[][] = [];
+    for (let r = 0; r < cells.length; r += 7) ethiopianRows.push(cells.slice(r, r + 7));
+
+    return (
+      <div className="select-none">
+        <div className="grid grid-cols-[1.5rem_repeat(7,1fr)] mb-1">
+          <div className="text-center text-[9px] font-medium text-gray-300 py-1">W</div>
+          {sunFirstDays.map(d => (
+            <div key={d} className="text-center text-xs font-medium text-gray-400 py-1">{d}</div>
+          ))}
+        </div>
+        <div className="space-y-1">
+          {ethiopianRows.map((row, ri) => {
+            const firstEDay = row.find(d => d !== null)!;
+            const repGregStr = ethiopianToGregorian(eYear, eMonth, firstEDay);
+            const repDate = new Date(repGregStr + 'T00:00:00');
+            const wn = ethiopianWeekNumber(eYear, eMonth, firstEDay);
+            return (
+              <div key={ri} className="grid grid-cols-[1.5rem_repeat(7,1fr)] gap-1">
+                <button
+                  onClick={() => onWeekClick(repDate)}
+                  className="flex items-center justify-center text-[9px] font-semibold text-gray-300 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                  title={`ሳምንት ${toEthiopianDigits(wn)}`}
+                >
+                  {toEthiopianDigits(wn)}
+                </button>
+                {row.map((eDay, ci) => {
+                  if (eDay === null) return <div key={ci} className="min-h-[60px]" />;
+                  const gregStr = ethiopianToGregorian(eYear, eMonth, eDay);
+                  const cellDate = new Date(gregStr + 'T00:00:00');
+                  const isToday = isSameDay(cellDate, now);
+                  const ymd = toYMD(cellDate);
+                  const dayEvents = byDay.get(ymd) ?? [];
+                  const isWeekend = weekendSet.has(cellDate.getDay());
+                  const holidayName = holidayNames.get(ymd);
+                  return (
+                    <div
+                      key={ci}
+                      onClick={() => onDayClick(cellDate)}
+                      className={`min-h-[60px] p-0.5 rounded-lg border cursor-pointer overflow-hidden
+                        ${isToday
+                          ? 'bg-blue-50 border-blue-300'
+                          : holidayName
+                            ? 'bg-red-50 border-red-300'
+                            : isWeekend
+                              ? 'bg-red-50 border-red-200'
+                              : 'border-gray-100 hover:border-gray-300'}`}
+                    >
+                      <div className="flex flex-col items-center mb-0.5">
+                        <span className={`w-6 h-6 flex items-center justify-center text-xs font-medium
+                          ${isToday ? 'bg-blue-600 text-white rounded-md' : isWeekend ? 'text-red-600 hover:bg-red-100 rounded-full' : 'text-gray-700 hover:bg-gray-100 rounded-full'}`}>
+                          {toLangDigits(eDay, lang)}
+                        </span>
+                        {(secondaryCal || tertiaryCal) && (
+                          <div className="flex w-full justify-between px-0.5 mt-0.5">
+                            <span className={`text-[9px] leading-none ${isToday ? 'text-blue-400' : 'text-gray-300'}`}>{secondaryCal && secondaryCal !== 'ethiopian' ? calDayNumber(secondaryCal, cellDate) : ''}</span>
+                            <span className={`text-[9px] leading-none ${isToday ? 'text-blue-400' : 'text-gray-300'}`}>{tertiaryCal && tertiaryCal !== 'ethiopian' ? calDayNumber(tertiaryCal, cellDate) : ''}</span>
+                          </div>
+                        )}
+                      </div>
+                      {holidayName && (
+                        <p className="text-[8px] leading-tight text-red-500 text-center truncate px-0.5 mb-0.5 w-full" title={holidayName}>
+                          {holidayName}
+                        </p>
+                      )}
+                      {dayEvents.length > 0 && (
+                        <div className="flex flex-wrap gap-0.5 justify-center px-0.5">
+                          {dayEvents.slice(0, 3).map(ev => (
+                            <span key={ev.id} title={ev.title} className={`w-1.5 h-1.5 rounded-full shrink-0 ${KIND_DOT[ev.kind]} ${ev.done ? 'opacity-40' : ''}`} />
+                          ))}
+                          {dayEvents.length > 3 && (
+                            <span className="text-[9px] text-gray-400 leading-none">+{dayEvents.length - 3}</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+
+  if (calMode === 'miladi') {
     const year = cursor.getFullYear();
     const month = cursor.getMonth();
-    const firstDow = new Date(year, month, 1).getDay();
+    const firstDow = (new Date(year, month, 1).getDay() + 6) % 7; // Mon=0 … Sun=6
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const cells: (number | null)[] = [
       ...Array(firstDow).fill(null),
@@ -180,7 +934,7 @@ function MonthGrid({ cursor, shamsi, events, holidayNames, weekendSet, onDayClic
       <div className="select-none">
         <div className="grid grid-cols-[1.5rem_repeat(7,1fr)] mb-1">
           <div className="text-center text-[9px] font-medium text-gray-300 py-1">W</div>
-          {SHORT_EN_DAYS.map(d => (
+          {monFirstDays.map(d => (
             <div key={d} className="text-center text-xs font-medium text-gray-400 py-1">{d}</div>
           ))}
         </div>
@@ -204,14 +958,13 @@ function MonthGrid({ cursor, shamsi, events, holidayNames, weekendSet, onDayClic
                   const isToday = isSameDay(cellDate, now);
                   const ymd = toYMD(cellDate);
                   const dayEvents = byDay.get(ymd) ?? [];
-                  const { jd } = toJalaali(year, month + 1, day);
                   const isWeekend = weekendSet.has(cellDate.getDay());
                   const holidayName = holidayNames.get(ymd);
                   return (
                     <div
                       key={ci}
                       onClick={() => onDayClick(cellDate)}
-                      className={`min-h-[60px] p-0.5 rounded-lg border cursor-pointer
+                      className={`min-h-[60px] p-0.5 rounded-lg border cursor-pointer overflow-hidden
                         ${isToday
                           ? 'bg-blue-50 border-blue-300'
                           : holidayName
@@ -221,13 +974,16 @@ function MonthGrid({ cursor, shamsi, events, holidayNames, weekendSet, onDayClic
                               : 'border-gray-100 hover:border-gray-300'}`}
                     >
                       <div className="flex flex-col items-center mb-0.5">
-                        <span className={`w-7 h-7 flex items-center justify-center rounded-full text-xs font-medium
-                          ${isToday ? 'bg-blue-600 text-white' : isWeekend ? 'text-red-600 hover:bg-red-100' : 'text-gray-700 hover:bg-gray-100'}`}>
-                          {day}
+                        <span className={`w-6 h-6 flex items-center justify-center text-xs font-medium
+                          ${isToday ? 'bg-blue-600 text-white rounded-md' : isWeekend ? 'text-red-600 hover:bg-red-100 rounded-full' : 'text-gray-700 hover:bg-gray-100 rounded-full'}`}>
+                          {toLangDigits(day, lang)}
                         </span>
-                        <span className={`text-[9px] leading-none ${isToday ? 'text-blue-400' : 'text-gray-300'}`}>
-                          {toPersianDigits(jd)}
-                        </span>
+                        {(secondaryCal || tertiaryCal) && (
+                          <div className="flex w-full justify-between px-0.5 mt-0.5">
+                            <span className={`text-[9px] leading-none ${isToday ? 'text-blue-400' : 'text-gray-300'}`}>{secondaryCal && secondaryCal !== 'miladi' ? calDayNumber(secondaryCal, cellDate) : ''}</span>
+                            <span className={`text-[9px] leading-none ${isToday ? 'text-blue-400' : 'text-gray-300'}`}>{tertiaryCal && tertiaryCal !== 'miladi' ? calDayNumber(tertiaryCal, cellDate) : ''}</span>
+                          </div>
+                        )}
                       </div>
                       {holidayName && (
                         <p className="text-[8px] leading-tight text-red-500 text-center truncate px-0.5 mb-0.5 w-full" title={holidayName}>
@@ -274,7 +1030,7 @@ function MonthGrid({ cursor, shamsi, events, holidayNames, weekendSet, onDayClic
   return (
     <div className="select-none" dir="rtl">
       <div className="grid grid-cols-[repeat(7,1fr)_1.5rem] mb-1">
-        {PERSIAN_SHORT_DAYS.map(d => (
+        {satFirstDays.map(d => (
           <div key={d} className="text-center text-xs font-medium text-gray-400 py-1">{d}</div>
         ))}
         <div className="text-center text-[9px] font-medium text-gray-300 py-1">ه</div>
@@ -300,7 +1056,7 @@ function MonthGrid({ cursor, shamsi, events, holidayNames, weekendSet, onDayClic
                   <div
                     key={ci}
                     onClick={() => onDayClick(cellDate)}
-                    className={`min-h-[60px] p-0.5 rounded-lg border cursor-pointer
+                    className={`min-h-[60px] p-0.5 rounded-lg border cursor-pointer overflow-hidden
                       ${isToday
                         ? 'bg-blue-50 border-blue-300'
                         : holidayName
@@ -310,13 +1066,16 @@ function MonthGrid({ cursor, shamsi, events, holidayNames, weekendSet, onDayClic
                             : 'border-gray-100 hover:border-gray-300'}`}
                   >
                     <div className="flex flex-col items-center mb-0.5">
-                      <span className={`w-7 h-7 flex items-center justify-center rounded-full text-xs font-medium
-                        ${isToday ? 'bg-blue-600 text-white' : isWeekend ? 'text-red-600 hover:bg-red-100' : 'text-gray-700 hover:bg-gray-100'}`}>
-                        {toPersianDigits(jDay)}
+                      <span className={`w-6 h-6 flex items-center justify-center text-xs font-medium
+                        ${isToday ? 'bg-blue-600 text-white rounded-md' : isWeekend ? 'text-red-600 hover:bg-red-100 rounded-full' : 'text-gray-700 hover:bg-gray-100 rounded-full'}`}>
+                        {toLangDigits(jDay, lang)}
                       </span>
-                      <span className={`text-[9px] leading-none ${isToday ? 'text-blue-400' : 'text-gray-300'}`}>
-                        {gd}
-                      </span>
+                      {(secondaryCal || tertiaryCal) && (
+                        <div className="flex w-full justify-between px-0.5 mt-0.5">
+                          <span className={`text-[9px] leading-none ${isToday ? 'text-blue-400' : 'text-gray-300'}`}>{secondaryCal && secondaryCal !== 'shamsi' ? calDayNumber(secondaryCal, cellDate) : ''}</span>
+                          <span className={`text-[9px] leading-none ${isToday ? 'text-blue-400' : 'text-gray-300'}`}>{tertiaryCal && tertiaryCal !== 'shamsi' ? calDayNumber(tertiaryCal, cellDate) : ''}</span>
+                        </div>
+                      )}
                     </div>
                     {holidayName && (
                       <p className="text-[8px] leading-tight text-red-500 text-center truncate px-0.5 mb-0.5 w-full" title={holidayName}>
@@ -355,18 +1114,30 @@ function MonthGrid({ cursor, shamsi, events, holidayNames, weekendSet, onDayClic
 // Week view
 // ---------------------------------------------------------------------------
 
-function WeekPanel({ cursor, shamsi, events, holidayNames, weekendSet, onDayClick }: {
+function WeekPanel({ cursor, calMode, secondaryCal, tertiaryCal, lang, events, holidayNames, weekendSet, onDayClick }: {
   cursor: Date;
-  shamsi: boolean;
+  calMode: CalendarType;
+  secondaryCal: CalendarType | null;
+  tertiaryCal: CalendarType | null;
+  lang: string;
   events: CalEvent[];
   holidayNames: Map<string, string>;
   weekendSet: Set<number>;
   onDayClick: (d: Date) => void;
 }) {
   const now = today();
-  const ws = weekStart(cursor, shamsi);
+  const daysShort = useDaysShort(); // [Sun, Mon, Tue, Wed, Thu, Fri, Sat]
+  const ws = weekStart(cursor, calMode);
   const days = Array.from({ length: 7 }, (_, i) => addDays(ws, i));
-  const dayNames = shamsi ? PERSIAN_SHORT_DAYS : SHORT_EN_DAYS;
+  // Build day-name array ordered by this calendar's week-start, indexed by Date.getDay()
+  // shamsi: Sat-first → [Sat,Sun,Mon,Tue,Wed,Thu,Fri] = [6,0,1,2,3,4,5]
+  // hebrew/chinese/ethiopian: Sun-first → [Sun…Sat] = [0,1,2,3,4,5,6]
+  // miladi/saka/qamari: Mon-first → [Mon…Sun] = [1,2,3,4,5,6,0]
+  const dayNames: string[] = calMode === 'shamsi'
+    ? [daysShort[6], daysShort[0], daysShort[1], daysShort[2], daysShort[3], daysShort[4], daysShort[5]]
+    : (calMode === 'hebrew' || calMode === 'chinese' || calMode === 'ethiopian')
+      ? [...daysShort]
+      : [daysShort[1], daysShort[2], daysShort[3], daysShort[4], daysShort[5], daysShort[6], daysShort[0]];
 
   const byDay = useMemo(() => {
     const map = new Map<string, CalEvent[]>();
@@ -379,25 +1150,18 @@ function WeekPanel({ cursor, shamsi, events, holidayNames, weekendSet, onDayClic
   }, [events]);
 
   return (
-    <div className="select-none" dir={shamsi ? 'rtl' : 'ltr'}>
+    <div className="select-none" dir={calMode === 'hebrew' ? 'rtl' : calMode === 'shamsi' ? 'rtl' : calMode === 'qamari' ? 'rtl' : 'ltr'}>
       {/* Day headers */}
       <div className="grid grid-cols-7 border border-gray-200 rounded-t-lg overflow-hidden">
         {days.map((d, i) => {
           const isToday = isSameDay(d, now);
-          let label: string;
-          let secondaryLabel: string;
-          if (shamsi) {
-            const { jd } = toJalaali(d.getFullYear(), d.getMonth() + 1, d.getDate());
-            label = toPersianDigits(jd);
-            secondaryLabel = String(d.getDate());
-          } else {
-            label = String(d.getDate());
-            const { jd } = toJalaali(d.getFullYear(), d.getMonth() + 1, d.getDate());
-            secondaryLabel = toPersianDigits(jd);
-          }
-          const nameIdx = shamsi
-            ? (d.getDay() === 6 ? 0 : d.getDay() + 1)
-            : d.getDay();
+          const label = toLangDigits(calDayNumber(calMode, d), lang);
+          // nameIdx: index into the dayNames array for this day
+          const nameIdx = calMode === 'shamsi'
+            ? (d.getDay() === 6 ? 0 : d.getDay() + 1)               // Sat-first
+            : (calMode === 'hebrew' || calMode === 'chinese' || calMode === 'ethiopian')
+              ? d.getDay()                                            // Sun-first (Sun=0)
+              : (d.getDay() + 6) % 7;                                // Mon-first (Mon=0)
           const ymd = toYMD(d);
           const isWeekend = weekendSet.has(d.getDay());
           const holidayName = holidayNames.get(ymd);
@@ -409,13 +1173,20 @@ function WeekPanel({ cursor, shamsi, events, holidayNames, weekendSet, onDayClic
                 ${isToday ? 'bg-blue-50' : isWeekend ? 'bg-red-50 hover:bg-red-100' : 'bg-white hover:bg-gray-50'}`}
             >
               <span className={`text-xs mb-1 ${isWeekend && !isToday ? 'text-red-400' : 'text-gray-400'}`}>{dayNames[nameIdx]}</span>
-              <span className={`w-7 h-7 flex items-center justify-center rounded-full text-sm font-medium
-                ${isToday ? 'bg-blue-600 text-white' : isWeekend ? 'text-red-600' : 'text-gray-700'}`}>
+              <span className={`w-6 h-6 flex items-center justify-center text-sm font-medium
+                ${isToday ? 'bg-blue-600 text-white rounded-md' : isWeekend ? 'text-red-600 rounded-full' : 'text-gray-700 rounded-full'}`}>
                 {label}
               </span>
-              <span className={`text-[9px] leading-none mt-0.5 ${isToday ? 'text-blue-400' : 'text-gray-300'}`}>
-                {secondaryLabel}
-              </span>
+              {(secondaryCal || tertiaryCal) && (
+                <div className="flex w-full justify-between px-1 mt-1">
+                  <span className={`text-[9px] leading-none ${isToday ? 'text-blue-400' : 'text-gray-300'}`}>
+                    {secondaryCal && secondaryCal !== calMode ? calDayNumber(secondaryCal, d) : ''}
+                  </span>
+                  <span className={`text-[9px] leading-none ${isToday ? 'text-blue-400' : 'text-gray-300'}`}>
+                    {tertiaryCal && tertiaryCal !== calMode ? calDayNumber(tertiaryCal, d) : ''}
+                  </span>
+                </div>
+              )}
               {holidayName && (
                 <p className="text-[8px] leading-tight text-red-500 text-center truncate px-0.5 mt-0.5 w-full" title={holidayName}>
                   {holidayName}
@@ -453,13 +1224,17 @@ function WeekPanel({ cursor, shamsi, events, holidayNames, weekendSet, onDayClic
         {weekendSet.size > 0 && (
           <div className="flex items-center gap-1">
             <span className="w-2 h-2 rounded bg-red-100 border border-red-200" />
-            <span className="text-xs text-gray-400">{shamsi ? 'آخر هفته' : 'Weekend'}</span>
+            <span className="text-xs text-gray-400">
+              {calMode === 'shamsi' ? 'آخر هفته' : calMode === 'qamari' ? 'آخر الأسبوع' : calMode === 'hebrew' ? 'שבת/ראשון' : 'Weekend'}
+            </span>
           </div>
         )}
         {holidayNames.size > 0 && (
           <div className="flex items-center gap-1">
             <span className="w-2 h-2 rounded-full bg-red-400" />
-            <span className="text-xs text-gray-400">{shamsi ? 'تعطیل رسمی' : 'Holiday'}</span>
+            <span className="text-xs text-gray-400">
+              {calMode === 'shamsi' ? 'تعطیل رسمی' : calMode === 'qamari' ? 'عطلة رسمية' : 'Holiday'}
+            </span>
           </div>
         )}
       </div>
@@ -471,9 +1246,10 @@ function WeekPanel({ cursor, shamsi, events, holidayNames, weekendSet, onDayClic
 // Day view
 // ---------------------------------------------------------------------------
 
-function DayPanel({ cursor, shamsi, events, holidayNames, weekendSet }: {
+function DayPanel({ cursor, calMode, lang, events, holidayNames, weekendSet }: {
   cursor: Date;
-  shamsi: boolean;
+  calMode: CalendarType;
+  lang: string;
   events: CalEvent[];
   holidayNames: Map<string, string>;
   weekendSet: Set<number>;
@@ -509,20 +1285,23 @@ function DayPanel({ cursor, shamsi, events, holidayNames, weekendSet }: {
   const isWeekend = weekendSet.has(cursor.getDay());
   const holidayName = holidayNames.get(ymd);
 
+  const isRtl = calMode === 'shamsi' || calMode === 'qamari' || calMode === 'hebrew';
   return (
-    <div className="select-none" dir={shamsi ? 'rtl' : 'ltr'}>
+    <div className="select-none" dir={isRtl ? 'rtl' : 'ltr'}>
       {/* Holiday / weekend banner */}
       {(holidayName || isWeekend) && (
         <div className={`mb-2 px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5
           ${holidayName ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-red-50 text-red-400 border border-red-100'}`}>
           <span className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />
-          {holidayName ?? (shamsi ? 'آخر هفته' : 'Weekend')}
+          {holidayName ?? (calMode === 'shamsi' ? 'آخر هفته' : calMode === 'qamari' ? 'آخر الأسبوع' : 'Weekend')}
         </div>
       )}
       {/* All-day events strip */}
       {allDayEvents.length > 0 && (
         <div className="mb-2 p-2 border border-gray-200 rounded-lg bg-gray-50">
-          <div className="text-xs text-gray-400 mb-1 font-medium">{shamsi ? 'تمام روز' : 'All day'}</div>
+          <div className="text-xs text-gray-400 mb-1 font-medium">
+            {calMode === 'shamsi' ? 'تمام روز' : calMode === 'qamari' ? 'طوال اليوم' : 'All day'}
+          </div>
           <div className="flex flex-wrap gap-1">
             {allDayEvents.map(ev => <EventPill key={ev.id} ev={ev} />)}
           </div>
@@ -532,9 +1311,9 @@ function DayPanel({ cursor, shamsi, events, holidayNames, weekendSet }: {
       {/* Hourly grid */}
       <div className="border border-gray-200 rounded-lg overflow-hidden">
         {hours.map(h => {
-          const label = shamsi
-            ? `${toPersianDigits(String(h).padStart(2, '0'))}:۰۰`
-            : `${String(h).padStart(2, '0')}:00`;
+          const hh = String(h).padStart(2, '0');
+          const zero = lang === 'fa' ? '۰۰' : lang === 'ar' ? '٠٠' : lang === 'hi' ? '००' : '00';
+          const label = `${toLangDigits(hh, lang)}:${zero}`;
           const hourEvents = byHour.get(h) ?? [];
           const isCurrentHour = h === currentHour && isToday;
           return (
@@ -563,13 +1342,17 @@ function DayPanel({ cursor, shamsi, events, holidayNames, weekendSet }: {
         {weekendSet.size > 0 && (
           <div className="flex items-center gap-1">
             <span className="w-2 h-2 rounded bg-red-100 border border-red-200" />
-            <span className="text-xs text-gray-400">{shamsi ? 'آخر هفته' : 'Weekend'}</span>
+            <span className="text-xs text-gray-400">
+              {calMode === 'shamsi' ? 'آخر هفته' : calMode === 'qamari' ? 'آخر الأسبوع' : 'Weekend'}
+            </span>
           </div>
         )}
         {holidayNames.size > 0 && (
           <div className="flex items-center gap-1">
             <span className="w-2 h-2 rounded-full bg-red-400" />
-            <span className="text-xs text-gray-400">{shamsi ? 'تعطیل رسمی' : 'Holiday'}</span>
+            <span className="text-xs text-gray-400">
+              {calMode === 'shamsi' ? 'تعطیل رسمی' : calMode === 'qamari' ? 'عطلة رسمية' : 'Holiday'}
+            </span>
           </div>
         )}
       </div>
@@ -582,10 +1365,15 @@ function DayPanel({ cursor, shamsi, events, holidayNames, weekendSet }: {
 // ---------------------------------------------------------------------------
 
 export default function CalendarWidget() {
-  const { calendar, country } = useCalendar();
+  const { t } = useTranslation();
+  const { calendar, country, secondaryCalendar, tertiaryCalendar } = useCalendar();
   const { lang } = useLanguage();
   const { token } = useAuth();
-  const shamsi = calendar === 'shamsi';
+  const calMode = calendar as CalendarType;
+  const monthsShort  = useMonthsShort();
+  const monthsLong   = useMonthsLong();
+  const daysLong     = useDaysLong();
+  const calMonths    = useCalendarMonths();
   const [view, setView] = useState<View>('month');
   const [cursor, setCursor] = useState<Date>(today);
   const [events, setEvents] = useState<CalEvent[]>([]);
@@ -669,9 +1457,9 @@ export default function CalendarWidget() {
   function navigate(dir: 1 | -1) {
     if (view === 'day') { setCursor(c => addDays(c, dir)); return; }
     if (view === 'week') { setCursor(c => addDays(c, dir * 7)); return; }
-    if (!shamsi) {
+    if (calMode === 'miladi') {
       setCursor(c => { const d = new Date(c); d.setDate(1); d.setMonth(d.getMonth() + dir); return d; });
-    } else {
+    } else if (calMode === 'shamsi') {
       setCursor(c => {
         const { jy, jm } = toJalaali(c.getFullYear(), c.getMonth() + 1, c.getDate());
         let nm = jm + dir; let ny = jy;
@@ -681,95 +1469,334 @@ export default function CalendarWidget() {
         const { gy, gm: gmonth, gd } = toGregorian(ny, nm, Math.min(1, safeDays));
         return new Date(gy, gmonth - 1, gd);
       });
+    } else if (calMode === 'qamari') {
+      setCursor(c => {
+        const { year: hy, month: hm } = gregorianToHijri(toYMD(c));
+        let nm = hm + dir; let ny = hy;
+        if (nm < 1) { nm = 12; ny--; }
+        if (nm > 12) { nm = 1; ny++; }
+        const gStr = hijriToGregorian(ny, nm, 1);
+        const [gy, gmonth, gd] = gStr.split('-').map(Number);
+        return new Date(gy, gmonth - 1, gd);
+      });
+    } else if (calMode === 'hebrew') {
+      setCursor(c => {
+        const { year: hy, month: hm } = gregorianToHebrew(toYMD(c));
+        let nm = hm + dir; let ny = hy;
+        if (nm < 1) { nm = 12; ny--; }
+        if (nm > 12) { nm = 1; ny++; }
+        const gStr = hebrewToGregorian(ny, nm, 1);
+        const [gy, gmonth, gd] = gStr.split('-').map(Number);
+        return new Date(gy, gmonth - 1, gd);
+      });
+    } else if (calMode === 'chinese') {
+      setCursor(c => {
+        const { year: cy, month: cm } = gregorianToChinese(toYMD(c));
+        let nm = cm + dir; let ny = cy;
+        if (nm < 1) { nm = 12; ny--; }
+        if (nm > 12) { nm = 1; ny++; }
+        const gStr = chineseToGregorian(ny, nm, 1);
+        const [gy, gmonth, gd] = gStr.split('-').map(Number);
+        return new Date(gy, gmonth - 1, gd);
+      });
+    } else if (calMode === 'saka') {
+      setCursor(c => {
+        const { year: sy, month: sm } = gregorianToSaka(toYMD(c));
+        let nm = sm + dir; let ny = sy;
+        if (nm < 1) { nm = 12; ny--; }
+        if (nm > 12) { nm = 1; ny++; }
+        const gStr = sakaToGregorian(ny, nm, 1);
+        const [gy, gmonth, gd] = gStr.split('-').map(Number);
+        return new Date(gy, gmonth - 1, gd);
+      });
+    } else if (calMode === 'ethiopian') {
+      setCursor(c => {
+        const { year: ey, month: em } = gregorianToEthiopian(toYMD(c));
+        let nm = em + dir; let ny = ey;
+        if (nm < 1) { nm = 13; ny--; }
+        if (nm > 13) { nm = 1; ny++; }
+        const gStr = ethiopianToGregorian(ny, nm, 1);
+        const [gy, gmonth, gd] = gStr.split('-').map(Number);
+        return new Date(gy, gmonth - 1, gd);
+      });
     }
   }
 
   // ── Primary title ────────────────────────────────────────────────────────
   function primaryTitle(): string {
     if (view === 'day') {
-      if (!shamsi) return cursor.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
-      const { jy, jm, jd } = toJalaali(cursor.getFullYear(), cursor.getMonth() + 1, cursor.getDate());
-      const PERSIAN_DAYS_LONG = ['یکشنبه','دوشنبه','سه‌شنبه','چهارشنبه','پنجشنبه','جمعه','شنبه'];
-      return `${PERSIAN_DAYS_LONG[cursor.getDay()]}، ${toPersianDigits(jd)} ${PERSIAN_MONTHS[jm - 1]} ${toPersianDigits(jy)}`;
+      if (calMode === 'miladi') return `${daysLong[cursor.getDay()]}, ${monthsLong[cursor.getMonth()]} ${cursor.getDate()}, ${cursor.getFullYear()}`;
+      if (calMode === 'shamsi') {
+        const { jy, jm, jd } = toJalaali(cursor.getFullYear(), cursor.getMonth() + 1, cursor.getDate());
+        return `${daysLong[cursor.getDay()]}, ${toPersianDigits(jd)} ${calMonths.shamsi[jm - 1]} ${toPersianDigits(jy)}`;
+      }
+      if (calMode === 'qamari') {
+        const { year: hy, month: hm, day: hd } = gregorianToHijri(toYMD(cursor));
+        return `${daysLong[cursor.getDay()]}, ${toArabicDigits(hd)} ${calMonths.qamari[hm - 1]} ${toArabicDigits(hy)}`;
+      }
+      if (calMode === 'hebrew') {
+        const { year: hy, month: hm, day: hd } = gregorianToHebrew(toYMD(cursor));
+        return `${daysLong[cursor.getDay()]}, ${toHebrewDigits(hd)} ${calMonths.hebrew[hm - 1]} ${toHebrewDigits(hy)}`;
+      }
+      if (calMode === 'chinese') {
+        const { year: cy, month: cm, day: cd } = gregorianToChinese(toYMD(cursor));
+        return `${daysLong[cursor.getDay()]}, ${calMonths.chinese[cm - 1]} ${toChineseDigits(cd)}, ${toChineseDigits(cy)}`;
+      }
+      if (calMode === 'saka') {
+        const { year: sy, month: sm, day: sd } = gregorianToSaka(toYMD(cursor));
+        return `${daysLong[cursor.getDay()]}, ${toSakaDigits(sd)} ${calMonths.saka[sm - 1]} ${toSakaDigits(sy)}`;
+      }
+      if (calMode === 'ethiopian') {
+        const { year: ey, month: em, day: ed } = gregorianToEthiopian(toYMD(cursor));
+        return `${daysLong[cursor.getDay()]}, ${toEthiopianDigits(ed)} ${calMonths.ethiopian[em - 1]} ${toEthiopianDigits(ey)}`;
+      }
+      return `${daysLong[cursor.getDay()]}, ${monthsLong[cursor.getMonth()]} ${cursor.getDate()}, ${cursor.getFullYear()}`;
     }
     if (view === 'week') {
-      const ws = weekStart(cursor, shamsi);
+      const ws = weekStart(cursor, calMode);
       const we = addDays(ws, 6);
-      if (!shamsi) return `${SHORT_EN_MONTHS[ws.getMonth()]} ${ws.getDate()} – ${SHORT_EN_MONTHS[we.getMonth()]} ${we.getDate()}, ${we.getFullYear()}`;
-      const { jy: sy, jm: sm, jd: sd } = toJalaali(ws.getFullYear(), ws.getMonth() + 1, ws.getDate());
-      const { jy: ey, jm: em, jd: ed } = toJalaali(we.getFullYear(), we.getMonth() + 1, we.getDate());
-      if (sy === ey) return `${toPersianDigits(sd)} ${PERSIAN_MONTHS[sm - 1]} – ${toPersianDigits(ed)} ${PERSIAN_MONTHS[em - 1]} ${toPersianDigits(ey)}`;
-      return `${toPersianDigits(sd)} ${PERSIAN_MONTHS[sm - 1]} ${toPersianDigits(sy)} – ${toPersianDigits(ed)} ${PERSIAN_MONTHS[em - 1]} ${toPersianDigits(ey)}`;
+      if (calMode === 'miladi') return `${monthsShort[ws.getMonth()]} ${ws.getDate()} – ${monthsShort[we.getMonth()]} ${we.getDate()}, ${we.getFullYear()}`;
+      if (calMode === 'shamsi') {
+        const { jy: sy, jm: sm, jd: sd } = toJalaali(ws.getFullYear(), ws.getMonth() + 1, ws.getDate());
+        const { jy: ey, jm: em, jd: ed } = toJalaali(we.getFullYear(), we.getMonth() + 1, we.getDate());
+        if (sy === ey) return `${toPersianDigits(sd)} ${calMonths.shamsi[sm - 1]} – ${toPersianDigits(ed)} ${calMonths.shamsi[em - 1]} ${toPersianDigits(ey)}`;
+        return `${toPersianDigits(sd)} ${calMonths.shamsi[sm - 1]} ${toPersianDigits(sy)} – ${toPersianDigits(ed)} ${calMonths.shamsi[em - 1]} ${toPersianDigits(ey)}`;
+      }
+      if (calMode === 'qamari') {
+        const { year: hy, month: hm, day: hd } = gregorianToHijri(toYMD(ws));
+        const { year: ey2, month: em2, day: ed2 } = gregorianToHijri(toYMD(we));
+        if (hy === ey2) return `${toArabicDigits(hd)} ${calMonths.qamari[hm - 1]} – ${toArabicDigits(ed2)} ${calMonths.qamari[em2 - 1]} ${toArabicDigits(hy)}`;
+        return `${toArabicDigits(hd)} ${calMonths.qamari[hm - 1]} ${toArabicDigits(hy)} – ${toArabicDigits(ed2)} ${calMonths.qamari[em2 - 1]} ${toArabicDigits(ey2)}`;
+      }
+      if (calMode === 'hebrew') {
+        const { year: hy, month: hm, day: hd } = gregorianToHebrew(toYMD(ws));
+        const { year: ey2, month: em2, day: ed2 } = gregorianToHebrew(toYMD(we));
+        if (hy === ey2) return `${toHebrewDigits(hd)} ${calMonths.hebrew[hm - 1]} – ${toHebrewDigits(ed2)} ${calMonths.hebrew[em2 - 1]} ${toHebrewDigits(hy)}`;
+        return `${toHebrewDigits(hd)} ${calMonths.hebrew[hm - 1]} ${toHebrewDigits(hy)} – ${toHebrewDigits(ed2)} ${calMonths.hebrew[em2 - 1]} ${toHebrewDigits(ey2)}`;
+      }
+      if (calMode === 'chinese') {
+        const { year: cy, month: cm, day: cd } = gregorianToChinese(toYMD(ws));
+        const { year: ey2, month: em2, day: ed2 } = gregorianToChinese(toYMD(we));
+        if (cy === ey2) return `${calMonths.chinese[cm - 1]} ${toChineseDigits(cd)} – ${calMonths.chinese[em2 - 1]} ${toChineseDigits(ed2)}, ${toChineseDigits(cy)}`;
+        return `${calMonths.chinese[cm - 1]} ${toChineseDigits(cd)}, ${toChineseDigits(cy)} – ${calMonths.chinese[em2 - 1]} ${toChineseDigits(ed2)}, ${toChineseDigits(ey2)}`;
+      }
+      if (calMode === 'saka') {
+        const { year: sy, month: sm, day: sd } = gregorianToSaka(toYMD(ws));
+        const { year: ey2, month: em2, day: ed2 } = gregorianToSaka(toYMD(we));
+        if (sy === ey2) return `${toSakaDigits(sd)} ${calMonths.saka[sm - 1]} – ${toSakaDigits(ed2)} ${calMonths.saka[em2 - 1]} ${toSakaDigits(sy)}`;
+        return `${toSakaDigits(sd)} ${calMonths.saka[sm - 1]} ${toSakaDigits(sy)} – ${toSakaDigits(ed2)} ${calMonths.saka[em2 - 1]} ${toSakaDigits(ey2)}`;
+      }
+      if (calMode === 'ethiopian') {
+        const { year: ey, month: em, day: ed } = gregorianToEthiopian(toYMD(ws));
+        const { year: ey2, month: em2, day: ed2 } = gregorianToEthiopian(toYMD(we));
+        if (ey === ey2) return `${toEthiopianDigits(ed)} ${calMonths.ethiopian[em - 1]} – ${toEthiopianDigits(ed2)} ${calMonths.ethiopian[em2 - 1]} ${toEthiopianDigits(ey)}`;
+        return `${toEthiopianDigits(ed)} ${calMonths.ethiopian[em - 1]} ${toEthiopianDigits(ey)} – ${toEthiopianDigits(ed2)} ${calMonths.ethiopian[em2 - 1]} ${toEthiopianDigits(ey2)}`;
+      }
+      return `${monthsShort[ws.getMonth()]} ${ws.getDate()} – ${monthsShort[we.getMonth()]} ${we.getDate()}, ${we.getFullYear()}`;
     }
-    if (!shamsi) return cursor.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
-    const { jy, jm } = toJalaali(cursor.getFullYear(), cursor.getMonth() + 1, cursor.getDate());
-    return `${PERSIAN_MONTHS[jm - 1]} ${toPersianDigits(jy)}`;
-  }
-
-  function secondaryLabel(): string {
-    if (view === 'day') {
-      if (shamsi) return cursor.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
-      return toJalaliDisplay(`${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`);
-    }
-    if (view === 'week') {
-      const ws = weekStart(cursor, shamsi);
-      const we = addDays(ws, 6);
-      if (shamsi) return gregorianWeekRange(ws, we);
-      return jalaliWeekRange(ws, we);
-    }
-    if (shamsi) {
+    // month view
+    if (calMode === 'miladi') return `${monthsLong[cursor.getMonth()]} ${cursor.getFullYear()}`;
+    if (calMode === 'shamsi') {
       const { jy, jm } = toJalaali(cursor.getFullYear(), cursor.getMonth() + 1, cursor.getDate());
-      return gregorianMonthRangeForJalaliMonth(jy, jm);
+      return `${calMonths.shamsi[jm - 1]} ${toPersianDigits(jy)}`;
     }
-    return jalaliMonthRangeForGregorianMonth(cursor.getFullYear(), cursor.getMonth() + 1);
+    if (calMode === 'qamari') {
+      const { year: hy, month: hm } = gregorianToHijri(toYMD(cursor));
+      return `${calMonths.qamari[hm - 1]} ${toArabicDigits(hy)}`;
+    }
+    if (calMode === 'hebrew') {
+      const { year: hy, month: hm } = gregorianToHebrew(toYMD(cursor));
+      return `${calMonths.hebrew[hm - 1]} ${toHebrewDigits(hy)}`;
+    }
+    if (calMode === 'chinese') {
+      const { year: cy, month: cm } = gregorianToChinese(toYMD(cursor));
+      return `${calMonths.chinese[cm - 1]} ${toChineseDigits(cy)}`;
+    }
+    if (calMode === 'saka') {
+      const { year: sy, month: sm } = gregorianToSaka(toYMD(cursor));
+      return `${calMonths.saka[sm - 1]} ${toSakaDigits(sy)}`;
+    }
+    // ethiopian month view
+    const { year: ey, month: em } = gregorianToEthiopian(toYMD(cursor));
+    return `${calMonths.ethiopian[em - 1]} ${toEthiopianDigits(ey)}`;
   }
 
-  const views: View[] = ['month', 'week', 'day'];
-  const viewLabels: Record<View, string> = shamsi
-    ? { month: 'ماه', week: 'هفته', day: 'روز' }
-    : { month: 'Month', week: 'Week', day: 'Day' };
+  /** Returns the week number (formatted in the primary calendar's digit system) for the current cursor week. */
+  function primaryWeekNumber(): string {
+    const ws = weekStart(cursor, calMode);
+    if (calMode === 'shamsi') {
+      const { jy, jm, jd } = toJalaali(ws.getFullYear(), ws.getMonth() + 1, ws.getDate());
+      return toPersianDigits(jalaliWeekNumber(jy, jm, jd));
+    }
+    if (calMode === 'qamari') {
+      const { year: hy, month: hm, day: hd } = gregorianToHijri(toYMD(ws));
+      return toArabicDigits(hijriWeekNumber(hy, hm, hd));
+    }
+    if (calMode === 'hebrew') {
+      const { year: hy, month: hm, day: hd } = gregorianToHebrew(toYMD(ws));
+      return toHebrewDigits(hebrewWeekNumber(hy, hm, hd));
+    }
+    if (calMode === 'chinese') {
+      const { year: cy, month: cm, day: cd } = gregorianToChinese(toYMD(ws));
+      return toChineseDigits(chineseWeekNumber(cy, cm, cd));
+    }
+    if (calMode === 'saka') {
+      const { year: sy, month: sm, day: sd } = gregorianToSaka(toYMD(ws));
+      return toSakaDigits(sakaWeekNumber(sy, sm, sd));
+    }
+    if (calMode === 'ethiopian') {
+      const { year: ey, month: em, day: ed } = gregorianToEthiopian(toYMD(ws));
+      return toEthiopianDigits(ethiopianWeekNumber(ey, em, ed));
+    }
+    // miladi
+    return String(isoWeekNumber(ws));
+  }
+
+  // subLabels: one entry per enabled secondary/tertiary calendar (in order)
+  const subLabels: string[] = [
+    ...(secondaryCalendar && secondaryCalendar !== calMode
+      ? [calRangeLabel(secondaryCalendar, cursor, view, calMode, monthsShort, daysLong)]
+      : []),
+    ...(tertiaryCalendar && tertiaryCalendar !== calMode
+      ? [calRangeLabel(tertiaryCalendar, cursor, view, calMode, monthsShort, daysLong)]
+      : []),
+  ];
+
+  const calendarToday = t('settings.calendarToday');
+  const calendarPrev  = t('settings.calendarPrev');
+  const calendarNext  = t('settings.calendarNext');
+  const viewLabels: Record<View, string> = {
+    month: t('settings.calendarMonth'),
+    week:  t('settings.calendarWeek'),
+    day:   t('settings.calendarDay'),
+  };
+
+  const isWidgetRtl = calMode === 'shamsi' || calMode === 'qamari' || calMode === 'hebrew';
 
   return (
-    <div className="bg-white border border-gray-200 rounded-xl p-4" dir={shamsi ? 'rtl' : 'ltr'}>
+    <div className="bg-white border border-gray-200 rounded-xl p-4" dir={isWidgetRtl ? 'rtl' : 'ltr'}>
       {/* Header */}
       <div className="flex items-start justify-between gap-2 mb-4 flex-wrap">
         <div className="min-w-0">
-          <h2 className="text-base font-semibold text-gray-900 leading-tight">{primaryTitle()}</h2>
-          <p className="text-xs text-gray-400 mt-0.5">{secondaryLabel()}</p>
+          <div className="flex items-center gap-2">
+            <h2 className="text-base font-semibold text-gray-900 leading-tight">{primaryTitle()}</h2>
+            {view === 'week' && (
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-gray-100 text-gray-500 shrink-0">
+                {calMode === 'shamsi'
+                  ? `ه${primaryWeekNumber()}`
+                  : calMode === 'qamari'
+                    ? `أ${primaryWeekNumber()}`
+                    : calMode === 'hebrew'
+                      ? `ש${primaryWeekNumber()}`
+                      : calMode === 'chinese'
+                        ? `第${primaryWeekNumber()}周`
+                        : calMode === 'saka'
+                          ? `स${primaryWeekNumber()}`
+                          : calMode === 'ethiopian'
+                            ? `ሳ${primaryWeekNumber()}`
+                            : `W${primaryWeekNumber()}`}
+              </span>
+            )}
+          </div>
+          {subLabels.map((lbl, i) => (
+            <p key={i} className="text-xs text-gray-400 mt-0.5 leading-tight">{lbl}</p>
+          ))}
         </div>
-        <div className={`flex items-center gap-2 shrink-0 ${shamsi ? 'flex-row-reverse' : ''}`}>
-          <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden">
-            <button onClick={() => navigate(-1)} className="px-2.5 py-1.5 text-gray-500 hover:bg-gray-100 transition-colors text-sm" aria-label="Previous">
+        <div className={`flex items-center gap-2 shrink-0 ${isWidgetRtl ? 'flex-row-reverse' : ''}`}>
+          {/* Single pill: ‹ | Today | Month | Week | Day | › */}
+          <div className="flex items-center border border-gray-200 rounded-lg">
+
+            {/* Prev */}
+            <button onClick={() => navigate(-1)} aria-label={calendarPrev}
+              className="px-2.5 py-1.5 text-gray-500 hover:bg-gray-100 transition-colors text-sm rounded-l-lg border-r border-gray-200">
               ‹
             </button>
-            <button onClick={() => navigate(1)} className="px-2.5 py-1.5 text-gray-500 hover:bg-gray-100 transition-colors border-l border-gray-200 text-sm" aria-label="Next">
+
+            {/* Today */}
+            <div className="relative group">
+              <button onClick={() => setCursor(today())} aria-label={calendarToday}
+                className="p-1.5 text-gray-500 hover:bg-gray-100 hover:text-blue-600 transition-colors border-r border-gray-200">
+                <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                  <rect x="2" y="3" width="14" height="13" rx="2"/>
+                  <line x1="2" y1="7" x2="16" y2="7"/>
+                  <line x1="6" y1="1.5" x2="6" y2="4.5"/>
+                  <line x1="12" y1="1.5" x2="12" y2="4.5"/>
+                  <circle cx="9" cy="12" r="1.5" fill="currentColor" stroke="none"/>
+                </svg>
+              </button>
+              <span className="pointer-events-none absolute top-full left-1/2 -translate-x-1/2 mt-1.5 whitespace-nowrap rounded bg-gray-800 px-2 py-0.5 text-[11px] text-white opacity-0 group-hover:opacity-100 transition-opacity z-50">
+                {calendarToday}
+              </span>
+            </div>
+
+            {/* Month */}
+            <div className="relative group">
+              <button onClick={() => setView('month')} aria-label={viewLabels.month}
+                className={`p-1.5 transition-colors border-r border-gray-200 ${view === 'month' ? 'bg-blue-600 text-white' : 'text-gray-500 hover:bg-gray-100 hover:text-blue-600'}`}>
+                <svg viewBox="0 0 18 18" fill="currentColor" className="w-4 h-4">
+                  <rect x="2" y="2" width="4" height="4" rx="0.5"/>
+                  <rect x="7" y="2" width="4" height="4" rx="0.5"/>
+                  <rect x="12" y="2" width="4" height="4" rx="0.5"/>
+                  <rect x="2" y="7" width="4" height="4" rx="0.5"/>
+                  <rect x="7" y="7" width="4" height="4" rx="0.5"/>
+                  <rect x="12" y="7" width="4" height="4" rx="0.5"/>
+                  <rect x="2" y="12" width="4" height="4" rx="0.5"/>
+                  <rect x="7" y="12" width="4" height="4" rx="0.5"/>
+                  <rect x="12" y="12" width="4" height="4" rx="0.5"/>
+                </svg>
+              </button>
+              <span className="pointer-events-none absolute top-full left-1/2 -translate-x-1/2 mt-1.5 whitespace-nowrap rounded bg-gray-800 px-2 py-0.5 text-[11px] text-white opacity-0 group-hover:opacity-100 transition-opacity z-50">
+                {viewLabels.month}
+              </span>
+            </div>
+
+            {/* Week */}
+            <div className="relative group">
+              <button onClick={() => setView('week')} aria-label={viewLabels.week}
+                className={`p-1.5 transition-colors border-r border-gray-200 ${view === 'week' ? 'bg-blue-600 text-white' : 'text-gray-500 hover:bg-gray-100 hover:text-blue-600'}`}>
+                <svg viewBox="0 0 18 18" fill="currentColor" className="w-4 h-4">
+                  <rect x="2" y="3" width="14" height="2.5" rx="1"/>
+                  <rect x="2" y="7.75" width="14" height="2.5" rx="1"/>
+                  <rect x="2" y="12.5" width="14" height="2.5" rx="1"/>
+                </svg>
+              </button>
+              <span className="pointer-events-none absolute top-full left-1/2 -translate-x-1/2 mt-1.5 whitespace-nowrap rounded bg-gray-800 px-2 py-0.5 text-[11px] text-white opacity-0 group-hover:opacity-100 transition-opacity z-50">
+                {viewLabels.week}
+              </span>
+            </div>
+
+            {/* Day */}
+            <div className="relative group">
+              <button onClick={() => setView('day')} aria-label={viewLabels.day}
+                className={`p-1.5 transition-colors border-r border-gray-200 ${view === 'day' ? 'bg-blue-600 text-white' : 'text-gray-500 hover:bg-gray-100 hover:text-blue-600'}`}>
+                <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                  <rect x="5" y="2" width="8" height="14" rx="1.5"/>
+                </svg>
+              </button>
+              <span className="pointer-events-none absolute top-full left-1/2 -translate-x-1/2 mt-1.5 whitespace-nowrap rounded bg-gray-800 px-2 py-0.5 text-[11px] text-white opacity-0 group-hover:opacity-100 transition-opacity z-50">
+                {viewLabels.day}
+              </span>
+            </div>
+
+            {/* Next */}
+            <button onClick={() => navigate(1)} aria-label={calendarNext}
+              className="px-2.5 py-1.5 text-gray-500 hover:bg-gray-100 transition-colors text-sm rounded-r-lg">
               ›
             </button>
-          </div>
-          <button onClick={() => setCursor(today())} className="px-3 py-1.5 text-xs font-medium border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors">
-            {shamsi ? 'امروز' : 'Today'}
-          </button>
-          <div className="flex border border-gray-200 rounded-lg overflow-hidden">
-            {views.map(v => (
-              <button key={v} onClick={() => setView(v)}
-                className={`px-3 py-1.5 text-xs font-medium transition-colors border-r last:border-r-0 border-gray-200
-                  ${view === v ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}>
-                {viewLabels[v]}
-              </button>
-            ))}
+
           </div>
         </div>
       </div>
 
       {/* Body */}
-      {view === 'month' && <MonthGrid cursor={cursor} shamsi={shamsi} events={events} holidayNames={holidayNames} weekendSet={weekendSet}
+      {view === 'month' && <MonthGrid cursor={cursor} calMode={calMode} secondaryCal={secondaryCalendar} tertiaryCal={tertiaryCalendar} lang={lang} events={events} holidayNames={holidayNames} weekendSet={weekendSet}
         onDayClick={d => { setCursor(d); setView('day'); }}
         onWeekClick={d => { setCursor(d); setView('week'); }}
       />}
-      {view === 'week' && <WeekPanel cursor={cursor} shamsi={shamsi} events={events} holidayNames={holidayNames} weekendSet={weekendSet}
+      {view === 'week' && <WeekPanel cursor={cursor} calMode={calMode} secondaryCal={secondaryCalendar} tertiaryCal={tertiaryCalendar} lang={lang} events={events} holidayNames={holidayNames} weekendSet={weekendSet}
         onDayClick={d => { setCursor(d); setView('day'); }}
       />}
-      {view === 'day' && <DayPanel cursor={cursor} shamsi={shamsi} events={events} holidayNames={holidayNames} weekendSet={weekendSet} />}
+      {view === 'day' && <DayPanel cursor={cursor} calMode={calMode} lang={lang} events={events} holidayNames={holidayNames} weekendSet={weekendSet} />}
     </div>
   );
 }

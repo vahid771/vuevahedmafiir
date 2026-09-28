@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import Holidays from 'date-holidays';
 import { db } from '../db';
 import { authenticateToken } from '../middleware/authenticate';
 
@@ -340,6 +341,29 @@ async function fetchCalendarific(country: string, year: number): Promise<Holiday
     }));
 }
 
+/**
+ * Fetch Iranian holidays for a Gregorian year using the date-holidays package.
+ * Returns all public holidays with native Persian names.
+ */
+function fetchDateHolidaysIR(year: number): Holiday[] {
+  try {
+    const hd = new Holidays('IR');
+    return (hd.getHolidays(year) as { date: string; name: string; type: string }[])
+      .filter(h => h.type === 'public')
+      .map(h => ({
+        date: h.date.slice(0, 10),
+        localName: h.name,
+        name: h.name,
+        nameFa: h.name,
+        types: ['Public'],
+        hidden: false,
+        isCustom: false,
+      }));
+  } catch {
+    return [];
+  }
+}
+
 async function fetchNager(country: string, year: number): Promise<Holiday[]> {
   const res = await fetch(`https://date.nager.at/api/v3/PublicHolidays/${year}/${country}`);
   if (!res.ok) return [];
@@ -408,6 +432,24 @@ router.get('/', async (req, res) => {
     } catch {
       apiHolidays = [];
     }
+  }
+
+  // For Iran, merge date-holidays results (native Persian names, includes lunar holidays).
+  // date-holidays wins on nameFa for any date it covers; Calendarific/Nager fills the rest.
+  if (country === 'IR') {
+    const dhHolidays = fetchDateHolidaysIR(year);
+    const byDate = new Map<string, Holiday>();
+    for (const h of apiHolidays) byDate.set(h.date, h);
+    for (const h of dhHolidays) {
+      const existing = byDate.get(h.date);
+      if (existing) {
+        // Override Persian name with date-holidays' native Persian
+        byDate.set(h.date, { ...existing, nameFa: h.nameFa, localName: h.localName });
+      } else {
+        byDate.set(h.date, h);
+      }
+    }
+    apiHolidays = Array.from(byDate.values());
   }
 
   // Deduplicate API results by date

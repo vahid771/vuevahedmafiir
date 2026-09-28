@@ -7,13 +7,12 @@ import { loansRouter } from './bills/loans.router';
 import remindersRouter from './reminders/router';
 import habitsRouter from './habits/router';
 import datesRouter from './dates/router';
-import documentsRouter from './documents/router';
-import aiRouter from './ai/router';
 import preferencesRouter from './preferences/router';
-import holidaysRouter from './holidays/router';
-import googleRouter from './google/router';
-import googleTasksRouter from './google/tasks.router';
-import googleCalendarRouter from './google/calendar.router';
+import aiRouter from './ai/router';
+// NOTE: documents, google/*, and holidays routers are in separate Vercel
+// function bundles (api/google-handler.js, api/holidays-handler.js)
+// to keep those bundles small and cold-start fast. groq-sdk is already in
+// this bundle (used by habits router), so adding the ai router here is free.
 
 const app = express();
 
@@ -58,13 +57,8 @@ app.use('/api/loans', loansRouter);
 app.use('/api/reminders', remindersRouter);
 app.use('/api/habits', habitsRouter);
 app.use('/api/dates', datesRouter);
-app.use('/api/documents', documentsRouter);
-app.use('/api/ai', aiRouter);
 app.use('/api/preferences', preferencesRouter);
-app.use('/api/holidays', holidaysRouter);
-app.use('/api/google', googleRouter);
-app.use('/api/google-tasks', googleTasksRouter);
-app.use('/api/google-calendar', googleCalendarRouter);
+app.use('/api/ai', aiRouter);
 
 // 404 handler for unknown API routes
 app.use('/api/*', (_req, res) => {

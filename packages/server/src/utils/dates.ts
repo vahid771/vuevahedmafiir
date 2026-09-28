@@ -3,6 +3,107 @@
  */
 
 // ---------------------------------------------------------------------------
+// Hijri (Qamari) conversion — arithmetic/tabular Kuwaiti algorithm
+// ---------------------------------------------------------------------------
+
+const HIJRI_MONTHS = [
+  'محرم', 'صفر', 'ربيع الأول', 'ربيع الثاني',
+  'جمادى الأولى', 'جمادى الثانية', 'رجب', 'شعبان',
+  'رمضان', 'شوال', 'ذو القعدة', 'ذو الحجة',
+];
+
+/** Gregorian → Julian Day Number */
+function gToJD(gy: number, gm: number, gd: number): number {
+  let y = gy, m = gm;
+  if (m <= 2) { y--; m += 12; }
+  const A = Math.floor(y / 100);
+  const B = 2 - A + Math.floor(A / 4);
+  return Math.floor(365.25 * (y + 4716)) + Math.floor(30.6001 * (m + 1)) + gd + B - 1524;
+}
+
+/** JDN → Hijri { hY, hM, hD } (Kuwaiti algorithm) */
+function jdToH(jd: number): { hY: number; hM: number; hD: number } {
+  const jdi = Math.floor(jd);
+  const l = jdi - 1948440 + 10632;
+  const n = Math.floor((l - 1) / 10631);
+  const l2 = l - 10631 * n + 354;
+  const j =
+    Math.floor((10985 - l2) / 5316) * Math.floor((50 * l2) / 17719) +
+    Math.floor(l2 / 5670) * Math.floor((43 * l2) / 15238);
+  const l3 =
+    l2 -
+    Math.floor((30 - j) / 15) * Math.floor((17719 * j) / 50) -
+    Math.floor(j / 16) * Math.floor((15238 * j) / 43) +
+    29;
+  const hM = Math.floor((24 * l3) / 709);
+  const hD = l3 - Math.floor((709 * hM) / 24);
+  const hY = 30 * n + j - 30;
+  return { hY, hM, hD };
+}
+
+/** Convert Western digits to Eastern Arabic-Indic digits (٠١٢…) */
+function toArabicDigits(n: number | string): string {
+  return String(n).replace(/[0-9]/g, d => '٠١٢٣٤٥٦٧٨٩'[Number(d)]);
+}
+
+/**
+ * Format a YYYY-MM-DD string as a Hijri display string.
+ * e.g. "2025-07-10" → "١٤ محرم ١٤٤٧"
+ */
+export function formatHijri(dateStr: string): string {
+  try {
+    const [gy, gm, gd] = dateStr.split('-').map(Number);
+    const { hY, hM, hD } = jdToH(gToJD(gy, gm, gd));
+    return `${toArabicDigits(hD)} ${HIJRI_MONTHS[hM - 1]} ${toArabicDigits(hY)}`;
+  } catch {
+    return dateStr;
+  }
+}
+
+/**
+ * Format a Date object as a Hijri display string including weekday (Persian names for fa lang).
+ * e.g. "یکشنبه، ١٤ محرم ١٤٤٧"
+ */
+export function formatHijriWithWeekday(date: Date, lang = 'fa'): string {
+  const faWeekdays = ['یکشنبه', 'دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنج‌شنبه', 'جمعه', 'شنبه'];
+  const arWeekdays = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+  const weekdays = lang === 'ar' ? arWeekdays : faWeekdays;
+  const { hY, hM, hD } = jdToH(gToJD(date.getFullYear(), date.getMonth() + 1, date.getDate()));
+  return `${weekdays[date.getDay()]}، ${toArabicDigits(hD)} ${HIJRI_MONTHS[hM - 1]} ${toArabicDigits(hY)}`;
+}
+
+/**
+ * Format a week range (start/end as YYYY-MM-DD) in Hijri.
+ * e.g. "٨ – ١٤ محرم ١٤٤٧"
+ */
+export function formatHijriWeekRange(weekStartStr: string, weekEndStr: string): string {
+  const [sy, sm, sd] = weekStartStr.split('-').map(Number);
+  const [ey, em, ed] = weekEndStr.split('-').map(Number);
+  const s = jdToH(gToJD(sy, sm, sd));
+  const e = jdToH(gToJD(ey, em, ed));
+  if (s.hM === e.hM && s.hY === e.hY) {
+    return `${toArabicDigits(s.hD)} – ${toArabicDigits(e.hD)} ${HIJRI_MONTHS[e.hM - 1]} ${toArabicDigits(e.hY)}`;
+  }
+  return `${toArabicDigits(s.hD)} ${HIJRI_MONTHS[s.hM - 1]} – ${toArabicDigits(e.hD)} ${HIJRI_MONTHS[e.hM - 1]} ${toArabicDigits(e.hY)}`;
+}
+
+/**
+ * Format an ISO datetime string as a Hijri date+time.
+ * e.g. "2025-07-10T14:30:00" → "١٤ محرم ١٤٤٧، ساعت ۱۴:۳۰"
+ */
+export function formatHijriDateTime(isoStr: string): string {
+  try {
+    const d = new Date(isoStr);
+    const { hY, hM, hD } = jdToH(gToJD(d.getFullYear(), d.getMonth() + 1, d.getDate()));
+    const h = String(d.getHours()).padStart(2, '0');
+    const min = String(d.getMinutes()).padStart(2, '0');
+    return `${toArabicDigits(hD)} ${HIJRI_MONTHS[hM - 1]} ${toArabicDigits(hY)}، ساعت ${toArabicDigits(h)}:${toArabicDigits(min)}`;
+  } catch {
+    return isoStr;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Jalali (Shamsi) conversion — dependency-free algorithm
 // ---------------------------------------------------------------------------
 

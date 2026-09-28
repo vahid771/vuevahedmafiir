@@ -11,72 +11,21 @@ import {
   resetWeekends,
   type Holiday,
 } from '../api/holidays';
-import { invalidateHolidayCache, invalidateAllHolidayCacheForCountry, getHolidayDisplayName } from '../hooks/useHolidays';
+import type { CalendarType } from '../api/preferences';
+import { invalidateHolidayCache, invalidateAllHolidayCacheForCountry, getHolidayDisplayName, cacheHolidayTranslation } from '../hooks/useHolidays';
 import { invalidateWeekendsCache } from '../hooks/useWeekends';
 import { toJalaliDisplay, toPersianDigits } from '../utils/jalali';
+import { toHijriDisplay, toArabicDigits, hijriToGregorian, gregorianToHijri } from '../utils/hijri';
+import { gregorianToHebrew, hebrewToGregorian, toHebrewDigits, HEBREW_MONTHS } from '../utils/hebrew';
+import { gregorianToChinese, chineseToGregorian, toChineseDigits, CHINESE_MONTHS } from '../utils/chinese';
+import { gregorianToSaka, sakaToGregorian, sakaDaysInMonth, toSakaDigits, SAKA_MONTHS } from '../utils/saka';
+import { gregorianToEthiopian, ethiopianToGregorian, ethiopianDaysInMonth, toEthiopianDigits, ETHIOPIAN_MONTHS } from '../utils/ethiopian';
 import DateInput from './DateInput';
 import { toJalaali, toGregorian } from 'jalaali-js';
 
 // ---------------------------------------------------------------------------
-// Weekday display orders
+// Per-calendar year helpers
 // ---------------------------------------------------------------------------
-
-// Gregorian: Mon-first (ISO week) — indices are Date.getDay() values
-// [Mon=1, Tue=2, Wed=3, Thu=4, Fri=5, Sat=6, Sun=0]
-const DOW_GREGORIAN: { idx: number; label: string }[] = [
-  { idx: 1, label: 'Mon' },
-  { idx: 2, label: 'Tue' },
-  { idx: 3, label: 'Wed' },
-  { idx: 4, label: 'Thu' },
-  { idx: 5, label: 'Fri' },
-  { idx: 6, label: 'Sat' },
-  { idx: 0, label: 'Sun' },
-];
-
-// Shamsi: Sat-first (Iranian week starts Saturday)
-// [Sat=6, Sun=0, Mon=1, Tue=2, Wed=3, Thu=4, Fri=5]
-const DOW_SHAMSI: { idx: number; label: string }[] = [
-  { idx: 6, label: 'ش' },
-  { idx: 0, label: 'ی' },
-  { idx: 1, label: 'د' },
-  { idx: 2, label: 'س' },
-  { idx: 3, label: 'چ' },
-  { idx: 4, label: 'پ' },
-  { idx: 5, label: 'ج' },
-];
-
-// ---------------------------------------------------------------------------
-// Jalali year ↔ Gregorian year helpers
-// ---------------------------------------------------------------------------
-
-/**
- * Given a Jalali year jy, returns the two Gregorian years it spans.
- * Farvardin 1 falls in March of gy1; Esfand 29/30 falls in March of gy2.
- * e.g. jy=1404 → gy1=2025, gy2=2026
- */
-function jalaliYearToGregorianYears(jy: number): { gy1: number; gy2: number } {
-  const { gy: gy1 } = toGregorian(jy, 1, 1);
-  const { gy: gy2 } = toGregorian(jy, 12, 29);
-  return { gy1, gy2: gy2 === gy1 ? gy1 + 1 : gy2 };
-}
-
-/**
- * Returns the Gregorian date string (YYYY-MM-DD) for Farvardin 1 of jy.
- */
-function jalaliYearStart(jy: number): string {
-  const { gy, gm, gd } = toGregorian(jy, 1, 1);
-  return `${gy}-${String(gm).padStart(2, '0')}-${String(gd).padStart(2, '0')}`;
-}
-
-/**
- * Returns the Gregorian date string (YYYY-MM-DD) for Esfand 29 (or 30 on leap) of jy.
- */
-function jalaliYearEnd(jy: number): string {
-  // Esfand has 29 days in regular years, 30 in Jalali leap years
-  const lastDay = isJalaliLeap(jy) ? 30 : 29;
-  const { gy, gm, gd } = toGregorian(jy, 12, lastDay);
-  return `${gy}-${String(gm).padStart(2, '0')}-${String(gd).padStart(2, '0')}`;
-}
 
 /** Simple Jalali leap year check (33-year cycle). */
 function isJalaliLeap(jy: number): boolean {
@@ -84,42 +33,175 @@ function isJalaliLeap(jy: number): boolean {
   return (rem % 2816) < 682;
 }
 
+interface CalYearRange {
+  /** Gregorian years to fetch (1 or 2 distinct values) */
+  gy1: number;
+  gy2: number;
+  /** ISO date boundaries for filtering results to this calendar year */
+  startDate: string;
+  endDate: string;
+}
+
 /**
- * Get the current Jalali year.
+ * Returns helpers for working with years in any calendar system.
+ * currentYear()        → current year in that calendar
+ * toGregorianRange(y)  → { gy1, gy2, startDate, endDate }
+ * formatYear(y)        → display string with the calendar's digit system
  */
-function currentJalaliYear(): number {
-  const now = new Date();
-  const { jy } = toJalaali(now.getFullYear(), now.getMonth() + 1, now.getDate());
-  return jy;
+function calYearHelpers(cal: CalendarType) {
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+  switch (cal) {
+    case 'shamsi': {
+      const currentYear = () => {
+        const { jy } = toJalaali(today.getFullYear(), today.getMonth() + 1, today.getDate());
+        return jy;
+      };
+      const toGregorianRange = (jy: number): CalYearRange => {
+        const { gy: gy1 } = toGregorian(jy, 1, 1);
+        const lastDay = isJalaliLeap(jy) ? 30 : 29;
+        const { gy: gy2 } = toGregorian(jy, 12, lastDay);
+        const { gm: sm, gd: sd } = toGregorian(jy, 1, 1);
+        const { gm: em, gd: ed } = toGregorian(jy, 12, lastDay);
+        const startDate = `${gy1}-${String(sm).padStart(2, '0')}-${String(sd).padStart(2, '0')}`;
+        const endDate   = `${gy2 === gy1 ? gy1 : gy2}-${String(em).padStart(2, '0')}-${String(ed).padStart(2, '0')}`;
+        return { gy1, gy2: gy2 === gy1 ? gy1 + 1 : gy2, startDate, endDate };
+      };
+      return { currentYear, toGregorianRange, formatYear: (y: number) => toPersianDigits(y) };
+    }
+
+    case 'qamari': {
+      const currentYear = () => gregorianToHijri(todayStr).year;
+      const toGregorianRange = (hy: number): CalYearRange => {
+        const startDate = hijriToGregorian(hy, 1, 1);
+        const endDate   = hijriToGregorian(hy, 12, 29); // Hijri months are 29 or 30; 29 is always safe
+        const gy1 = Number(startDate.slice(0, 4));
+        const gy2 = Number(endDate.slice(0, 4));
+        return { gy1, gy2: gy2 === gy1 ? gy1 + 1 : gy2, startDate, endDate };
+      };
+      return { currentYear, toGregorianRange, formatYear: (y: number) => toArabicDigits(y) };
+    }
+
+    case 'hebrew': {
+      const currentYear = () => gregorianToHebrew(todayStr).year;
+      const toGregorianRange = (hy: number): CalYearRange => {
+        const startDate = hebrewToGregorian(hy, 1, 1);
+        // Hebrew leap year has 13 months; non-leap has 12. Both end with Elul (29 days).
+        // Detect leap: (7*hY + 1) % 19 < 7
+        const isLeap = ((7 * hy + 1) % 19) < 7;
+        const endDate = hebrewToGregorian(hy, isLeap ? 13 : 12, 29);
+        const gy1 = Number(startDate.slice(0, 4));
+        const gy2 = Number(endDate.slice(0, 4));
+        return { gy1, gy2: gy2 === gy1 ? gy1 + 1 : gy2, startDate, endDate };
+      };
+      return { currentYear, toGregorianRange, formatYear: (y: number) => toHebrewDigits(y) };
+    }
+
+    case 'chinese': {
+      const currentYear = () => gregorianToChinese(todayStr).year;
+      const toGregorianRange = (cy: number): CalYearRange => {
+        const startDate = chineseToGregorian(cy, 1, 1);
+        // Chinese year ends at month 12, day 29 (safe — month 12 is always 29 or 30)
+        const endDate = chineseToGregorian(cy, 12, 29);
+        const gy1 = Number(startDate.slice(0, 4));
+        const gy2 = Number(endDate.slice(0, 4));
+        return { gy1, gy2, startDate, endDate };
+      };
+      return { currentYear, toGregorianRange, formatYear: (y: number) => toChineseDigits(y) };
+    }
+
+    case 'saka': {
+      const currentYear = () => gregorianToSaka(todayStr).year;
+      const toGregorianRange = (sy: number): CalYearRange => {
+        const startDate = sakaToGregorian(sy, 1, 1);
+        const lastDay   = sakaDaysInMonth(sy, 12); // Phalguna: always 30
+        const endDate   = sakaToGregorian(sy, 12, lastDay);
+        const gy1 = Number(startDate.slice(0, 4));
+        const gy2 = Number(endDate.slice(0, 4));
+        return { gy1, gy2, startDate, endDate };
+      };
+      return { currentYear, toGregorianRange, formatYear: (y: number) => toSakaDigits(y) };
+    }
+
+    case 'ethiopian': {
+      const currentYear = () => gregorianToEthiopian(todayStr).year;
+      const toGregorianRange = (ey: number): CalYearRange => {
+        const startDate = ethiopianToGregorian(ey, 1, 1);
+        const lastDay   = ethiopianDaysInMonth(ey, 13); // Pagumē: 5 or 6
+        const endDate   = ethiopianToGregorian(ey, 13, lastDay);
+        const gy1 = Number(startDate.slice(0, 4));
+        const gy2 = Number(endDate.slice(0, 4));
+        return { gy1, gy2: gy2 === gy1 ? gy1 + 1 : gy2, startDate, endDate };
+      };
+      return { currentYear, toGregorianRange, formatYear: (y: number) => toEthiopianDigits(y) };
+    }
+
+    default: { // miladi
+      const currentYear = () => today.getFullYear();
+      const toGregorianRange = (gy: number): CalYearRange => ({
+        gy1: gy, gy2: gy,
+        startDate: `${gy}-01-01`,
+        endDate:   `${gy}-12-31`,
+      });
+      return { currentYear, toGregorianRange, formatYear: (y: number) => String(y) };
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
-// Date formatting helper
+// Date formatting — calendar-aware
 // ---------------------------------------------------------------------------
 
-function formatDate(dateStr: string, shamsi: boolean): string {
+function formatDate(dateStr: string, calMode: CalendarType, lang: string): string {
   if (!dateStr) return '';
-  if (shamsi) return toJalaliDisplay(dateStr);
+  if (calMode === 'shamsi') return toJalaliDisplay(dateStr);
+  if (calMode === 'qamari') return toHijriDisplay(dateStr);
+  if (calMode === 'hebrew') {
+    const { year, month, day } = gregorianToHebrew(dateStr);
+    const monthName = HEBREW_MONTHS[month - 1] ?? String(month);
+    return `${day} ${monthName} ${year}`;
+  }
+  if (calMode === 'chinese') {
+    const { year, month, day } = gregorianToChinese(dateStr);
+    const monthName = CHINESE_MONTHS[month - 1] ?? String(month);
+    return `${monthName} ${day}, ${year}`;
+  }
+  if (calMode === 'saka') {
+    const { year, month, day } = gregorianToSaka(dateStr);
+    const monthName = SAKA_MONTHS[month - 1] ?? String(month);
+    return `${toSakaDigits(day)} ${monthName} ${toSakaDigits(year)}`;
+  }
+  if (calMode === 'ethiopian') {
+    const { year, month, day } = gregorianToEthiopian(dateStr);
+    const monthName = ETHIOPIAN_MONTHS[month - 1] ?? String(month);
+    return `${day} ${monthName} ${year}`;
+  }
+  // miladi (Gregorian) — use active UI locale
   const [y, m, d] = dateStr.split('-').map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString('en-US', {
+  return new Date(y, m - 1, d).toLocaleDateString(lang, {
     month: 'short', day: 'numeric', year: 'numeric',
   });
 }
 
 // ---------------------------------------------------------------------------
-// Sort holidays by Jalali date
+// Sort holidays in primary calendar order
 // ---------------------------------------------------------------------------
 
-function sortByJalali(holidays: Holiday[]): Holiday[] {
-  return [...holidays].sort((a, b) => {
-    const [ay, am, ad] = a.date.split('-').map(Number);
-    const [by, bm, bd] = b.date.split('-').map(Number);
-    const ja = toJalaali(ay, am, ad);
-    const jb = toJalaali(by, bm, bd);
-    if (ja.jy !== jb.jy) return ja.jy - jb.jy;
-    if (ja.jm !== jb.jm) return ja.jm - jb.jm;
-    return ja.jd - jb.jd;
-  });
+function sortByCalendar(holidays: Holiday[], calMode: CalendarType): Holiday[] {
+  if (calMode === 'shamsi') {
+    return [...holidays].sort((a, b) => {
+      const [ay, am, ad] = a.date.split('-').map(Number);
+      const [by, bm, bd] = b.date.split('-').map(Number);
+      const ja = toJalaali(ay, am, ad);
+      const jb = toJalaali(by, bm, bd);
+      if (ja.jy !== jb.jy) return ja.jy - jb.jy;
+      if (ja.jm !== jb.jm) return ja.jm - jb.jm;
+      return ja.jd - jb.jd;
+    });
+  }
+  // For all other calendars the ISO date string sorts correctly
+  return [...holidays].sort((a, b) => a.date.localeCompare(b.date));
 }
 
 // ---------------------------------------------------------------------------
@@ -143,27 +225,22 @@ export default function HolidaysSettingsPanel({ token }: Props) {
   const { t } = useTranslation();
   const { country, calendar } = useCalendar();
   const { lang } = useLanguage();
-  const shamsi = calendar === 'shamsi';
 
-  // ── Year selector ───────────────────────────────────────────────────────────
-  // In Shamsi mode: selectedYear is a Jalali year (e.g. 1404)
-  // In Gregorian mode: selectedYear is a Gregorian year (e.g. 2025)
-  const [selectedYear, setSelectedYear] = useState(() =>
-    shamsi ? currentJalaliYear() : new Date().getFullYear(),
-  );
+  // ── Year helpers (calendar-aware) ───────────────────────────────────────────
+  const yearHelpers = calYearHelpers(calendar);
 
-  // When calendar system switches, reset to current year in the new system
+  // selectedYear is always in the PRIMARY calendar's year space
+  // (e.g. 1404 for shamsi, 1446 for qamari, 5785 for hebrew, 4722 for chinese …)
+  const [selectedYear, setSelectedYear] = useState(() => yearHelpers.currentYear());
+
+  // When the calendar system switches, reset to the new calendar's current year
   useEffect(() => {
-    setSelectedYear(shamsi ? currentJalaliYear() : new Date().getFullYear());
-  }, [shamsi]);
+    setSelectedYear(calYearHelpers(calendar).currentYear());
+  }, [calendar]);
 
-  // Year options — 2 years back, current, 2 years forward
-  const baseYear = shamsi ? currentJalaliYear() : new Date().getFullYear();
+  // Options: current year −1 … +3  (5 entries) in the primary calendar's year space
+  const baseYear = yearHelpers.currentYear();
   const yearOptions = Array.from({ length: 5 }, (_, i) => baseYear - 1 + i);
-
-  function yearOptionLabel(y: number): string {
-    return shamsi ? toPersianDigits(y) : String(y);
-  }
 
   // ── Holidays state ──────────────────────────────────────────────────────────
   const [holidays, setHolidays] = useState<Holiday[]>([]);
@@ -183,57 +260,39 @@ export default function HolidaysSettingsPanel({ token }: Props) {
   const [formError, setFormError] = useState<string | null>(null);
 
   // ── Load holidays ───────────────────────────────────────────────────────────
-  // In Shamsi mode: fetch both Gregorian years the Jalali year spans, then filter
-  // to dates within [Farvardin 1, Esfand 29] of the selected Jalali year.
-  // In Gregorian mode: fetch one year.
+  // For each calendar: derive which Gregorian years to fetch, filter to the
+  // exact calendar-year date range, deduplicate, and sort in calendar order.
   const loadHolidays = useCallback(async () => {
     if (!country) { setHolidays([]); return; }
     setLoadingHolidays(true);
     setHolidayError(null);
     try {
-      let allHolidays: Holiday[];
+      const { gy1, gy2, startDate, endDate } = calYearHelpers(calendar).toGregorianRange(selectedYear);
 
-      if (shamsi) {
-        const jy = selectedYear;
-        const { gy1, gy2 } = jalaliYearToGregorianYears(jy);
-        const startDate = jalaliYearStart(jy);
-        const endDate = jalaliYearEnd(jy);
+      const fetches = gy1 === gy2
+        ? [getHolidays(token, country, gy1)]
+        : [getHolidays(token, country, gy1), getHolidays(token, country, gy2)];
 
-        // Fetch both Gregorian years (may be the same if the Jalali year
-        // happens to sit within one Gregorian year, which never actually occurs
-        // but we guard for it)
-        const fetches = gy1 === gy2
-          ? [getHolidays(token, country, gy1)]
-          : [getHolidays(token, country, gy1), getHolidays(token, country, gy2)];
+      const combined = (await Promise.all(fetches)).flat();
 
-        const results = await Promise.all(fetches);
-        const combined = results.flat();
+      // Filter to the calendar year's date range
+      const filtered = combined.filter(h => h.date >= startDate && h.date <= endDate);
 
-        // Filter to dates within the Jalali year [startDate, endDate]
-        const filtered = combined.filter(h => h.date >= startDate && h.date <= endDate);
+      // Deduplicate by date (guard against overlap in adjacent-year fetches)
+      const seen = new Set<string>();
+      const deduped = filtered.filter(h => {
+        if (seen.has(h.date)) return false;
+        seen.add(h.date);
+        return true;
+      });
 
-        // Deduplicate (same holiday can't appear twice across years, but guard anyway)
-        const seen = new Set<string>();
-        allHolidays = filtered.filter(h => {
-          if (seen.has(h.date)) return false;
-          seen.add(h.date);
-          return true;
-        });
-
-        // Sort by Jalali calendar order (Farvardin → Esfand)
-        allHolidays = sortByJalali(allHolidays);
-      } else {
-        allHolidays = await getHolidays(token, country, selectedYear);
-        // Already sorted by date (Gregorian Jan→Dec) from the server
-      }
-
-      setHolidays(allHolidays);
+      setHolidays(sortByCalendar(deduped, calendar));
     } catch {
       setHolidayError(t('common.error'));
     } finally {
       setLoadingHolidays(false);
     }
-  }, [country, selectedYear, shamsi, token, t]);
+  }, [country, selectedYear, calendar, token, t]);
 
   useEffect(() => { loadHolidays(); }, [loadHolidays]);
 
@@ -288,14 +347,10 @@ export default function HolidaysSettingsPanel({ token }: Props) {
     const [gy] = h.date.split('-').map(Number);
     try {
       await upsertHoliday(token, country, gy, h.date, h.localName, h.name, h.nameFa, !h.hidden, h.isCustom);
-      // Hide/show doesn't affect translations, so only invalidate the affected year
-      if (shamsi) {
-        const { gy1, gy2 } = jalaliYearToGregorianYears(selectedYear);
-        invalidateHolidayCache(country, gy1);
-        invalidateHolidayCache(country, gy2);
-      } else {
-        invalidateHolidayCache(country, selectedYear);
-      }
+      // Invalidate all Gregorian years that this calendar year spans
+      const { gy1, gy2 } = calYearHelpers(calendar).toGregorianRange(selectedYear);
+      invalidateHolidayCache(country, gy1);
+      if (gy2 !== gy1) invalidateHolidayCache(country, gy2);
       setHolidays(prev => prev.map(x => x.date === h.date ? { ...x, hidden: !h.hidden } : x));
     } catch {
       setHolidayError(t('common.error'));
@@ -345,6 +400,15 @@ export default function HolidaysSettingsPanel({ token }: Props) {
       // localName = Persian name for IR, English name otherwise
       const savedLocalName = country === 'IR' ? savedNameFa : savedName;
       await upsertHoliday(token, country, gy, form.date, savedLocalName, savedName, savedNameFa, existingHidden, isCustom);
+      // If the user typed a name for the active language, cache it so it shows immediately
+      // in the holiday list without needing a page reload.
+      const originalHoliday = holidays.find(h => h.date === form.date);
+      if (originalHoliday && savedName && savedName !== originalHoliday.name) {
+        // An English name edit: not a per-language cache but stored as the primary name
+      } else if (savedName && lang !== 'en' && lang !== 'fa') {
+        // User typed a translated name in the form.name field — cache it for this lang
+        cacheHolidayTranslation(lang, savedName, savedName);
+      }
       // Name was edited — server translation memory may now apply to all years, so
       // invalidate the entire country cache so all active useHolidays hooks re-fetch
       invalidateAllHolidayCacheForCountry(country);
@@ -377,7 +441,45 @@ export default function HolidaysSettingsPanel({ token }: Props) {
     );
   }
 
-  const dowList = shamsi ? DOW_SHAMSI : DOW_GREGORIAN;
+  // Derive short day names from the active i18n locale for all calendar types.
+  // settings.days is [Sun, Mon, Tue, Wed, Thu, Fri, Sat] (index 0=Sun … 6=Sat).
+  const i18nDays = t('settings.days', { returnObjects: true }) as string[];
+  // Mon-first (miladi, saka, qamari)
+  const monFirstI18n: { idx: number; label: string }[] = [
+    { idx: 1, label: i18nDays[1] },
+    { idx: 2, label: i18nDays[2] },
+    { idx: 3, label: i18nDays[3] },
+    { idx: 4, label: i18nDays[4] },
+    { idx: 5, label: i18nDays[5] },
+    { idx: 6, label: i18nDays[6] },
+    { idx: 0, label: i18nDays[0] },
+  ];
+  // Sat-first (shamsi)
+  const satFirstI18n: { idx: number; label: string }[] = [
+    { idx: 6, label: i18nDays[6] },
+    { idx: 0, label: i18nDays[0] },
+    { idx: 1, label: i18nDays[1] },
+    { idx: 2, label: i18nDays[2] },
+    { idx: 3, label: i18nDays[3] },
+    { idx: 4, label: i18nDays[4] },
+    { idx: 5, label: i18nDays[5] },
+  ];
+  // Sun-first (hebrew, chinese, ethiopian)
+  const sunFirstI18n: { idx: number; label: string }[] = [
+    { idx: 0, label: i18nDays[0] },
+    { idx: 1, label: i18nDays[1] },
+    { idx: 2, label: i18nDays[2] },
+    { idx: 3, label: i18nDays[3] },
+    { idx: 4, label: i18nDays[4] },
+    { idx: 5, label: i18nDays[5] },
+    { idx: 6, label: i18nDays[6] },
+  ];
+  const dowList: { idx: number; label: string }[] =
+    calendar === 'shamsi'    ? satFirstI18n :
+    calendar === 'hebrew'    ? sunFirstI18n :
+    calendar === 'chinese'   ? sunFirstI18n :
+    calendar === 'ethiopian' ? sunFirstI18n :
+    monFirstI18n; // miladi, saka, qamari
 
   return (
     <div className="space-y-6">
@@ -434,14 +536,14 @@ export default function HolidaysSettingsPanel({ token }: Props) {
             <h3 className="text-sm font-semibold text-gray-700">{t('settings.holidaysTitle')}</h3>
             <p className="text-xs text-gray-400 mt-0.5">{t('settings.holidaysDesc')}</p>
           </div>
-          {/* Year selector */}
+          {/* Year selector — options are in the primary calendar's year space */}
           <select
             value={selectedYear}
             onChange={e => setSelectedYear(Number(e.target.value))}
             className="text-sm border border-gray-200 rounded-lg px-2 py-1 text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             {yearOptions.map(y => (
-              <option key={y} value={y}>{yearOptionLabel(y)}</option>
+              <option key={y} value={y}>{yearHelpers.formatYear(y)}</option>
             ))}
           </select>
         </div>
@@ -516,7 +618,7 @@ export default function HolidaysSettingsPanel({ token }: Props) {
                 >
                   {/* Date in active calendar system */}
                   <span className="shrink-0 text-xs text-gray-400 w-28 leading-tight">
-                    {formatDate(h.date, shamsi)}
+                    {formatDate(h.date, calendar, lang)}
                   </span>
 
                   {/* Name — language-aware */}

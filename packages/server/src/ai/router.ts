@@ -8,6 +8,10 @@ import {
   formatJalaliWithWeekday,
   formatJalaliWeekRange,
   formatJalaliDateTime,
+  formatHijri,
+  formatHijriWithWeekday,
+  formatHijriWeekRange,
+  formatHijriDateTime,
 } from '../utils/dates';
 
 const router = Router();
@@ -99,14 +103,15 @@ Respond with a JSON object containing exactly two fields:
 - "expires_at": an ISO 8601 timestamp indicating when this summary should be considered stale. Use your judgment: if items are due today or tomorrow set a shorter expiry (e.g. 6 hours); otherwise expire at end of the current week.
 Return only raw JSON, no markdown fences, no extra text.`,
 
-  fa: `شما یک دستیار شخصی مفید هستید. کاربر می‌خواهد بداند این هفته به چه چیزی باید توجه کند.
+  fa: `قانون مطلق: تمام متن خروجی باید فقط و فقط به زبان فارسی (خط فارسی) باشد. هیچ کلمه‌ای به زبان دیگر (عربی، انگلیسی، هندی، بنگالی یا هر زبان دیگری) استفاده نکنید.
+شما یک دستیار شخصی مفید هستید. کاربر می‌خواهد بداند این هفته به چه چیزی باید توجه کند.
 بر اساس داده‌های ارائه‌شده، یک خلاصه مختصر، دوستانه و اولویت‌بندی‌شده (۳ تا ۵ پاراگراف کوتاه) بنویسید.
 با فوری‌ترین موارد شروع کنید. ابتدا موارد عقب‌افتاده یا آنهایی که به زودی سررسید می‌شوند را ذکر کنید.
-عملی و دقیق باشید. از توضیحات کلی و بی‌محتوا پرهیز کنید. پاسخ را کاملاً به فارسی بنویسید.
+عملی و دقیق باشید. از توضیحات کلی و بی‌محتوا پرهیز کنید.
 تاریخ‌های امروز، فردا و پس‌فردا در متن داده‌ها به صراحت ذکر شده‌اند — از همان‌ها استفاده کنید و خودتان تاریخ محاسبه نکنید.{SHAMSI_INSTRUCTION}
 مبالغ را با واحد ریال بنویسید.
 پاسخ را به صورت JSON با دو فیلد برگردانید:
-- "summary": متن خلاصه (رشته)
+- "summary": متن خلاصه (رشته، فقط فارسی)
 - "expires_at": یک timestamp ISO 8601 که نشان می‌دهد این خلاصه تا چه زمانی معتبر است. اگر آیتم‌های فوری وجود دارد (امروز یا فردا سررسید دارند) مدت اعتبار را کوتاه‌تر (مثلاً ۶ ساعت) تعیین کنید؛ در غیر این صورت تا پایان هفته جاری.
 فقط JSON خالص برگردانید، بدون توضیح اضافه.`,
 
@@ -235,12 +240,13 @@ router.post('/summary', async (req, res) => {
   const isFarsi = language === 'fa';
   const isArabic = language === 'ar';
   const isShamsi = calendar === 'shamsi';
+  const isQamari = calendar === 'qamari';
 
   // Date formatting helpers scoped to the chosen calendar
   const fmtDate = (dateStr: string) =>
-    isShamsi ? formatJalali(dateStr) : dateStr;
+    isShamsi ? formatJalali(dateStr) : isQamari ? formatHijri(dateStr) : dateStr;
   const fmtDateTime = (isoStr: string) =>
-    isShamsi ? formatJalaliDateTime(isoStr) : isoStr;
+    isShamsi ? formatJalaliDateTime(isoStr) : isQamari ? formatHijriDateTime(isoStr) : isoStr;
 
   // Currency label
   const currencyLabel = isFarsi ? 'ریال' : 'IRR';
@@ -274,19 +280,27 @@ router.post('/summary', async (req, res) => {
   // "Today" and week range lines
   const todayLabel = isShamsi
     ? formatJalaliWithWeekday(today)
-    : today.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    : isQamari
+      ? formatHijriWithWeekday(today, language)
+      : today.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
   const weekLabel = isShamsi
     ? formatJalaliWeekRange(weekStartStr, weekEndStr)
-    : `${weekStartStr} to ${weekEndStr}`;
+    : isQamari
+      ? formatHijriWeekRange(weekStartStr, weekEndStr)
+      : `${weekStartStr} to ${weekEndStr}`;
 
   // Pre-compute tomorrow and day-after-tomorrow labels so the AI doesn't have to infer them
   const tomorrowDate = new Date(today.getTime() + 86400000);
   const dayAfterDate = new Date(today.getTime() + 2 * 86400000);
   const tomorrowStr = tomorrowDate.toISOString().slice(0, 10);
   const dayAfterStr = dayAfterDate.toISOString().slice(0, 10);
-  const tomorrowLabel = isShamsi ? formatJalali(tomorrowStr) : tomorrowStr;
-  const dayAfterLabel = isShamsi ? formatJalali(dayAfterStr) : dayAfterStr;
-  const todayDateLabel = isShamsi ? formatJalali(today.toISOString().slice(0, 10)) : today.toISOString().slice(0, 10);
+  const tomorrowLabel = isShamsi ? formatJalali(tomorrowStr) : isQamari ? formatHijri(tomorrowStr) : tomorrowStr;
+  const dayAfterLabel = isShamsi ? formatJalali(dayAfterStr) : isQamari ? formatHijri(dayAfterStr) : dayAfterStr;
+  const todayDateLabel = isShamsi
+    ? formatJalali(today.toISOString().slice(0, 10))
+    : isQamari
+      ? formatHijri(today.toISOString().slice(0, 10))
+      : today.toISOString().slice(0, 10);
 
   // Calendar context line
   const calName = CALENDAR_NAMES[calendar] ?? calendar;
@@ -388,17 +402,23 @@ router.post('/summary', async (req, res) => {
 
   const prompt = lines.join('\n');
 
-  // Build system prompt: look up by language, fall back to English, then inject Shamsi instruction
-  const shamsiInstruction = isShamsi
+  // Build system prompt: inject calendar instruction for Shamsi and Qamari
+  const calendarInstruction = isShamsi
     ? (isFarsi
         ? '\nتمام تاریخ‌ها در داده‌ها به تقویم شمسی هستند — همان‌ها را عیناً در خروجی استفاده کنید. هرگز تاریخ میلادی یا عدد ماه ذکر نکنید.'
         : isArabic
           ? '\nجميع التواريخ في البيانات بالتقويم الشمسي (الجلالي) — انسخها كما هي في الإخراج. لا تذكر أبداً تواريخ ميلادية أو أرقام أشهر.'
           : '\nAll dates in the data are already in the Shamsi (Jalali) calendar — copy them verbatim. Never mention Gregorian dates or numeric month numbers.')
-    : '';
+    : isQamari
+      ? (isFarsi
+          ? '\nتمام تاریخ‌ها در داده‌ها به تقویم قمری (هجری) هستند — همان‌ها را عیناً در خروجی استفاده کنید. هرگز تاریخ میلادی یا شمسی ذکر نکنید.'
+          : isArabic
+            ? '\nجميع التواريخ في البيانات بالتقويم القمري (الهجري) — انسخها كما هي في الإخراج. لا تذكر أبداً تواريخ ميلادية.'
+            : '\nAll dates in the data are already in the Qamari (Hijri/Islamic) calendar — copy them verbatim. Never mention Gregorian dates.')
+      : '';
 
   const basePrompt = SYSTEM_PROMPTS[language] ?? SYSTEM_PROMPTS['en'];
-  const systemPrompt = basePrompt.replace('{SHAMSI_INSTRUCTION}', shamsiInstruction);
+  const systemPrompt = basePrompt.replace('{SHAMSI_INSTRUCTION}', calendarInstruction);
 
   console.log(`[summary] step=groq-start t=${Date.now()-t0}ms`);
   try {

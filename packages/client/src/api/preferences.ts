@@ -1,7 +1,7 @@
 import { apiUrl, authHeaders } from './base';
 
-export type CalendarType = 'miladi' | 'shamsi';
-export type LanguageType = 'en' | 'fa';
+export type CalendarType = 'miladi' | 'shamsi' | 'qamari' | 'hebrew' | 'chinese' | 'saka' | 'ethiopian';
+export type LanguageType = 'en' | 'fa' | 'ar' | 'zh' | 'hi' | 'es' | 'fr' | 'de' | 'pt' | 'ru' | 'tr' | 'id';
 
 export interface UserPreferences {
   id: number;
@@ -9,6 +9,8 @@ export interface UserPreferences {
   calendar: CalendarType;
   language: LanguageType;
   country: string | null;
+  secondary_calendar: CalendarType | null;
+  tertiary_calendar: CalendarType | null;
   created_at: string;
   updated_at: string;
 }
@@ -21,7 +23,10 @@ export async function getPreferences(token: string): Promise<UserPreferences> {
 
 export async function updatePreferences(
   token: string,
-  data: { calendar?: CalendarType; language?: LanguageType; country?: string | null }
+  data: {
+    calendar?: CalendarType; language?: LanguageType; country?: string | null;
+    secondary_calendar?: CalendarType | null; tertiary_calendar?: CalendarType | null;
+  }
 ): Promise<UserPreferences> {
   const res = await fetch(apiUrl('/api/preferences'), {
     method: 'PATCH',

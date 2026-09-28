@@ -12,10 +12,12 @@ const LanguageContext = createContext<LanguageContextValue | null>(null);
 
 const LS_LANG_KEY = 'app_lang';
 
+const VALID_LANGS: LanguageType[] = ['en','fa','ar','zh','hi','es','fr','de','pt','ru','tr','id'];
+
 function readStoredLang(): LanguageType {
   try {
     const v = localStorage.getItem(LS_LANG_KEY);
-    if (v === 'fa' || v === 'en') return v;
+    if (v && VALID_LANGS.includes(v as LanguageType)) return v as LanguageType;
   } catch { /* ignore */ }
   return 'en';
 }
@@ -32,16 +34,29 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!token) return;
     getPreferences(token)
-      .then(prefs => applyLang(prefs.language ?? 'en'))
+      .then(prefs => {
+        const serverLang = prefs.language ?? 'en';
+        const localLang = readStoredLang();
+        if (serverLang !== localLang) {
+          // localStorage has a more recent value (e.g. saved while server rejected it).
+          // Apply local preference and push it to the server to sync.
+          applyLang(localLang);
+          updatePreferences(token, { language: localLang }).catch(() => {});
+        } else {
+          applyLang(serverLang);
+        }
+      })
       .catch(() => {/* keep default */});
   }, [token]);
 
   function applyLang(l: LanguageType) {
     setLangState(l);
     i18n.changeLanguage(l);
-    document.documentElement.dir = l === 'fa' ? 'rtl' : 'ltr';
+    document.documentElement.dir = (l === 'fa' || l === 'ar') ? 'rtl' : 'ltr';
     document.documentElement.lang = l;
     try { localStorage.setItem(LS_LANG_KEY, l); } catch { /* ignore */ }
+    // For RTL-only prefs, patch text-align via attribute too
+    document.documentElement.setAttribute('data-lang', l);
   }
 
   async function setLang(l: LanguageType) {

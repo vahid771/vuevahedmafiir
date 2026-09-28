@@ -10,21 +10,21 @@ import { getTasks, type Task } from '../api/tasks';
 import { getHabits, type Habit } from '../api/habits';
 import { getBills, getLoans, type Bill, type Loan } from '../api/bills';
 
-// Per-language localStorage cache
-function lsKey(lang: string) { return `ai_summary_cache_${lang}`; }
+// Per-language + per-calendar localStorage cache
+function lsKey(lang: string, calendar: string) { return `ai_summary_cache_${lang}_${calendar}`; }
 
 interface CachedEntry { summary: string; expiresAt: string; generatedAt: string }
 
-function loadLocalCache(lang: string): CachedEntry | null {
+function loadLocalCache(key: string): CachedEntry | null {
   try {
-    const raw = localStorage.getItem(lsKey(lang));
+    const raw = localStorage.getItem(key);
     if (!raw) return null;
     return JSON.parse(raw) as CachedEntry;
   } catch { return null; }
 }
 
-function saveLocalCache(lang: string, entry: CachedEntry) {
-  try { localStorage.setItem(lsKey(lang), JSON.stringify(entry)); } catch { /* ignore */ }
+function saveLocalCache(key: string, entry: CachedEntry) {
+  try { localStorage.setItem(key, JSON.stringify(entry)); } catch { /* ignore */ }
 }
 
 function isExpired(expiresAt: string): boolean {
@@ -80,7 +80,7 @@ export default function DashboardPage() {
   const [chartBills, setChartBills]   = useState<Bill[]>([]);
   const [chartLoans, setChartLoans]   = useState<Loan[]>([]);
 
-  // Re-load when language changes — each lang has its own cache
+  // Re-load when language or calendar changes — each (lang, calendar) pair has its own cache
   useEffect(() => {
     setSummary('');
     setExpiresAt('');
@@ -89,7 +89,7 @@ export default function DashboardPage() {
     setEditing(false);
     setEditError('');
 
-    const local = loadLocalCache(lang);
+    const local = loadLocalCache(lsKey(lang, calendar));
     if (local && !isExpired(local.expiresAt)) {
       setSummary(local.summary);
       setExpiresAt(local.expiresAt);
@@ -98,17 +98,17 @@ export default function DashboardPage() {
 
     if (!token) return;
 
-    getCachedSummary(token, lang).then(cached => {
+    getCachedSummary(token, lang, calendar).then(cached => {
       if (!cached) return;
       setHistory(cached.history);
       if (cached.summary && !isExpired(cached.expiresAt)) {
         setSummary(cached.summary);
         setExpiresAt(cached.expiresAt);
         setGeneratedAt(cached.generatedAt);
-        saveLocalCache(lang, { summary: cached.summary, expiresAt: cached.expiresAt, generatedAt: cached.generatedAt });
+        saveLocalCache(lsKey(lang, calendar), { summary: cached.summary, expiresAt: cached.expiresAt, generatedAt: cached.generatedAt });
       }
     }).catch(() => { /* non-fatal */ });
-  }, [token, lang]);
+  }, [token, lang, calendar]);
 
   // Chart data fetch — runs once on mount
   useEffect(() => {
@@ -133,12 +133,12 @@ export default function DashboardPage() {
     try {
       const result = await getSummary(token!, lang, calendar);
       // Refresh history after generating new summary
-      const cached = await getCachedSummary(token!, lang).catch(() => null);
+      const cached = await getCachedSummary(token!, lang, calendar).catch(() => null);
       if (cached) setHistory(cached.history);
       setSummary(result.summary);
       setExpiresAt(result.expiresAt);
       setGeneratedAt(result.generatedAt);
-      saveLocalCache(lang, { summary: result.summary, expiresAt: result.expiresAt, generatedAt: result.generatedAt });
+      saveLocalCache(lsKey(lang, calendar), { summary: result.summary, expiresAt: result.expiresAt, generatedAt: result.generatedAt });
     } catch (e) {
       setError(e instanceof Error ? e.message : t('dashboard.failedSummary'));
     } finally {
@@ -164,13 +164,13 @@ export default function DashboardPage() {
     setEditSaving(true);
     setEditError('');
     try {
-      const result = await updateSummary(token!, lang, editText.trim());
+      const result = await updateSummary(token!, lang, calendar, editText.trim());
       // Old summary was pushed to history by server; refresh
-      const cached = await getCachedSummary(token!, lang).catch(() => null);
+      const cached = await getCachedSummary(token!, lang, calendar).catch(() => null);
       if (cached) setHistory(cached.history);
       setSummary(result.summary);
       setGeneratedAt(result.generatedAt);
-      saveLocalCache(lang, { summary: result.summary, expiresAt: expiresAt, generatedAt: result.generatedAt });
+      saveLocalCache(lsKey(lang, calendar), { summary: result.summary, expiresAt: expiresAt, generatedAt: result.generatedAt });
       setEditing(false);
     } catch (e) {
       setEditError(e instanceof Error ? e.message : t('common.error'));
@@ -183,7 +183,7 @@ export default function DashboardPage() {
     setSummary(entry.summary);
     setGeneratedAt(entry.createdAt);
     setExpiresAt(entry.expiresAt);
-    saveLocalCache(lang, { summary: entry.summary, expiresAt: entry.expiresAt, generatedAt: entry.createdAt });
+    saveLocalCache(lsKey(lang, calendar), { summary: entry.summary, expiresAt: entry.expiresAt, generatedAt: entry.createdAt });
     setHistoryOpen(false);
     setEditing(false);
   }
@@ -359,23 +359,6 @@ export default function DashboardPage() {
             {t('dashboard.summaryPlaceholder')}
           </p>
         )}
-      </div>
-
-      {/* Quick-nav cards */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-        {[
-          { labelKey: 'dashboard.tasks',     href: '/tasks',     icon: '✓', color: 'bg-blue-50 border-blue-200 text-blue-700' },
-          { labelKey: 'dashboard.bills',     href: '/bills',     icon: '💳', color: 'bg-green-50 border-green-200 text-green-700' },
-          { labelKey: 'dashboard.reminders', href: '/reminders', icon: '🔔', color: 'bg-yellow-50 border-yellow-200 text-yellow-700' },
-          { labelKey: 'dashboard.habits',    href: '/habits',    icon: '◎', color: 'bg-orange-50 border-orange-200 text-orange-700' },
-          { labelKey: 'dashboard.dates',     href: '/dates',     icon: '📅', color: 'bg-purple-50 border-purple-200 text-purple-700' },
-          { labelKey: 'dashboard.documents', href: '/documents', icon: '📁', color: 'bg-gray-50 border-gray-200 text-gray-700' },
-        ].map(({ labelKey, href, icon, color }) => (
-          <a key={labelKey} href={href} className={`flex items-center gap-3 p-4 rounded-xl border ${color} hover:opacity-80 transition-opacity`}>
-            <span className="text-xl">{icon}</span>
-            <span className="font-medium text-sm">{t(labelKey)}</span>
-          </a>
-        ))}
       </div>
 
       {/* Statistical overview */}

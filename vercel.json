@@ -1,16 +1,34 @@
 {
-  "buildCommand": "npm run build",
+  "buildCommand": "npm run build:bundles",
   "outputDirectory": "packages/client/dist",
   "installCommand": "npm install",
   "framework": null,
   "functions": {
     "api/index.js": {
-      "includeFiles": "api/**",
+      "includeFiles": "api/_core/**",
+      "maxDuration": 30
+    },
+    "api/ai-handler.js": {
+      "includeFiles": "api/_ai/**",
+      "maxDuration": 60
+    },
+    "api/google-handler.js": {
+      "includeFiles": "api/_google/**",
+      "maxDuration": 30
+    },
+    "api/holidays-handler.js": {
+      "includeFiles": "api/_holidays/**",
       "maxDuration": 30
     }
   },
   "rewrites": [
-    { "source": "/api/:path*", "destination": "/api/index" },
-    { "source": "/(.*)", "destination": "/index.html" }
+    { "source": "/api/ai/:path*",              "destination": "/api/ai-handler" },
+    { "source": "/api/documents/:path*",        "destination": "/api/google-handler" },
+    { "source": "/api/google/:path*",           "destination": "/api/google-handler" },
+    { "source": "/api/google-tasks/:path*",     "destination": "/api/google-handler" },
+    { "source": "/api/google-calendar/:path*",  "destination": "/api/google-handler" },
+    { "source": "/api/holidays/:path*",         "destination": "/api/holidays-handler" },
+    { "source": "/api/:path*",                  "destination": "/api/index" },
+    { "source": "/(.*)",                        "destination": "/index.html" }
   ]
 }

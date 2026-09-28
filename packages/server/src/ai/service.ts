@@ -9,6 +9,7 @@ export type AiReminder = { title: string; remind_at: string; notes: string | nul
 export type AiHabit = { id: number; name: string; name_fa: string | null; name_en: string | null; frequency: string; logsThisWeek: number; daysSoFar: number };
 export type AiDate = { title: string; date: string; recurs_yearly: number; notes: string | null; next_occurrence: string };
 export type AiLoan = { name: string; lender: string | null; remaining_amount: number; installment: number | null; next_payment_date: string | null };
+export type AiHoliday = { date: string; name: string; name_fa: string | null };
 
 export type AiContext = {
   today: Date;
@@ -24,6 +25,7 @@ export type AiContext = {
   habitsWithLogs: AiHabit[];
   nearDates: AiDate[];
   upcomingLoans: AiLoan[];
+  upcomingHolidays: AiHoliday[];
 };
 
 /**
@@ -31,7 +33,7 @@ export type AiContext = {
  * @param calendar 'shamsi' uses Saturday–Friday weeks; anything else uses Monday–Sunday.
  * @param todayOverride YYYY-MM-DD from the client's local timezone; falls back to server UTC.
  */
-export async function gatherUserData(userId: number, calendar = 'miladi', todayOverride?: string): Promise<AiContext> {
+export async function gatherUserData(userId: number, calendar = 'miladi', todayOverride?: string, country?: string | null): Promise<AiContext> {
   // Use client-supplied local date to avoid UTC-vs-local-timezone mismatches
   const todayStr = todayOverride && /^\d{4}-\d{2}-\d{2}$/.test(todayOverride)
     ? todayOverride
@@ -101,6 +103,20 @@ export async function gatherUserData(userId: number, calendar = 'miladi', todayO
     args: [userId, in14],
   })).rows as unknown as AiLoan[];
 
+  // Fetch upcoming public holidays for the user's country (next 14 days, respecting hidden flag)
+  let upcomingHolidays: AiHoliday[] = [];
+  if (country) {
+    const year = today.getFullYear();
+    const nextYear = year + 1;
+    upcomingHolidays = (await db.execute({
+      sql: `SELECT date, name, name_fa FROM user_holidays
+            WHERE user_id = ? AND country = ? AND year IN (?, ?)
+            AND hidden = 0 AND date BETWEEN ? AND ?
+            ORDER BY date ASC`,
+      args: [userId, country, year, nextYear, todayStr, in14],
+    })).rows as unknown as AiHoliday[];
+  }
+
   return {
     today,
     todayStr,
@@ -115,5 +131,6 @@ export async function gatherUserData(userId: number, calendar = 'miladi', todayO
     habitsWithLogs,
     nearDates,
     upcomingLoans,
+    upcomingHolidays,
   };
 }

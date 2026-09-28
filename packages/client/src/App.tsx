@@ -14,7 +14,12 @@ import RemindersPage from './pages/RemindersPage';
 import HabitsPage from './pages/HabitsPage';
 import ImportantDatesPage from './pages/ImportantDatesPage';
 import DocumentsPage from './pages/DocumentsPage';
-import SettingsPage from './pages/SettingsPage';
+import SettingsLayout from './pages/settings/SettingsLayout';
+import CalendarSettingsPage from './pages/settings/CalendarSettingsPage';
+import LanguageSettingsPage from './pages/settings/LanguageSettingsPage';
+import LocationSettingsPage from './pages/settings/LocationSettingsPage';
+import HolidaysSettingsPage from './pages/settings/HolidaysSettingsPage';
+import IntegrationsSettingsPage from './pages/settings/IntegrationsSettingsPage';
 import PrivacyPage from './pages/PrivacyPage';
 import TermsPage from './pages/TermsPage';
 import AuthCallbackPage from './pages/AuthCallbackPage';
@@ -46,7 +51,14 @@ function App() {
               <Route path="/habits" element={<HabitsPage />} />
               <Route path="/dates" element={<ImportantDatesPage />} />
               <Route path="/documents" element={<DocumentsPage />} />
-              <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/settings" element={<SettingsLayout />}>
+                <Route index element={<Navigate to="/settings/calendar" replace />} />
+                <Route path="calendar" element={<CalendarSettingsPage />} />
+                <Route path="language" element={<LanguageSettingsPage />} />
+                <Route path="location" element={<LocationSettingsPage />} />
+                <Route path="holidays" element={<HolidaysSettingsPage />} />
+                <Route path="integrations" element={<IntegrationsSettingsPage />} />
+              </Route>
             </Route>
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
           </Routes>

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { google } from 'googleapis';
+import { OAuth2Client } from 'google-auth-library';
 import { db } from '../db';
 
 const router = Router();
@@ -20,7 +20,7 @@ function getGoogleLoginClient() {
   if (!clientId) throw new Error('GOOGLE_CLIENT_ID is not set');
   if (!clientSecret) throw new Error('GOOGLE_CLIENT_SECRET is not set');
   if (!redirectUri) throw new Error('GOOGLE_LOGIN_REDIRECT_URI is not set');
-  return new google.auth.OAuth2(clientId, clientSecret, redirectUri);
+  return new OAuth2Client(clientId, clientSecret, redirectUri);
 }
 
 // POST /api/auth/register
@@ -105,10 +105,12 @@ router.get('/google/callback', async (req, res) => {
   try {
     const client = getGoogleLoginClient();
     const { tokens } = await client.getToken(code);
-    client.setCredentials(tokens);
 
-    const oauth2 = google.oauth2({ version: 'v2', auth: client });
-    const { data } = await oauth2.userinfo.get();
+    // Fetch user info directly — avoids pulling in the full googleapis bundle
+    const userinfoRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+      headers: { Authorization: `Bearer ${tokens.access_token}` },
+    });
+    const data = await userinfoRes.json() as { email?: string };
 
     const email = data.email;
     if (!email) {

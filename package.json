@@ -8,13 +8,14 @@
   ],
   "scripts": {
     "dev": "concurrently --kill-others-on-fail --names \"server,client\" --prefix-colors \"blue,green\" \"npm run dev --workspace=packages/server\" \"npm run dev --workspace=packages/client\"",
-    "build": "npm run build --workspace=packages/server && npx esbuild packages/server/src/app.ts packages/server/src/db.ts --bundle --platform=node --target=node18 --outdir=api --format=cjs && npm run build --workspace=packages/client"
+    "build": "npm run build --workspace=packages/server && npx esbuild packages/server/src/app.ts packages/server/src/db.ts --bundle --platform=node --target=node18 --outdir=api --format=cjs --out-extension:.js=.js --external:googleapis --external:google-auth-library --external:date-holidays --external:groq-sdk --external:openai --external:busboy --external:multer && npx esbuild packages/server/src/ai-entry.ts --bundle --platform=node --target=node18 --outfile=api/ai-app.js --format=cjs --external:googleapis --external:google-auth-library --external:date-holidays && npx esbuild packages/server/src/google-entry.ts --bundle --platform=node --target=node18 --outfile=api/google-app.js --format=cjs --external:groq-sdk --external:openai --external:date-holidays && npx esbuild packages/server/src/holidays-entry.ts --bundle --platform=node --target=node18 --outfile=api/holidays-app.js --format=cjs --external:googleapis --external:google-auth-library --external:groq-sdk --external:openai && npm run build --workspace=packages/client",
+    "build:bundles": "npm run build --workspace=packages/server && npx esbuild packages/server/src/app.ts packages/server/src/db.ts --bundle --platform=node --target=node18 --outdir=api/_core --format=cjs --out-extension:.js=.js && npx esbuild packages/server/src/ai-entry.ts --bundle --platform=node --target=node18 --outfile=api/_ai/app.js --format=cjs && npx esbuild packages/server/src/google-entry.ts --bundle --platform=node --target=node18 --outfile=api/_google/app.js --format=cjs && npx esbuild packages/server/src/holidays-entry.ts --bundle --platform=node --target=node18 --outfile=api/_holidays/app.js --format=cjs && npm run build --workspace=packages/client"
   },
   "devDependencies": {
     "@vercel/node": "^13.0.0",
     "concurrently": "^8.0.0"
   },
   "engines": {
-    "node": ">=18"
+    "node": "22.x"
   }
 }

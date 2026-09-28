@@ -1,40 +1,26 @@
-import { useCalendar } from '../context/CalendarContext';
-import JalaliDatePicker from './JalaliDatePicker';
+import CalendarDatePicker from './CalendarDatePicker';
 
 interface DateInputProps {
   value: string;
   onChange: (value: string) => void;
   className?: string;
   id?: string;
+  placeholder?: string;
+  disabled?: boolean;
 }
 
 /**
- * Smart date input wrapper.
- * - When calendar is "miladi": renders a native <input type="date">
- * - When calendar is "shamsi": renders the JalaliDatePicker
- *
- * Both receive and emit YYYY-MM-DD Gregorian strings.
+ * Smart date input wrapper — renders a CalendarDatePicker for all calendar systems.
+ * Receives and emits YYYY-MM-DD Gregorian strings.
  */
-export default function DateInput({ value, onChange, className = '', id }: DateInputProps) {
-  const { calendar } = useCalendar();
-
-  if (calendar === 'shamsi') {
-    return (
-      <JalaliDatePicker
-        value={value}
-        onChange={onChange}
-        className={className}
-      />
-    );
-  }
-
+export default function DateInput({ value, onChange, className = '', placeholder, disabled }: DateInputProps) {
   return (
-    <input
-      id={id}
-      type="date"
+    <CalendarDatePicker
       value={value}
-      onChange={e => onChange(e.target.value)}
+      onChange={onChange}
       className={className}
+      placeholder={placeholder}
+      disabled={disabled}
     />
   );
 }
