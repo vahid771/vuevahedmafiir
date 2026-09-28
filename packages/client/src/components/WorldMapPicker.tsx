@@ -19,26 +19,34 @@ import FlagImg from './FlagImg';
 const GEO_URL =
   'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json';
 
-// Only the 65 supported country codes
-const COUNTRY_CODES = new Set<string>([
-  'AF','DZ','AR','AU','AT','BE','BR','CA','CL','CN','CO','HR','CZ','DK',
-  'EG','FI','FR','DE','GR','HU','IN','ID','IR','IQ','IE','IL','IT','JP',
-  'JO','KZ','KW','MY','MX','MA','NL','NZ','NG','NO','OM','PK','PE','PH',
-  'PL','PT','QA','RO','RU','SA','RS','SG','ZA','KR','ES','SE','CH','TW',
-  'TH','TR','UA','AE','GB','US','UZ','VN',
-]);
-
-/** Numeric ISO 3166-1 → alpha-2 for the countries we care about */
+/** Numeric ISO 3166-1 → alpha-2 (full world coverage) */
 const NUMERIC_TO_ALPHA2: Record<string, string> = {
-  '004':'AF','012':'DZ','032':'AR','036':'AU','040':'AT','056':'BE','076':'BR',
-  '124':'CA','152':'CL','156':'CN','170':'CO','191':'HR','203':'CZ','208':'DK',
-  '818':'EG','246':'FI','250':'FR','276':'DE','300':'GR','348':'HU','356':'IN',
-  '360':'ID','364':'IR','368':'IQ','372':'IE','376':'IL','380':'IT','392':'JP',
-  '400':'JO','398':'KZ','414':'KW','458':'MY','484':'MX','504':'MA','528':'NL',
-  '554':'NZ','566':'NG','578':'NO','512':'OM','586':'PK','604':'PE','608':'PH',
-  '616':'PL','620':'PT','634':'QA','642':'RO','643':'RU','682':'SA','688':'RS',
-  '702':'SG','710':'ZA','410':'KR','724':'ES','752':'SE','756':'CH','158':'TW',
-  '764':'TH','792':'TR','804':'UA','784':'AE','826':'GB','840':'US','860':'UZ','704':'VN',
+  '004':'AF','008':'AL','012':'DZ','016':'AS','020':'AD','024':'AO','028':'AG',
+  '031':'AZ','032':'AR','036':'AU','040':'AT','044':'BS','048':'BH','050':'BD',
+  '051':'AM','056':'BE','060':'BM','064':'BT','068':'BO','070':'BA','072':'BW',
+  '076':'BR','096':'BN','100':'BG','104':'MM','108':'BI','116':'KH','120':'CM',
+  '124':'CA','132':'CV','140':'CF','144':'LK','152':'CL','156':'CN','170':'CO',
+  '174':'KM','178':'CG','180':'CD','188':'CR','191':'HR','192':'CU','196':'CY',
+  '203':'CZ','204':'BJ','208':'DK','212':'DM','214':'DO','218':'EC','222':'SV',
+  '226':'GQ','231':'ET','232':'ER','233':'EE','238':'FK','246':'FI','250':'FR',
+  '266':'GA','270':'GM','268':'GE','276':'DE','288':'GH','300':'GR','308':'GD',
+  '320':'GT','324':'GN','328':'GY','332':'HT','340':'HN','348':'HU','356':'IN',
+  '360':'ID','364':'IR','368':'IQ','372':'IE','376':'IL','380':'IT','384':'CI',
+  '388':'JM','392':'JP','400':'JO','398':'KZ','404':'KE','296':'KI','408':'KP',
+  '410':'KR','414':'KW','417':'KG','418':'LA','422':'LB','426':'LS','430':'LR',
+  '434':'LY','428':'LV','440':'LT','442':'LU','450':'MG','454':'MW','458':'MY',
+  '462':'MV','466':'ML','470':'MT','478':'MR','480':'MU','484':'MX','496':'MN',
+  '498':'MD','499':'ME','504':'MA','508':'MZ','516':'NA','524':'NP','528':'NL',
+  '540':'NC','554':'NZ','558':'NI','562':'NE','566':'NG','578':'NO','512':'OM',
+  '586':'PK','585':'PW','591':'PA','598':'PG','600':'PY','604':'PE','608':'PH',
+  '616':'PL','620':'PT','630':'PR','634':'QA','642':'RO','643':'RU','646':'RW',
+  '659':'KN','662':'LC','670':'VC','682':'SA','686':'SN','688':'RS','694':'SL',
+  '702':'SG','703':'SK','704':'VN','705':'SI','706':'SO','710':'ZA','716':'ZW',
+  '724':'ES','728':'SS','729':'SD','740':'SR','752':'SE','756':'CH','760':'SY',
+  '762':'TJ','764':'TH','768':'TG','776':'TO','780':'TT','784':'AE','788':'TN',
+  '792':'TR','795':'TM','800':'UG','804':'UA','807':'MK','818':'EG','826':'GB',
+  '840':'US','858':'UY','860':'UZ','862':'VE','887':'YE','894':'ZM','112':'BY',
+  '352':'IS','158':'TW',
 };
 
 const CONTINENT_COLORS: Record<Continent, string> = {
@@ -121,15 +129,12 @@ export default function WorldMapPicker({ selected, onSelect, lang }: WorldMapPic
   }
 
   function getCursor(alpha2: string | undefined): string {
+    if (!alpha2) return 'default';
     if (!continentView) {
-      // World view: clickable if it belongs to any continent
-      return alpha2 && COUNTRY_TO_CONTINENT[alpha2] ? 'pointer' : 'default';
+      return COUNTRY_TO_CONTINENT[alpha2] ? 'pointer' : 'default';
     }
-    // Continent view: only selectable countries in this continent
-    if (alpha2 && COUNTRY_TO_CONTINENT[alpha2] === continentView && COUNTRY_CODES.has(alpha2)) {
-      return 'pointer';
-    }
-    return 'default';
+    // Continent view: any country in this continent is selectable
+    return COUNTRY_TO_CONTINENT[alpha2] === continentView ? 'pointer' : 'default';
   }
 
   function handleGeoClick(alpha2: string | undefined) {
@@ -138,7 +143,7 @@ export default function WorldMapPicker({ selected, onSelect, lang }: WorldMapPic
       const continent = COUNTRY_TO_CONTINENT[alpha2];
       if (continent) setContinentView(continent);
     } else {
-      if (COUNTRY_TO_CONTINENT[alpha2] === continentView && COUNTRY_CODES.has(alpha2)) {
+      if (COUNTRY_TO_CONTINENT[alpha2] === continentView) {
         onSelect(alpha2);
       }
     }
