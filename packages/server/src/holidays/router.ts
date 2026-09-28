@@ -493,14 +493,6 @@ router.post('/translate', async (req, res) => {
     res.status(400).json({ error: 'lang is required' });
     return;
   }
-  if (lang === 'en') {
-    // Nothing to translate — return identity map
-    const translations: Record<string, string> = {};
-    for (const n of names as string[]) translations[n] = n;
-    res.json({ translations });
-    return;
-  }
-
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) {
     res.status(503).json({ error: 'AI translation not available (GROQ_API_KEY not set)' });

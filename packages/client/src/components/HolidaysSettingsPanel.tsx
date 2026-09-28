@@ -455,7 +455,7 @@ export default function HolidaysSettingsPanel({ token }: Props) {
 
   // ── Translate all holidays to current language ──────────────────────────────
   async function handleTranslate() {
-    if (!country || holidays.length === 0 || lang === 'en') return;
+    if (!country || holidays.length === 0) return;
     setTranslating(true);
     setTranslateError('');
     setTranslateResult(null);
