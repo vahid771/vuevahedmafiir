@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useCalendar } from '../context/CalendarContext';
 import { useTranslation } from 'react-i18next';
 import FlagImg from './FlagImg';
-import { getTimezoneOffset } from '../utils/timezones';
+import { getTimezoneOffset, guessTimezoneForCountry } from '../utils/timezones';
 
 function formatTime(date: Date, tz: string): string {
   return new Intl.DateTimeFormat('en', {
@@ -28,8 +28,8 @@ export default function LiveClockWidget() {
   const { timezone, country } = useCalendar();
   const { i18n } = useTranslation();
 
-  const browserTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const activeTz = timezone ?? browserTz;
+  // Explicit saved timezone > country primary TZ > nothing (don't show)
+  const activeTz = timezone ?? (country ? guessTimezoneForCountry(country) : null);
 
   const [now, setNow] = useState(() => new Date());
   const frameRef = useRef<number | null>(null);
@@ -46,6 +46,9 @@ export default function LiveClockWidget() {
       if (frameRef.current !== null) clearTimeout(frameRef.current);
     };
   }, []);
+
+  // No country selected → don't render
+  if (!activeTz) return null;
 
   const timeStr = formatTime(now, activeTz);
   const dateStr = formatDate(now, activeTz, i18n.language);
@@ -77,8 +80,8 @@ export default function LiveClockWidget() {
             <span className="text-xs text-gray-400 bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded">
               {offsetStr}
             </span>
-            {!timezone && (
-              <span className="text-xs text-gray-400 italic">browser</span>
+            {!timezone && country && (
+              <span className="text-xs text-gray-400 italic">country default</span>
             )}
           </div>
         </div>
