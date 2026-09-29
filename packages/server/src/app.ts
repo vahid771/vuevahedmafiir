@@ -1,4 +1,5 @@
 import express, { NextFunction, Request, Response } from 'express';
+import adminRouter from './admin/router';
 import authRouter from './auth/router';
 import tasksRouter from './tasks/router';
 import taskGroupsRouter from './tasks/groups.router';
@@ -59,6 +60,7 @@ app.use('/api/habits', habitsRouter);
 app.use('/api/dates', datesRouter);
 app.use('/api/preferences', preferencesRouter);
 app.use('/api/ai', aiRouter);
+app.use('/api/admin', adminRouter);
 
 // 404 handler for unknown API routes
 app.use('/api/*', (_req, res) => {

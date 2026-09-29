@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { useAuth } from '../context/AuthContext';
 
 interface NavItem {
   to: string;
@@ -93,6 +94,16 @@ const settingsItem: NavItem = {
   ),
 };
 
+const adminItem: NavItem = {
+  to: '/admin',
+  labelKey: 'nav.admin',
+  icon: (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+    </svg>
+  ),
+};
+
 interface SidebarProps {
   collapsed: boolean;
   mobileOpen: boolean;
@@ -101,6 +112,7 @@ interface SidebarProps {
 
 export default function Sidebar({ collapsed, mobileOpen, onClose }: SidebarProps) {
   const { t } = useTranslation();
+  const { isAdmin } = useAuth();
   // On mobile: fixed overlay, slide in/out via translate
   // On md+: relative, always visible, width toggled by collapsed prop
   const navLinkClass = (isActive: boolean) =>
@@ -144,7 +156,18 @@ export default function Sidebar({ collapsed, mobileOpen, onClose }: SidebarProps
           </li>
         ))}
       </ul>
-      <div className="py-3 border-t border-gray-700">
+      <div className="py-3 border-t border-gray-700 space-y-1">
+        {isAdmin && (
+          <NavLink
+            to={adminItem.to}
+            onClick={onClose}
+            className={({ isActive }) => navLinkClass(isActive)}
+            title={collapsed ? t(adminItem.labelKey, 'Admin') : undefined}
+          >
+            {adminItem.icon}
+            <span className={`truncate ${collapsed ? 'md:hidden' : ''}`}>{t(adminItem.labelKey, 'Admin')}</span>
+          </NavLink>
+        )}
         <NavLink
           to={settingsItem.to}
           onClick={onClose}

@@ -282,7 +282,30 @@ export async function runMigrations(): Promise<void> {
     )`,
     `CREATE INDEX IF NOT EXISTS idx_holidays_seed_country_year ON holidays_seed(country, year)`,
     `ALTER TABLE user_preferences ADD COLUMN timezone TEXT DEFAULT NULL`,
+    // Admin support
+    `ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0`,
+    // Review table for admin image moderation
+    `CREATE TABLE IF NOT EXISTS admin_image_reviews (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      document_id INTEGER UNIQUE NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+      status      TEXT    NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected')),
+      review_note TEXT,
+      reviewed_at TEXT,
+      reviewed_by INTEGER REFERENCES users(id),
+      created_at  TEXT    DEFAULT (datetime('now'))
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_admin_image_reviews_doc ON admin_image_reviews(document_id)`,
   ]);
+
+  // ── Seed admin user ────────────────────────────────────────────────────────
+  try {
+    await db.execute({
+      sql: `UPDATE users SET is_admin = 1 WHERE email = ?`,
+      args: ['vahed.mafi@gmail.com'],
+    });
+  } catch (e: any) {
+    console.warn('[migration] admin seed skipped —', String(e).slice(0, 80));
+  }
 
   // ── Table-rebuild migration: drop old 2-column UNIQUE constraint ──────────
   // On existing DBs, ai_summaries_lang was created with UNIQUE(user_id, summary_lang).

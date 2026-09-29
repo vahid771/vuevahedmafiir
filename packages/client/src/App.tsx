@@ -5,9 +5,11 @@ import { LanguageProvider } from './context/LanguageContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { SyncQueueProvider } from './context/SyncQueueContext';
 import ProtectedRoute from './components/ProtectedRoute';
+import AdminRoute from './components/AdminRoute';
 import AppLayout from './layouts/AppLayout';
 import LoginPage from './pages/LoginPage';
 import LandingPage from './pages/LandingPage';
+import AdminDashboardPage from './pages/AdminDashboardPage';
 import DashboardPage from './pages/DashboardPage';
 import TasksPage from './pages/TasksPage';
 import BillsPage from './pages/BillsPage';
@@ -52,6 +54,14 @@ function App() {
               <Route path="/habits" element={<HabitsPage />} />
               <Route path="/dates" element={<ImportantDatesPage />} />
               <Route path="/documents" element={<DocumentsPage />} />
+              <Route
+                path="/admin"
+                element={
+                  <AdminRoute>
+                    <AdminDashboardPage />
+                  </AdminRoute>
+                }
+              />
               <Route path="/settings" element={<SettingsLayout />}>
                 <Route index element={<Navigate to="/settings/calendar" replace />} />
                 <Route path="calendar" element={<CalendarSettingsPage />} />
