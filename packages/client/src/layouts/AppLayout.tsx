@@ -21,7 +21,7 @@ export default function AppLayout() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gray-50 dark:bg-gray-900">
+    <div className="flex h-screen overflow-hidden">
       {/* Mobile backdrop */}
       {mobileOpen && (
         <div
@@ -99,7 +99,7 @@ export default function AppLayout() {
         </header>
 
         {/* Main content */}
-        <main className="flex-1 overflow-y-auto p-3 sm:p-6 dark:bg-gray-900">
+        <main className="flex-1 overflow-y-auto p-3 sm:p-6 bg-gray-50 dark:bg-gray-900">
           <PageTransition>
             <Outlet />
           </PageTransition>

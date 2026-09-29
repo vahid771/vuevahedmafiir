@@ -1,4 +1,4 @@
-﻿{
+{
   "common": {
     "save": "Сохранить",
     "saving": "Сохранение…",
@@ -62,7 +62,9 @@
     "reminders": "Напоминания",
     "habits": "Привычки",
     "dates": "Даты",
-    "documents": "Документы"
+    "documents": "Документы",
+    "skySceneLabel": "Фоновая сцена неба"
+
   },
   "tasks": {
     "title": "Задачи",
@@ -386,6 +388,14 @@
     "setLocation": "Указать местоположение →",
     "setCountryFirst": "Укажите страну в настройках местоположения для управления праздниками.",
     "manageHolidays": "Управлять праздниками и выходными →",
+    "timezone": "Часовой пояс",
+    "timezoneDesc": "Используется для живых часов и расчётов дат.",
+    "browserDefault": "по умолчанию браузера",
+    "useBrowserTime": "Использовать время браузера",
+    "suggestedTimezone": "Рекомендуется для вашей страны:",
+    "resetTooBrowserTime": "Сбросить на время браузера",
+    "searchByName": "Поиск по названию",
+
     "calendarToday": "Сегодня",
     "calendarPrev": "Назад",
     "calendarNext": "Вперёд",

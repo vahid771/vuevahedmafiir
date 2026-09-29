@@ -1,4 +1,4 @@
-﻿{
+{
   "common": {
     "save": "Enregistrer",
     "saving": "Enregistrement…",
@@ -62,7 +62,9 @@
     "reminders": "Rappels",
     "habits": "Habitudes",
     "dates": "Dates",
-    "documents": "Documents"
+    "documents": "Documents",
+    "skySceneLabel": "Scène d'arrière-plan du ciel"
+
   },
   "tasks": {
     "title": "Tâches",
@@ -386,6 +388,14 @@
     "setLocation": "Définir la localisation →",
     "setCountryFirst": "Définissez un pays dans les paramètres de localisation pour gérer les jours fériés.",
     "manageHolidays": "Gérer les jours fériés et les week-ends →",
+    "timezone": "Fuseau horaire",
+    "timezoneDesc": "Utilisé pour l'horloge en direct et les calculs de dates.",
+    "browserDefault": "par défaut du navigateur",
+    "useBrowserTime": "Utiliser l'heure du navigateur",
+    "suggestedTimezone": "Suggéré pour votre pays :",
+    "resetTooBrowserTime": "Réinitialiser à l'heure du navigateur",
+    "searchByName": "Rechercher par nom",
+
     "calendarToday": "Aujourd'hui",
     "calendarPrev": "Précédent",
     "calendarNext": "Suivant",

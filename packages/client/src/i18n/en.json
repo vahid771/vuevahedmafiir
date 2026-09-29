@@ -62,7 +62,9 @@
     "reminders": "Reminders",
     "habits": "Habits",
     "dates": "Dates",
-    "documents": "Documents"
+    "documents": "Documents",
+    "skySceneLabel": "Sky background scene"
+
   },
   "tasks": {
     "title": "Tasks",
@@ -387,6 +389,14 @@
     "setLocation": "Set location →",
     "setCountryFirst": "Set a country in Location settings to manage holidays.",
     "manageHolidays": "Manage holidays & weekends →",
+    "timezone": "Timezone",
+    "timezoneDesc": "Used for the live clock and date calculations.",
+    "browserDefault": "browser default",
+    "useBrowserTime": "Use browser time",
+    "suggestedTimezone": "Suggested for your country:",
+    "resetTooBrowserTime": "Reset to browser time",
+    "searchByName": "Search by name",
+
     "days": ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
     "daysLong": ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
     "months": ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],

@@ -28,6 +28,11 @@ html.dark {
   body {
     font-family: 'Vazirmatn', ui-sans-serif, system-ui, -apple-system, sans-serif;
     cursor: default;
+    background-color: #f9fafb; /* gray-50 */
+  }
+
+  html.dark body {
+    background-color: #111827; /* gray-900 */
   }
 
   button, input, select, textarea {

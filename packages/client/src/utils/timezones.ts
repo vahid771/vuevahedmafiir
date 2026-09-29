@@ -1,9 +1,10 @@
 /**
  * Timezone utilities
  *
- * getAllTimezones()         — all IANA timezones from Intl API
- * getTimezoneOffset()      — formatted UTC offset string, e.g. "UTC+3:30"
- * guessTimezoneForCountry()— primary IANA timezone for a 2-letter country code
+ * getAllTimezones()            — all IANA timezones from Intl API
+ * getTimezoneOffset()         — formatted UTC offset string, e.g. "UTC+3:30"
+ * guessTimezoneForCountry()   — primary IANA timezone for a 2-letter country code
+ * getLocalizedTimezoneLabel() — human-readable timezone label in the given locale
  */
 
 /** Primary IANA timezone per ISO 3166-1 alpha-2 country code. */
@@ -198,4 +199,50 @@ export function getTimezoneOffset(tz: string): string {
  */
 export function guessTimezoneForCountry(countryCode: string): string | null {
   return COUNTRY_PRIMARY_TZ[countryCode.toUpperCase()] ?? null;
+}
+
+/**
+ * Maps app language codes to BCP-47 locale tags for Intl APIs.
+ * Most match exactly; a few need region subtags for correct script/script.
+ */
+const LANG_TO_BCP47: Record<string, string> = {
+  en: 'en',
+  fa: 'fa-IR',
+  ar: 'ar',
+  zh: 'zh-CN',
+  hi: 'hi-IN',
+  es: 'es',
+  fr: 'fr',
+  de: 'de',
+  pt: 'pt-BR',
+  ru: 'ru',
+  tr: 'tr',
+  id: 'id',
+};
+
+/**
+ * Returns a human-readable timezone label for the given IANA timezone string,
+ * localised into `lang` (an app language code such as "fa", "ar", "zh", …).
+ *
+ * Strategy:
+ *  1. Ask `Intl.DateTimeFormat` for the long localised timezone name
+ *     (e.g. "Tehran Standard Time" → "وقت ایران" in fa).
+ *  2. Fall back to the raw IANA name if the API is unavailable or returns
+ *     an unformatted offset string (starts with "GMT"/"UTC").
+ */
+export function getLocalizedTimezoneLabel(tz: string, lang: string): string {
+  try {
+    const locale = LANG_TO_BCP47[lang] ?? lang;
+    const formatter = new Intl.DateTimeFormat(locale, {
+      timeZone: tz,
+      timeZoneName: 'long',
+    });
+    const parts = formatter.formatToParts(new Date());
+    const name = parts.find(p => p.type === 'timeZoneName')?.value ?? '';
+    // Some locales return "GMT+X:XX" when they have no translation — keep raw IANA in that case
+    if (!name || name.startsWith('GMT') || name.startsWith('UTC')) return tz;
+    return name;
+  } catch {
+    return tz;
+  }
 }

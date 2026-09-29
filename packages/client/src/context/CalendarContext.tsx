@@ -13,6 +13,8 @@ interface CalendarContextValue {
   setTertiaryCalendar: (c: CalendarType | null) => Promise<void>;
   timezone: string | null;
   setTimezone: (tz: string | null) => Promise<void>;
+  /** True while the initial preferences fetch is in-flight. */
+  prefsLoading: boolean;
 }
 
 const CalendarContext = createContext<CalendarContextValue | null>(null);
@@ -24,9 +26,11 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
   const [secondaryCalendar, setSecondaryCalendarState] = useState<CalendarType | null>(null);
   const [tertiaryCalendar, setTertiaryCalendarState] = useState<CalendarType | null>(null);
   const [timezone, setTimezoneState] = useState<string | null>(null);
+  const [prefsLoading, setPrefsLoading] = useState(true);
 
   useEffect(() => {
     if (!token) return;
+    setPrefsLoading(true);
     getPreferences(token)
       .then(prefs => {
         setCalendarState(prefs.calendar);
@@ -35,7 +39,8 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
         setTertiaryCalendarState(prefs.tertiary_calendar ?? null);
         setTimezoneState(prefs.timezone ?? null);
       })
-      .catch(() => {/* keep defaults */});
+      .catch(() => {/* keep defaults */})
+      .finally(() => setPrefsLoading(false));
   }, [token]);
 
   async function setCalendar(c: CalendarType) {
@@ -82,6 +87,7 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
       secondaryCalendar, setSecondaryCalendar,
       tertiaryCalendar, setTertiaryCalendar,
       timezone, setTimezone,
+      prefsLoading,
     }}>
       {children}
     </CalendarContext.Provider>

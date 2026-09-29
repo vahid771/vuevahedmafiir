@@ -1,4 +1,4 @@
-﻿{
+{
   "common": {
     "save": "सहेजें",
     "saving": "सहेज रहे हैं…",
@@ -62,7 +62,9 @@
     "reminders": "अनुस्मारक",
     "habits": "आदतें",
     "dates": "तिथियां",
-    "documents": "दस्तावेज़"
+    "documents": "दस्तावेज़",
+    "skySceneLabel": "आकाश पृष्ठभूमि दृश्य"
+
   },
   "tasks": {
     "title": "कार्य",
@@ -386,6 +388,14 @@
     "setLocation": "स्थान सेट करें →",
     "setCountryFirst": "छुट्टियां प्रबंधित करने के लिए स्थान सेटिंग्स में देश सेट करें।",
     "manageHolidays": "छुट्टियां और सप्ताहांत प्रबंधित करें →",
+    "timezone": "समय क्षेत्र",
+    "timezoneDesc": "लाइव घड़ी और दिनांक गणनाओं के लिए उपयोग किया जाता है।",
+    "browserDefault": "ब्राउज़र डिफ़ॉल्ट",
+    "useBrowserTime": "ब्राउज़र समय का उपयोग करें",
+    "suggestedTimezone": "आपके देश के लिए सुझाया गया:",
+    "resetTooBrowserTime": "ब्राउज़र समय पर रीसेट करें",
+    "searchByName": "नाम से खोजें",
+
     "calendarToday": "आज",
     "calendarPrev": "पिछला",
     "calendarNext": "अगला",

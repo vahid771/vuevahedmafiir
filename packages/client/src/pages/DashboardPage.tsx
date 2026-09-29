@@ -3,7 +3,6 @@ import { Skeleton } from '../components/ui/Skeleton';
 import { useAuth } from '../context/AuthContext';
 import { getSummary, getCachedSummary, updateSummary, type SummaryHistoryEntry } from '../api/ai';
 import CalendarWidget from '../components/CalendarWidget';
-import LiveClockWidget from '../components/LiveClockWidget';
 import { useTranslation } from 'react-i18next';
 import { useLanguage } from '../context/LanguageContext';
 import { useCalendar } from '../context/CalendarContext';
@@ -11,6 +10,8 @@ import DashboardCharts from '../components/charts/DashboardCharts';
 import { getTasks, type Task } from '../api/tasks';
 import { getHabits, type Habit } from '../api/habits';
 import { getBills, getLoans, type Bill, type Loan } from '../api/bills';
+import DashboardSkyScene from '../components/DashboardSkyScene';
+import { useSkyScene } from '../hooks/useSkyScene';
 
 // Per-language + per-calendar localStorage cache
 function lsKey(lang: string, calendar: string) { return `ai_summary_cache_${lang}_${calendar}`; }
@@ -57,7 +58,8 @@ export default function DashboardPage() {
   const { user, token } = useAuth();
   const { t } = useTranslation();
   const { lang } = useLanguage();
-  const { calendar } = useCalendar();
+  const { calendar, prefsLoading } = useCalendar();
+  const skyScene = useSkyScene();
 
   const [summary, setSummary] = useState('');
   const [expiresAt, setExpiresAt] = useState('');
@@ -388,9 +390,9 @@ export default function DashboardPage() {
 
         </div>{/* end left column */}
 
-        {/* ── Right column: clock + calendar ── */}
+        {/* ── Right column: sky scene + clock + calendar ── */}
         <div className="w-full lg:w-[420px] xl:w-[460px] shrink-0 space-y-4">
-          <LiveClockWidget />
+          <DashboardSkyScene scene={skyScene} loading={prefsLoading} />
           <CalendarWidget />
         </div>
 

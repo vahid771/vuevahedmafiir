@@ -1,4 +1,4 @@
-﻿{
+{
   "common": {
     "save": "\u4fdd\u5b58",
     "saving": "\u4fdd\u5b58\u4e2d\u2026",
@@ -62,7 +62,9 @@
     "reminders": "\u63d0\u9192",
     "habits": "\u4e60\u60ef",
     "dates": "\u65e5\u671f",
-    "documents": "\u6587\u6863"
+    "documents": "\u6587\u6863",
+    "skySceneLabel": "天空背景场景"
+
   },
   "tasks": {
     "title": "\u4efb\u52a1",
@@ -386,6 +388,14 @@
     "setLocation": "\u8bbe\u7f6e\u4f4d\u7f6e \u2192",
     "setCountryFirst": "\u5728\u4f4d\u7f6e\u8bbe\u7f6e\u4e2d\u8bbe\u7f6e\u56fd\u5bb6\u4ee5\u7ba1\u7406\u8282\u5047\u65e5\u3002",
     "manageHolidays": "\u7ba1\u7406\u8282\u5047\u65e5\u548c\u5468\u672b \u2192",
+    "timezone": "时区",
+    "timezoneDesc": "用于实时时钟和日期计算。",
+    "browserDefault": "浏览器默认",
+    "useBrowserTime": "使用浏览器时间",
+    "suggestedTimezone": "您所在国家/地区的建议时区：",
+    "resetTooBrowserTime": "重置为浏览器时间",
+    "searchByName": "按名称搜索",
+
     "calendarToday": "今天",
     "calendarPrev": "上一个",
     "calendarNext": "下一个",

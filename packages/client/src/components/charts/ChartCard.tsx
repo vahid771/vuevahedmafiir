@@ -11,7 +11,7 @@ export default function ChartCard({ title, children, collapsible = false, defaul
   const [open, setOpen] = useState(defaultOpen);
 
   return (
-    <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+    <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
       <div
         className={`flex items-center justify-between px-4 py-3 border-b border-gray-100 ${collapsible ? 'cursor-pointer select-none hover:bg-gray-50' : ''}`}
         onClick={collapsible ? () => setOpen(v => !v) : undefined}

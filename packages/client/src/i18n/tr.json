@@ -1,4 +1,4 @@
-﻿{
+{
   "common": {
     "save": "Kaydet",
     "saving": "Kaydediliyor…",
@@ -62,7 +62,9 @@
     "reminders": "Hatırlatıcılar",
     "habits": "Alışkanlıklar",
     "dates": "Tarihler",
-    "documents": "Belgeler"
+    "documents": "Belgeler",
+    "skySceneLabel": "Gökyüzü arka plan sahnesi"
+
   },
   "tasks": {
     "title": "Görevler",
@@ -386,6 +388,14 @@
     "setLocation": "Konum belirle →",
     "setCountryFirst": "Tatilleri yönetmek için Konum ayarlarında bir ülke belirleyin.",
     "manageHolidays": "Tatilleri ve hafta sonlarını yönet →",
+    "timezone": "Saat dilimi",
+    "timezoneDesc": "Canlı saat ve tarih hesaplamaları için kullanılır.",
+    "browserDefault": "tarayıcı varsayılanı",
+    "useBrowserTime": "Tarayıcı saatini kullan",
+    "suggestedTimezone": "Ülkeniz için önerilen:",
+    "resetTooBrowserTime": "Tarayıcı saatine sıfırla",
+    "searchByName": "Ada göre ara",
+
     "calendarToday": "Bugün",
     "calendarPrev": "Önceki",
     "calendarNext": "Sonraki",

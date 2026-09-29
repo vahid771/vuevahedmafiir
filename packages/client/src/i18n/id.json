@@ -1,4 +1,4 @@
-﻿{
+{
   "common": {
     "save": "Simpan",
     "saving": "Menyimpan…",
@@ -62,7 +62,9 @@
     "reminders": "Pengingat",
     "habits": "Kebiasaan",
     "dates": "Tanggal",
-    "documents": "Dokumen"
+    "documents": "Dokumen",
+    "skySceneLabel": "Adegan latar belakang langit"
+
   },
   "tasks": {
     "title": "Tugas",
@@ -386,6 +388,14 @@
     "setLocation": "Atur lokasi →",
     "setCountryFirst": "Atur negara di pengaturan Lokasi untuk mengelola hari libur.",
     "manageHolidays": "Kelola hari libur & akhir pekan →",
+    "timezone": "Zona waktu",
+    "timezoneDesc": "Digunakan untuk jam langsung dan perhitungan tanggal.",
+    "browserDefault": "default browser",
+    "useBrowserTime": "Gunakan waktu browser",
+    "suggestedTimezone": "Disarankan untuk negara Anda:",
+    "resetTooBrowserTime": "Setel ulang ke waktu browser",
+    "searchByName": "Cari berdasarkan nama",
+
     "calendarToday": "Hari ini",
     "calendarPrev": "Sebelumnya",
     "calendarNext": "Berikutnya",

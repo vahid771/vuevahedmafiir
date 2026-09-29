@@ -1,4 +1,4 @@
-﻿{
+{
   "common": {
     "save": "Salvar",
     "saving": "Salvando…",
@@ -62,7 +62,9 @@
     "reminders": "Lembretes",
     "habits": "Hábitos",
     "dates": "Datas",
-    "documents": "Documentos"
+    "documents": "Documentos",
+    "skySceneLabel": "Cena de fundo do céu"
+
   },
   "tasks": {
     "title": "Tarefas",
@@ -386,6 +388,14 @@
     "setLocation": "Definir localização →",
     "setCountryFirst": "Defina um país nas configurações de localização para gerenciar feriados.",
     "manageHolidays": "Gerenciar feriados e fins de semana →",
+    "timezone": "Fuso horário",
+    "timezoneDesc": "Usado para o relógio ao vivo e cálculos de datas.",
+    "browserDefault": "padrão do navegador",
+    "useBrowserTime": "Usar a hora do navegador",
+    "suggestedTimezone": "Sugerido para o seu país:",
+    "resetTooBrowserTime": "Redefinir para a hora do navegador",
+    "searchByName": "Pesquisar por nome",
+
     "calendarToday": "Hoje",
     "calendarPrev": "Anterior",
     "calendarNext": "Próximo",

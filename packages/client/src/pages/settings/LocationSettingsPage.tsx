@@ -6,7 +6,7 @@ import { useCountryList, useCountryName } from './CalendarSettingsPage';
 import FlagImg from '../../components/FlagImg';
 import WorldMapPicker from '../../components/WorldMapPicker';
 import { useLanguage } from '../../context/LanguageContext';
-import { getAllTimezones, getTimezoneOffset, guessTimezoneForCountry } from '../../utils/timezones';
+import { getAllTimezones, getTimezoneOffset, guessTimezoneForCountry, getLocalizedTimezoneLabel } from '../../utils/timezones';
 
 
 function SelectedCountryBadge({ code }: { code: string }) {
@@ -181,7 +181,7 @@ export default function LocationSettingsPage() {
 
           <details>
             <summary className="text-xs text-gray-400 hover:text-gray-600 cursor-pointer select-none mt-1">
-              Search by name
+              {t('settings.searchByName')}
             </summary>
             <CountrySelect
               value={country ?? ''}
@@ -197,7 +197,7 @@ export default function LocationSettingsPage() {
               to="/settings/holidays"
               className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
             >
-              {t('settings.manageHolidays', { defaultValue: 'Manage holidays & weekends →' })}
+              {t('settings.manageHolidays')}
             </Link>
           </div>
         )}
@@ -207,12 +207,12 @@ export default function LocationSettingsPage() {
       <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6 space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100">{t('settings.timezone', { defaultValue: 'Timezone' })}</h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{t('settings.timezoneDesc', { defaultValue: 'Used for the live clock and date calculations.' })}</p>
+            <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100">{t('settings.timezone')}</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{t('settings.timezoneDesc')}</p>
           </div>
           <div className="flex items-center gap-2">
             {tzSaving && <span className="text-xs text-gray-400">{t('settings.saving')}</span>}
-            {tzSaved && !tzSaving && <span className="text-xs text-green-600 font-medium">{t('settings.saved', { defaultValue: 'Saved' })}</span>}
+            {tzSaved && !tzSaving && <span className="text-xs text-green-600 font-medium">{t('settings.saved')}</span>}
           </div>
         </div>
 
@@ -220,27 +220,30 @@ export default function LocationSettingsPage() {
           {/* Current / active timezone display */}
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-sm text-gray-600 dark:text-gray-300 font-medium">
+              {getLocalizedTimezoneLabel(timezone ?? browserTz, lang)}
+            </span>
+            <span className="text-xs text-gray-400 italic">
               {timezone ?? browserTz}
             </span>
             <span className="text-xs text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded">
               {getTimezoneOffset(timezone ?? browserTz)}
             </span>
             {!timezone && (
-              <span className="text-xs text-gray-400 italic">{t('settings.browserDefault', { defaultValue: 'browser default' })}</span>
+              <span className="text-xs text-gray-400 italic">{t('settings.browserDefault')}</span>
             )}
           </div>
 
           {/* Suggestion from country */}
           {suggestedTz && suggestedTz !== (timezone ?? browserTz) && (
             <div className="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400">
-              <span>{t('settings.suggestedTimezone', { defaultValue: 'Suggested for your country:' })}</span>
+              <span>{t('settings.suggestedTimezone')}</span>
               <button
                 type="button"
                 disabled={tzSaving}
                 onClick={() => handleTimezoneChange(suggestedTz)}
                 className="underline hover:no-underline disabled:opacity-50"
               >
-                {suggestedTz}
+                {getLocalizedTimezoneLabel(suggestedTz, lang)} ({suggestedTz})
               </button>
             </div>
           )}
@@ -252,9 +255,11 @@ export default function LocationSettingsPage() {
             onChange={e => handleTimezoneChange(e.target.value || null)}
             className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
           >
-            <option value="">{t('settings.useBrowserTime', { defaultValue: 'Use browser time' })}</option>
+            <option value="">{t('settings.useBrowserTime')}</option>
             {allTimezones.map(tz => (
-              <option key={tz} value={tz}>{tz} ({getTimezoneOffset(tz)})</option>
+              <option key={tz} value={tz}>
+                {getLocalizedTimezoneLabel(tz, lang)} — {tz} ({getTimezoneOffset(tz)})
+              </option>
             ))}
           </select>
 
@@ -266,7 +271,7 @@ export default function LocationSettingsPage() {
               onClick={() => handleTimezoneChange(null)}
               className="text-sm text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50"
             >
-              {t('settings.resetTooBrowserTime', { defaultValue: 'Reset to browser time' })}
+              {t('settings.resetTooBrowserTime')}
             </button>
           )}
         </div>

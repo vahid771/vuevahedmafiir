@@ -1674,7 +1674,7 @@ export default function CalendarWidget() {
   const isWidgetRtl = calMode === 'shamsi' || calMode === 'qamari' || calMode === 'hebrew';
 
   return (
-    <div className="bg-white border border-gray-200 rounded-xl p-4" dir={isWidgetRtl ? 'rtl' : 'ltr'}>
+    <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4" dir={isWidgetRtl ? 'rtl' : 'ltr'}>
       {/* Header */}
       <div className="flex items-start justify-between gap-2 mb-4 flex-wrap">
         <div className="min-w-0">
