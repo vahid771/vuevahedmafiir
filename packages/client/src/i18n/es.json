@@ -1,4 +1,4 @@
-{
+﻿{
   "common": {
     "save": "Guardar",
     "saving": "Guardando…",
@@ -27,7 +27,7 @@
     "admin": "Admin"
   },
   "login": {
-    "title": "Panel de vida personal",
+    "title": "Gestión personal del tiempo",
     "signIn": "Iniciar sesión",
     "register": "Registrarse",
     "email": "Correo electrónico",
@@ -38,11 +38,12 @@
     "createAccount": "Crear cuenta",
     "continueWithGoogle": "Continuar con Google",
     "googleFailed": "El inicio de sesión con Google falló. Por favor intenta de nuevo.",
-    "noEmail": "No se pudo recuperar el correo electrónico de Google."
+    "noEmail": "No se pudo recuperar el correo electrónico de Google.",
+    "rememberMe": "Recuérdame"
   },
   "dashboard": {
     "welcomeBack": "Bienvenido de nuevo",
-    "subtitle": "Este es tu panel de vida personal.",
+    "subtitle": "Este es tu panel de gestión personal del tiempo.",
     "aiSummary": "Resumen semanal",
     "aiSummarySubtitle": "¿Qué necesita tu atención esta semana?",
     "summarizeMyWeek": "Resumir mi semana",
@@ -359,7 +360,7 @@
     "tertiaryCalendar": "Calendario terciario",
     "subCalendarNone": "Ninguno",
     "googleDrive": "Google Drive",
-    "googleDriveDesc": "Conecta tu cuenta de Google para guardar documentos subidos directamente en tu Drive en una carpeta llamada \"Personal Life Dashboard\".",
+    "googleDriveDesc": "Conecta tu cuenta de Google para guardar documentos subidos directamente en tu Drive en una carpeta llamada \"Personal Time Management\".",
     "googleTasks": "Google Tasks",
     "googleTasksDesc": "Conecta tu cuenta de Google para sincronizar tareas con Google Tasks. Los cambios locales se envían a Google automáticamente; usa el botón \"Sincronizar desde Google\" en la página de Tareas para traer actualizaciones.",
     "googleCalendar": "Google Calendar",
@@ -500,13 +501,17 @@
     "deleteItemDrive": "Eliminar \"{{name}}\""
   },
   "layout": {
-    "appName": "Panel de vida",
+    "appName": "Gestión del tiempo",
     "appShort": "LD",
     "logout": "Cerrar sesión",
     "toggleSidebar": "Alternar barra lateral"
   },
   "auth": {
-    "signingIn": "Iniciando sesión…"
+    "signingIn": "Iniciando sesión…",
+    "rememberTitle": "¿Mantener la sesión iniciada?",
+    "rememberSubtitle": "Elige si deseas mantener tu sesión después de cerrar el navegador.",
+    "stayLoggedIn": "Mantener sesión",
+    "notNow": "Ahora no"
   },
   "charts": {
     "taskStatusTitle": "Estado de tareas",

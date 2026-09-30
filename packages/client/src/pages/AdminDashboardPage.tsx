@@ -5,6 +5,7 @@ import {
   getAdminImages, reviewImage, getAdminUsers, setUserAdmin,
   type AdminImageRecord, type AdminUser,
 } from '../api/admin';
+import SkySceneSandbox from '../components/SkySceneSandbox';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -231,7 +232,7 @@ function UsersTab({ token }: { token: string }) {
 // ---------------------------------------------------------------------------
 // Main admin page
 // ---------------------------------------------------------------------------
-type Tab = 'images' | 'users';
+type Tab = 'images' | 'users' | 'sky';
 type FilterStatus = 'all' | 'pending' | 'approved' | 'rejected';
 
 export default function AdminDashboardPage() {
@@ -311,6 +312,9 @@ export default function AdminDashboardPage() {
         <button type="button" className={tabClass(tab === 'users')} onClick={() => setTab('users')}>
           👥 {t('admin.tabUsers', 'Users')}
         </button>
+        <button type="button" className={tabClass(tab === 'sky')} onClick={() => setTab('sky')}>
+          🌤 {t('admin.tabSky', 'Sky Scene')}
+        </button>
       </div>
 
       {/* Images tab */}
@@ -387,6 +391,13 @@ export default function AdminDashboardPage() {
       {tab === 'users' && token && (
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
           <UsersTab token={token} />
+        </div>
+      )}
+
+      {/* Sky Scene sandbox tab */}
+      {tab === 'sky' && (
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+          <SkySceneSandbox />
         </div>
       )}
     </div>

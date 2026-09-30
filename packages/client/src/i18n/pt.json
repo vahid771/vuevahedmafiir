@@ -1,4 +1,4 @@
-{
+﻿{
   "common": {
     "save": "Salvar",
     "saving": "Salvando…",
@@ -27,7 +27,7 @@
     "admin": "Admin"
   },
   "login": {
-    "title": "Painel de vida pessoal",
+    "title": "Gestão pessoal do tempo",
     "signIn": "Entrar",
     "register": "Registrar",
     "email": "E-mail",
@@ -38,11 +38,12 @@
     "createAccount": "Criar conta",
     "continueWithGoogle": "Continuar com o Google",
     "googleFailed": "Falha no login com o Google. Tente novamente.",
-    "noEmail": "Não foi possível recuperar o e-mail do Google."
+    "noEmail": "Não foi possível recuperar o e-mail do Google.",
+    "rememberMe": "Lembrar-me"
   },
   "dashboard": {
     "welcomeBack": "Bem-vindo de volta",
-    "subtitle": "Este é o seu painel de vida pessoal.",
+    "subtitle": "Este é o seu painel de gestão pessoal do tempo.",
     "aiSummary": "Visão geral semanal",
     "aiSummarySubtitle": "O que precisa da sua atenção esta semana?",
     "summarizeMyWeek": "Resumir minha semana",
@@ -359,7 +360,7 @@
     "tertiaryCalendar": "Calendário terciário",
     "subCalendarNone": "Nenhum",
     "googleDrive": "Google Drive",
-    "googleDriveDesc": "Conecte sua conta do Google para salvar documentos enviados diretamente no seu Drive em uma pasta chamada \"Personal Life Dashboard\".",
+    "googleDriveDesc": "Conecte sua conta do Google para salvar documentos enviados diretamente no seu Drive em uma pasta chamada \"Personal Time Management\".",
     "googleTasks": "Google Tasks",
     "googleTasksDesc": "Conecte sua conta do Google para sincronizar tarefas com o Google Tasks. Alterações locais são enviadas automaticamente ao Google; use o botão \"Sincronizar do Google\" na página de Tarefas para receber atualizações.",
     "googleCalendar": "Google Agenda",
@@ -500,13 +501,17 @@
     "deleteItemDrive": "Excluir \"{{name}}\""
   },
   "layout": {
-    "appName": "Painel de vida",
+    "appName": "Gestão do tempo",
     "appShort": "LD",
     "logout": "Sair",
     "toggleSidebar": "Alternar barra lateral"
   },
   "auth": {
-    "signingIn": "Entrando…"
+    "signingIn": "Entrando…",
+    "rememberTitle": "Continuar conectado?",
+    "rememberSubtitle": "Escolha se deseja manter sua sessão após fechar o navegador.",
+    "stayLoggedIn": "Continuar conectado",
+    "notNow": "Agora não"
   },
   "charts": {
     "taskStatusTitle": "Status das tarefas",

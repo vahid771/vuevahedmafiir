@@ -1,4 +1,4 @@
-{
+﻿{
   "common": {
     "save": "सहेजें",
     "saving": "सहेज रहे हैं…",
@@ -27,7 +27,7 @@
     "admin": "व्यवस्थापक"
   },
   "login": {
-    "title": "व्यक्तिगत जीवन डैशबोर्ड",
+    "title": "व्यक्तिगत समय प्रबंधन",
     "signIn": "साइन इन करें",
     "register": "पंजीकरण करें",
     "email": "ईमेल",
@@ -38,11 +38,12 @@
     "createAccount": "खाता बनाएं",
     "continueWithGoogle": "Google के साथ जारी रखें",
     "googleFailed": "Google साइन-इन विफल रहा। कृपया पुनः प्रयास करें।",
-    "noEmail": "Google से ईमेल प्राप्त नहीं हो सका।"
+    "noEmail": "Google से ईमेल प्राप्त नहीं हो सका।",
+    "rememberMe": "मुझे याद रखें"
   },
   "dashboard": {
     "welcomeBack": "वापस स्वागत है",
-    "subtitle": "यह आपका व्यक्तिगत जीवन डैशबोर्ड है।",
+    "subtitle": "यह आपका व्यक्तिगत समय प्रबंधन डैशबोर्ड है।",
     "aiSummary": "साप्ताहिक अवलोकन",
     "aiSummarySubtitle": "इस सप्ताह आपको किस पर ध्यान देने की आवश्यकता है?",
     "summarizeMyWeek": "मेरे सप्ताह का सारांश करें",
@@ -359,7 +360,7 @@
     "tertiaryCalendar": "तृतीयक कैलेंडर",
     "subCalendarNone": "कोई नहीं",
     "googleDrive": "Google Drive",
-    "googleDriveDesc": "अपलोड किए गए दस्तावेज़ सीधे \"Personal Life Dashboard\" नामक फ़ोल्डर में Drive पर सहेजने के लिए अपना Google खाता कनेक्ट करें।",
+    "googleDriveDesc": "अपलोड किए गए दस्तावेज़ सीधे \"Personal Time Management\" नामक फ़ोल्डर में Drive पर सहेजने के लिए अपना Google खाता कनेक्ट करें।",
     "googleTasks": "Google Tasks",
     "googleTasksDesc": "Google Tasks के साथ कार्य सिंक करने के लिए अपना Google खाता कनेक्ट करें। स्थानीय परिवर्तन स्वचालित रूप से Google पर पुश होते हैं; अपडेट वापस खींचने के लिए Tasks पृष्ठ पर \"Google से सिंक\" बटन का उपयोग करें।",
     "googleCalendar": "Google Calendar",
@@ -500,13 +501,17 @@
     "deleteItemDrive": "\"{{name}}\" हटाएं"
   },
   "layout": {
-    "appName": "जीवन डैशबोर्ड",
+    "appName": "समय प्रबंधन",
     "appShort": "LD",
     "logout": "लॉगआउट",
     "toggleSidebar": "साइडबार टॉगल करें"
   },
   "auth": {
-    "signingIn": "साइन इन हो रहा है…"
+    "signingIn": "साइन इन हो रहा है…",
+    "rememberTitle": "लॉग इन रहें?",
+    "rememberSubtitle": "चुनें कि ब्राउज़र बंद करने के बाद भी आपका सत्र बनाए रखा जाए या नहीं।",
+    "stayLoggedIn": "लॉग इन रहें",
+    "notNow": "अभी नहीं"
   },
   "charts": {
     "taskStatusTitle": "कार्य स्थिति",

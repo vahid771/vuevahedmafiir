@@ -1,4 +1,4 @@
-{
+﻿{
   "common": {
     "save": "Simpan",
     "saving": "Menyimpan…",
@@ -27,7 +27,7 @@
     "admin": "Admin"
   },
   "login": {
-    "title": "Dasbor Kehidupan Pribadi",
+    "title": "Manajemen Waktu Pribadi",
     "signIn": "Masuk",
     "register": "Daftar",
     "email": "Email",
@@ -38,11 +38,12 @@
     "createAccount": "Buat Akun",
     "continueWithGoogle": "Lanjutkan dengan Google",
     "googleFailed": "Masuk dengan Google gagal. Silakan coba lagi.",
-    "noEmail": "Tidak dapat mengambil email dari Google."
+    "noEmail": "Tidak dapat mengambil email dari Google.",
+    "rememberMe": "Ingat saya"
   },
   "dashboard": {
     "welcomeBack": "Selamat datang kembali",
-    "subtitle": "Ini adalah dasbor kehidupan pribadi Anda.",
+    "subtitle": "Ini adalah dasbor manajemen waktu pribadi Anda.",
     "aiSummary": "Ringkasan Mingguan",
     "aiSummarySubtitle": "Apa yang perlu perhatian Anda minggu ini?",
     "summarizeMyWeek": "Rangkum minggu saya",
@@ -359,7 +360,7 @@
     "tertiaryCalendar": "Kalender tersier",
     "subCalendarNone": "Tidak ada",
     "googleDrive": "Google Drive",
-    "googleDriveDesc": "Hubungkan akun Google Anda untuk menyimpan dokumen yang diunggah langsung ke Drive Anda di folder bernama \"Personal Life Dashboard\".",
+    "googleDriveDesc": "Hubungkan akun Google Anda untuk menyimpan dokumen yang diunggah langsung ke Drive Anda di folder bernama \"Personal Time Management\".",
     "googleTasks": "Google Tasks",
     "googleTasksDesc": "Hubungkan akun Google Anda untuk menyinkronkan tugas dengan Google Tasks. Perubahan lokal otomatis dikirim ke Google; gunakan tombol \"Sinkronkan dari Google\" di halaman Tugas untuk mengambil pembaruan.",
     "googleCalendar": "Google Kalender",
@@ -500,13 +501,17 @@
     "deleteItemDrive": "Hapus \"{{name}}\""
   },
   "layout": {
-    "appName": "Dasbor Kehidupan",
+    "appName": "Manajemen Waktu",
     "appShort": "LD",
     "logout": "Keluar",
     "toggleSidebar": "Tampilkan/sembunyikan sidebar"
   },
   "auth": {
-    "signingIn": "Sedang masuk…"
+    "signingIn": "Sedang masuk…",
+    "rememberTitle": "Tetap masuk?",
+    "rememberSubtitle": "Pilih apakah Anda ingin sesi tetap aktif setelah menutup browser.",
+    "stayLoggedIn": "Tetap masuk",
+    "notNow": "Nanti saja"
   },
   "charts": {
     "taskStatusTitle": "Status Tugas",

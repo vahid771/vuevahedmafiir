@@ -26,6 +26,7 @@ import IntegrationsSettingsPage from './pages/settings/IntegrationsSettingsPage'
 import PrivacyPage from './pages/PrivacyPage';
 import TermsPage from './pages/TermsPage';
 import AuthCallbackPage from './pages/AuthCallbackPage';
+import RememberMePage from './pages/RememberMePage';
 
 function App() {
   return (
@@ -38,6 +39,7 @@ function App() {
           <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route path="/auth/callback" element={<AuthCallbackPage />} />
+            <Route path="/auth/remember" element={<RememberMePage />} />
             <Route path="/privacy" element={<PrivacyPage />} />
             <Route path="/terms" element={<TermsPage />} />
             <Route

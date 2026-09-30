@@ -10,7 +10,7 @@ interface AuthContextValue {
   token: string | null;
   user: User | null;
   isAdmin: boolean;
-  login: (token: string, user: User) => void;
+  login: (token: string, user: User, remember: boolean) => void;
   logout: () => void;
 }
 
@@ -20,20 +20,14 @@ const TOKEN_KEY = 'dashboard_token';
 const USER_KEY  = 'dashboard_user';
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [token, setToken] = useState<string | null>(() => localStorage.getItem(TOKEN_KEY));
+  const [token, setToken] = useState<string | null>(() => {
+    return localStorage.getItem(TOKEN_KEY) ?? sessionStorage.getItem(TOKEN_KEY);
+  });
   const [user, setUser] = useState<User | null>(() => {
-    const raw = localStorage.getItem(USER_KEY);
+    const raw = localStorage.getItem(USER_KEY) ?? sessionStorage.getItem(USER_KEY);
     return raw ? (JSON.parse(raw) as User) : null;
   });
   const [isAdmin, setIsAdmin] = useState(false);
-
-  // Persist token + user
-  useEffect(() => {
-    if (token && user) {
-      localStorage.setItem(TOKEN_KEY, token);
-      localStorage.setItem(USER_KEY, JSON.stringify(user));
-    }
-  }, [token, user]);
 
   // Fetch admin status whenever token changes
   useEffect(() => {
@@ -46,11 +40,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .catch(() => setIsAdmin(false));
   }, [token]);
 
-  function login(newToken: string, newUser: User) {
+  function login(newToken: string, newUser: User, remember: boolean) {
+    const store   = remember ? localStorage   : sessionStorage;
+    const discard = remember ? sessionStorage : localStorage;
+    // Clear the opposite store so a stale token can never be read back on reload.
+    discard.removeItem(TOKEN_KEY);
+    discard.removeItem(USER_KEY);
+    store.setItem(TOKEN_KEY, newToken);
+    store.setItem(USER_KEY, JSON.stringify(newUser));
     setToken(newToken);
     setUser(newUser);
-    localStorage.setItem(TOKEN_KEY, newToken);
-    localStorage.setItem(USER_KEY, JSON.stringify(newUser));
   }
 
   function logout() {
@@ -59,6 +58,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsAdmin(false);
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
+    sessionStorage.removeItem(TOKEN_KEY);
+    sessionStorage.removeItem(USER_KEY);
   }
 
   return (

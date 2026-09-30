@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { getGoogleLoginUrl } from '../api/auth';
 
@@ -133,6 +133,8 @@ function AppLogo({ size = 7 }: { size?: number }) {
 
 export default function LandingPage() {
   const { token } = useAuth();
+
+  if (token) return <Navigate to="/dashboard" replace />;
 
   return (
     <div className="min-h-screen bg-white text-gray-900 antialiased">

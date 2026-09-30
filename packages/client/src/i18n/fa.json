@@ -1,4 +1,4 @@
-{
+﻿{
   "common": {
     "save": "ذخیره",
     "saving": "در حال ذخیره…",
@@ -27,7 +27,7 @@
     "admin": "مدیریت"
   },
   "login": {
-    "title": "داشبورد زندگی شخصی",
+    "title": "مدیریت زمان شخصی",
     "signIn": "ورود",
     "register": "ثبت‌نام",
     "email": "ایمیل",
@@ -38,11 +38,12 @@
     "createAccount": "ایجاد حساب",
     "continueWithGoogle": "ادامه با گوگل",
     "googleFailed": "ورود با گوگل ناموفق بود. لطفاً دوباره تلاش کنید.",
-    "noEmail": "دریافت ایمیل از گوگل امکان‌پذیر نبود."
+    "noEmail": "دریافت ایمیل از گوگل امکان‌پذیر نبود.",
+    "rememberMe": "مرا به خاطر بسپار"
   },
   "dashboard": {
     "welcomeBack": "خوش آمدید",
-    "subtitle": "داشبورد زندگی شخصی شما.",
+    "subtitle": "داشبورد مدیریت زمان شخصی شما.",
     "aiSummary": "مرور هفتگی",
     "aiSummarySubtitle": "این هفته چه چیزی نیاز به توجه دارد؟",
     "summarizeMyWeek": "خلاصه هفته‌ام",
@@ -359,7 +360,7 @@
     "tertiaryCalendar": "تقویم سوم",
     "subCalendarNone": "هیچ‌کدام",
     "googleDrive": "گوگل درایو",
-    "googleDriveDesc": "حساب گوگل خود را برای ذخیره اسناد آپلودشده مستقیماً در درایو خود در پوشه‌ای به نام «Personal Life Dashboard» متصل کنید.",
+    "googleDriveDesc": "حساب گوگل خود را برای ذخیره اسناد آپلودشده مستقیماً در درایو خود در پوشه‌ای به نام «Personal Time Management» متصل کنید.",
     "googleTasks": "گوگل Tasks",
     "googleTasksDesc": "حساب گوگل خود را برای همگام‌سازی وظایف با Google Tasks متصل کنید. تغییرات محلی به‌طور خودکار به گوگل ارسال می‌شوند؛ از دکمه «همگام‌سازی از گوگل» در صفحه وظایف برای دریافت بروزرسانی‌ها استفاده کنید.",
     "googleCalendar": "گوگل تقویم",
@@ -588,13 +589,17 @@
     "deleteItemDrive": "حذف «{{name}}»"
   },
   "layout": {
-    "appName": "داشبورد زندگی",
+    "appName": "مدیریت زمان",
     "appShort": "دش",
     "logout": "خروج",
     "toggleSidebar": "نوار کناری"
   },
   "auth": {
-    "signingIn": "در حال ورود به سیستم…"
+    "signingIn": "در حال ورود به سیستم…",
+    "rememberTitle": "وارد بمانم؟",
+    "rememberSubtitle": "انتخاب کنید که آیا پس از بستن مرورگر، جلسه شما حفظ شود.",
+    "stayLoggedIn": "وارد بمانم",
+    "notNow": "نه الان"
   },
   "charts": {
     "taskStatusTitle": "وضعیت وظایف",

@@ -1,4 +1,4 @@
-{
+﻿{
   "common": {
     "save": "保存",
     "saving": "保存中…",
@@ -27,7 +27,7 @@
     "admin": "管理"
   },
   "login": {
-    "title": "个人生活仪表板",
+    "title": "个人时间管理",
     "signIn": "登录",
     "register": "注册",
     "email": "邮筱",
@@ -38,11 +38,12 @@
     "createAccount": "创建账户",
     "continueWithGoogle": "使用 Google 继续",
     "googleFailed": "Google 登录失败，请重试。",
-    "noEmail": "无法从 Google 获取邮筱。"
+    "noEmail": "无法从 Google 获取邮筱。",
+    "rememberMe": "记住我"
   },
   "dashboard": {
     "welcomeBack": "欢迎回来",
-    "subtitle": "这是您的个人生活仪表板。",
+    "subtitle": "这是您的个人时间管理仪表板。",
     "aiSummary": "本周概览",
     "aiSummarySubtitle": "本周需要您关注什么？",
     "summarizeMyWeek": "总结我的一周",
@@ -359,7 +360,7 @@
     "tertiaryCalendar": "第三日历",
     "subCalendarNone": "无",
     "googleDrive": "Google Drive",
-    "googleDriveDesc": "连接您的 Google 账户，将上传的文档直接保存到 Drive 中名为“Personal Life Dashboard”的文件夹。",
+    "googleDriveDesc": "连接您的 Google 账户，将上传的文档直接保存到 Drive 中名为“Personal Time Management”的文件夹。",
     "googleTasks": "Google Tasks",
     "googleTasksDesc": "连接您的 Google 账户以与 Google Tasks 同步任务。本地更改会自动推送到 Google；使用任务页面上的“从 Google 同步”按鈕拉取更新。",
     "googleCalendar": "Google Calendar",
@@ -500,13 +501,17 @@
     "deleteItemDrive": "删除「{{name}}」"
   },
   "layout": {
-    "appName": "生活仪表板",
+    "appName": "时间管理",
     "appShort": "LD",
     "logout": "退出",
     "toggleSidebar": "切换侧边栏"
   },
   "auth": {
-    "signingIn": "正在登录…"
+    "signingIn": "正在登录…",
+    "rememberTitle": "保持登录？",
+    "rememberSubtitle": "选择是否在关闭浏览器后保留您的会话。",
+    "stayLoggedIn": "保持登录",
+    "notNow": "暂不"
   },
   "charts": {
     "taskStatusTitle": "任务状态",

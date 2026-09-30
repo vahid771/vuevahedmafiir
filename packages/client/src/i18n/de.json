@@ -1,4 +1,4 @@
-{
+﻿{
   "common": {
     "save": "Speichern",
     "saving": "Speichern…",
@@ -27,7 +27,7 @@
     "admin": "Admin"
   },
   "login": {
-    "title": "Persönliches Lebens-Dashboard",
+    "title": "Persönliches Zeitmanagement",
     "signIn": "Anmelden",
     "register": "Registrieren",
     "email": "E-Mail",
@@ -38,11 +38,12 @@
     "createAccount": "Konto erstellen",
     "continueWithGoogle": "Mit Google fortfahren",
     "googleFailed": "Google-Anmeldung fehlgeschlagen. Bitte versuche es erneut.",
-    "noEmail": "E-Mail konnte nicht von Google abgerufen werden."
+    "noEmail": "E-Mail konnte nicht von Google abgerufen werden.",
+    "rememberMe": "Angemeldet bleiben"
   },
   "dashboard": {
     "welcomeBack": "Willkommen zurück",
-    "subtitle": "Hier ist dein persönliches Lebens-Dashboard.",
+    "subtitle": "Hier ist dein persönliches Zeitmanagement-Dashboard.",
     "aiSummary": "Wochenübersicht",
     "aiSummarySubtitle": "Was braucht diese Woche deine Aufmerksamkeit?",
     "summarizeMyWeek": "Meine Woche zusammenfassen",
@@ -359,7 +360,7 @@
     "tertiaryCalendar": "Tertiärer Kalender",
     "subCalendarNone": "Keiner",
     "googleDrive": "Google Drive",
-    "googleDriveDesc": "Verbinde dein Google-Konto, um hochgeladene Dokumente direkt in deinem Drive in einem Ordner namens „Personal Life Dashboard“ zu speichern.",
+    "googleDriveDesc": "Verbinde dein Google-Konto, um hochgeladene Dokumente direkt in deinem Drive in einem Ordner namens „Personal Time Management“ zu speichern.",
     "googleTasks": "Google Tasks",
     "googleTasksDesc": "Verbinde dein Google-Konto, um Aufgaben mit Google Tasks zu synchronisieren. Lokale Änderungen werden automatisch an Google übertragen; nutze die Schaltfläche „Von Google synchronisieren“ auf der Aufgabenseite, um Updates abzurufen.",
     "googleCalendar": "Google Kalender",
@@ -500,13 +501,17 @@
     "deleteItemDrive": "„{{name}}“ löschen"
   },
   "layout": {
-    "appName": "Lebens-Dashboard",
+    "appName": "Zeitmanagement",
     "appShort": "LD",
     "logout": "Abmelden",
     "toggleSidebar": "Seitenleiste umschalten"
   },
   "auth": {
-    "signingIn": "Anmeldung läuft…"
+    "signingIn": "Anmeldung läuft…",
+    "rememberTitle": "Angemeldet bleiben?",
+    "rememberSubtitle": "Wähle, ob deine Sitzung nach dem Schließen des Browsers gespeichert bleiben soll.",
+    "stayLoggedIn": "Angemeldet bleiben",
+    "notNow": "Nicht jetzt"
   },
   "charts": {
     "taskStatusTitle": "Aufgabenstatus",

@@ -1,5 +1,5 @@
 import { useState, FormEvent } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { login as apiLogin, register as apiRegister, getGoogleLoginUrl } from '../api/auth';
 import { useAuth } from '../context/AuthContext';
 import { useTranslation } from 'react-i18next';
@@ -11,11 +11,14 @@ export default function LoginPage() {
   const [mode, setMode] = useState<Mode>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const auth = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+
+  if (auth.token) return <Navigate to="/dashboard" replace />;
 
   const searchError = new URLSearchParams(location.search).get('error');
   const [error, setError] = useState<string | null>(
@@ -32,8 +35,8 @@ export default function LoginPage() {
       const result = mode === 'login'
         ? await apiLogin(email, password)
         : await apiRegister(email, password);
-      auth.login(result.token, result.user);
-      navigate('/dashboard');
+      auth.login(result.token, result.user, rememberMe);
+      navigate('/dashboard', { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
     } finally {
@@ -104,6 +107,18 @@ export default function LoginPage() {
               placeholder={t('login.passwordPlaceholder')}
             />
           </div>
+
+          {mode === 'login' && (
+            <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              {t('login.rememberMe')}
+            </label>
+          )}
 
           {error && (
             <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">

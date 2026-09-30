@@ -297,16 +297,6 @@ export async function runMigrations(): Promise<void> {
     `CREATE INDEX IF NOT EXISTS idx_admin_image_reviews_doc ON admin_image_reviews(document_id)`,
   ]);
 
-  // ── Seed admin user ────────────────────────────────────────────────────────
-  try {
-    await db.execute({
-      sql: `UPDATE users SET is_admin = 1 WHERE email = ?`,
-      args: ['vahed.mafi@gmail.com'],
-    });
-  } catch (e: any) {
-    console.warn('[migration] admin seed skipped —', String(e).slice(0, 80));
-  }
-
   // ── Table-rebuild migration: drop old 2-column UNIQUE constraint ──────────
   // On existing DBs, ai_summaries_lang was created with UNIQUE(user_id, summary_lang).
   // That blocks storing two calendars for the same user+lang. We rebuild the table
@@ -397,5 +387,16 @@ export async function runMigrations(): Promise<void> {
     }
   } catch (e: any) {
     console.warn('[migration] ai_summaries_lang rebuild skipped —', String(e).slice(0, 120));
+  }
+
+  // ── Ensure admin user is set on every startup ─────────────────────────────
+  // Runs after migrations so the user row is guaranteed to exist before we try.
+  try {
+    await db.execute({
+      sql: `UPDATE users SET is_admin = 1 WHERE email = ?`,
+      args: ['vahed.mafi@gmail.com'],
+    });
+  } catch (e: any) {
+    console.warn('[migration] admin seed skipped —', String(e).slice(0, 80));
   }
 }

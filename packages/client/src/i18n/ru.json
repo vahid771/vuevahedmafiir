@@ -1,4 +1,4 @@
-{
+﻿{
   "common": {
     "save": "Сохранить",
     "saving": "Сохранение…",
@@ -27,7 +27,7 @@
     "admin": "Админ"
   },
   "login": {
-    "title": "Личная панель жизни",
+    "title": "Личное управление временем",
     "signIn": "Войти",
     "register": "Зарегистрироваться",
     "email": "Электронная почта",
@@ -38,11 +38,12 @@
     "createAccount": "Создать аккаунт",
     "continueWithGoogle": "Продолжить с Google",
     "googleFailed": "Вход через Google не удался. Попробуйте ещё раз.",
-    "noEmail": "Не удалось получить адрес электронной почты от Google."
+    "noEmail": "Не удалось получить адрес электронной почты от Google.",
+    "rememberMe": "Запомнить меня"
   },
   "dashboard": {
     "welcomeBack": "С возвращением",
-    "subtitle": "Это ваша личная панель жизни.",
+    "subtitle": "Это ваша личная панель управления временем.",
     "aiSummary": "Обзор недели",
     "aiSummarySubtitle": "На что обратить внимание на этой неделе?",
     "summarizeMyWeek": "Подвести итоги недели",
@@ -359,7 +360,7 @@
     "tertiaryCalendar": "Третичный календарь",
     "subCalendarNone": "Нет",
     "googleDrive": "Google Диск",
-    "googleDriveDesc": "Подключите свой аккаунт Google, чтобы сохранять загруженные документы прямо на Диске в папке «Personal Life Dashboard».",
+    "googleDriveDesc": "Подключите свой аккаунт Google, чтобы сохранять загруженные документы прямо на Диске в папке «Personal Time Management».",
     "googleTasks": "Google Задачи",
     "googleTasksDesc": "Подключите свой аккаунт Google для синхронизации задач с Google Задачами. Локальные изменения автоматически отправляются в Google; используйте кнопку «Синхронизировать из Google» на странице Задач для получения обновлений.",
     "googleCalendar": "Google Календарь",
@@ -500,13 +501,17 @@
     "deleteItemDrive": "Удалить «{{name}}»"
   },
   "layout": {
-    "appName": "Панель жизни",
+    "appName": "Управление временем",
     "appShort": "LD",
     "logout": "Выйти",
     "toggleSidebar": "Переключить боковую панель"
   },
   "auth": {
-    "signingIn": "Выполняется вход…"
+    "signingIn": "Выполняется вход…",
+    "rememberTitle": "Оставаться в системе?",
+    "rememberSubtitle": "Выберите, сохранять ли сессию после закрытия браузера.",
+    "stayLoggedIn": "Оставаться в системе",
+    "notNow": "Не сейчас"
   },
   "charts": {
     "taskStatusTitle": "Статус задач",

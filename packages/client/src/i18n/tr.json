@@ -1,4 +1,4 @@
-{
+﻿{
   "common": {
     "save": "Kaydet",
     "saving": "Kaydediliyor…",
@@ -27,7 +27,7 @@
     "admin": "Admin"
   },
   "login": {
-    "title": "Kişisel Yaşam Panosu",
+    "title": "Kişisel Zaman Yönetimi",
     "signIn": "Giriş Yap",
     "register": "Kayıt Ol",
     "email": "E-posta",
@@ -38,11 +38,12 @@
     "createAccount": "Hesap Oluştur",
     "continueWithGoogle": "Google ile devam et",
     "googleFailed": "Google girişi başarısız oldu. Lütfen tekrar deneyin.",
-    "noEmail": "Google'dan e-posta alınamadı."
+    "noEmail": "Google'dan e-posta alınamadı.",
+    "rememberMe": "Beni hatırla"
   },
   "dashboard": {
     "welcomeBack": "Tekrar hoş geldiniz",
-    "subtitle": "İşte kişisel yaşam panonuz.",
+    "subtitle": "İşte kişisel zaman yönetimi panonuz.",
     "aiSummary": "Haftalık Genel Bakış",
     "aiSummarySubtitle": "Bu hafta nelere dikkat etmeniz gerekiyor?",
     "summarizeMyWeek": "Haftamı özetle",
@@ -359,7 +360,7 @@
     "tertiaryCalendar": "Üçüncül takvim",
     "subCalendarNone": "Yok",
     "googleDrive": "Google Drive",
-    "googleDriveDesc": "Yüklenen belgeleri doğrudan \"Personal Life Dashboard\" adlı bir klasörde Drive'ınıza kaydetmek için Google hesabınızı bağlayın.",
+    "googleDriveDesc": "Yüklenen belgeleri doğrudan \"Personal Time Management\" adlı bir klasörde Drive'ınıza kaydetmek için Google hesabınızı bağlayın.",
     "googleTasks": "Google Görevler",
     "googleTasksDesc": "Görevleri Google Görevler ile senkronize etmek için Google hesabınızı bağlayın. Yerel değişiklikler otomatik olarak Google'a gönderilir; güncellemeleri almak için Görevler sayfasındaki \"Google'dan Senkronize Et\" düğmesini kullanın.",
     "googleCalendar": "Google Takvim",
@@ -500,13 +501,17 @@
     "deleteItemDrive": "\"{{name}}\" öğesini sil"
   },
   "layout": {
-    "appName": "Yaşam Panosu",
+    "appName": "Zaman Yönetimi",
     "appShort": "LD",
     "logout": "Çıkış Yap",
     "toggleSidebar": "Kenar çubuğunu aç/kapat"
   },
   "auth": {
-    "signingIn": "Giriş yapılıyor…"
+    "signingIn": "Giriş yapılıyor…",
+    "rememberTitle": "Giriş yapılı kal?",
+    "rememberSubtitle": "Tarayıcıyı kapattıktan sonra oturumunuzun devam edip etmeyeceğini seçin.",
+    "stayLoggedIn": "Giriş yapılı kal",
+    "notNow": "Şimdi değil"
   },
   "charts": {
     "taskStatusTitle": "Görev Durumu",

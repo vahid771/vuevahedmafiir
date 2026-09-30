@@ -1,4 +1,4 @@
-{
+﻿{
   "common": {
     "save": "Enregistrer",
     "saving": "Enregistrement…",
@@ -27,7 +27,7 @@
     "admin": "Admin"
   },
   "login": {
-    "title": "Tableau de bord vie personnelle",
+    "title": "Gestion personnelle du temps",
     "signIn": "Se connecter",
     "register": "S'inscrire",
     "email": "E-mail",
@@ -38,11 +38,12 @@
     "createAccount": "Créer un compte",
     "continueWithGoogle": "Continuer avec Google",
     "googleFailed": "La connexion Google a échoué. Veuillez réessayer.",
-    "noEmail": "Impossible de récupérer l'e-mail depuis Google."
+    "noEmail": "Impossible de récupérer l'e-mail depuis Google.",
+    "rememberMe": "Se souvenir de moi"
   },
   "dashboard": {
     "welcomeBack": "Bon retour",
-    "subtitle": "Voici votre tableau de bord vie personnelle.",
+    "subtitle": "Voici votre tableau de bord de gestion personnelle du temps.",
     "aiSummary": "Aperçu hebdomadaire",
     "aiSummarySubtitle": "Qu'est-ce qui nécessite votre attention cette semaine ?",
     "summarizeMyWeek": "Résumer ma semaine",
@@ -359,7 +360,7 @@
     "tertiaryCalendar": "Calendrier tertiaire",
     "subCalendarNone": "Aucun",
     "googleDrive": "Google Drive",
-    "googleDriveDesc": "Connectez votre compte Google pour enregistrer les documents téléversés directement dans votre Drive dans un dossier appelé « Personal Life Dashboard ».",
+    "googleDriveDesc": "Connectez votre compte Google pour enregistrer les documents téléversés directement dans votre Drive dans un dossier appelé « Personal Time Management ».",
     "googleTasks": "Google Tasks",
     "googleTasksDesc": "Connectez votre compte Google pour synchroniser les tâches avec Google Tasks. Les modifications locales sont envoyées automatiquement à Google ; utilisez le bouton « Synchroniser depuis Google » sur la page Tâches pour récupérer les mises à jour.",
     "googleCalendar": "Google Agenda",
@@ -500,13 +501,17 @@
     "deleteItemDrive": "Supprimer « {{name}} »"
   },
   "layout": {
-    "appName": "Tableau de bord vie",
+    "appName": "Gestion du temps",
     "appShort": "LD",
     "logout": "Se déconnecter",
     "toggleSidebar": "Basculer la barre latérale"
   },
   "auth": {
-    "signingIn": "Connexion en cours…"
+    "signingIn": "Connexion en cours…",
+    "rememberTitle": "Rester connecté ?",
+    "rememberSubtitle": "Choisissez si vous souhaitez conserver votre session après la fermeture du navigateur.",
+    "stayLoggedIn": "Rester connecté",
+    "notNow": "Pas maintenant"
   },
   "charts": {
     "taskStatusTitle": "Statut des tâches",

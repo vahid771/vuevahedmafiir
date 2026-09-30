@@ -1,10 +1,8 @@
 import { useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
 import { useTranslation } from 'react-i18next';
 
 export default function AuthCallbackPage() {
-  const { login } = useAuth();
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
@@ -22,8 +20,8 @@ export default function AuthCallbackPage() {
     try {
       const bytes = Uint8Array.from(atob(encodedUser), c => c.charCodeAt(0));
       const user = JSON.parse(new TextDecoder().decode(bytes)) as { id: number; email: string };
-      login(token, user);
-      navigate('/dashboard', { replace: true });
+      // Hand off to the remember-me prompt page before logging in.
+      navigate('/auth/remember', { replace: true, state: { token, user } });
     } catch {
       navigate('/login?error=google_failed', { replace: true });
     }

@@ -1,4 +1,4 @@
-{
+﻿{
   "common": {
     "save": "حفظ",
     "saving": "جارٍ الحفظ…",
@@ -27,7 +27,7 @@
     "admin": "الإدارة"
   },
   "login": {
-    "title": "لوحة الحياة الشخصية",
+    "title": "إدارة الوقت الشخصي",
     "signIn": "تسجيل الدخول",
     "register": "إنشاء حساب",
     "email": "البريد الإلكتروني",
@@ -38,11 +38,12 @@
     "createAccount": "إنشاء حساب",
     "continueWithGoogle": "المتابعة مع Google",
     "googleFailed": "فشل تسجيل الدخول عبر Google. يرجى المحاولة مجدداً.",
-    "noEmail": "تعذّر استرداد البريد الإلكتروني من Google."
+    "noEmail": "تعذّر استرداد البريد الإلكتروني من Google.",
+    "rememberMe": "تذكرني"
   },
   "dashboard": {
     "welcomeBack": "مرحباً بعودتك",
-    "subtitle": "هذه لوحة حياتك الشخصية.",
+    "subtitle": "إليك لوحة إدارة الوقت الشخصي الخاصة بك.",
     "aiSummary": "نظرة أسبوعية",
     "aiSummarySubtitle": "ما الذي يستحق اهتمامك هذا الأسبوع؟",
     "summarizeMyWeek": "تلخيص أسبوعي",
@@ -359,7 +360,7 @@
     "tertiaryCalendar": "التقويم الثالث",
     "subCalendarNone": "لا شيء",
     "googleDrive": "Google Drive",
-    "googleDriveDesc": "قم بتوصيل حساب Google الخاص بك لحفظ الوثائق المرفوعة مباشرة على Drive في مجلد باسم «Personal Life Dashboard».",
+    "googleDriveDesc": "قم بتوصيل حساب Google الخاص بك لحفظ الوثائق المرفوعة مباشرة على Drive في مجلد باسم «Personal Time Management».",
     "googleTasks": "Google Tasks",
     "googleTasksDesc": "قم بتوصيل حساب Google الخاص بك لمزامنة المهام مع Google Tasks. تُرسَل التغييرات المحلية إلى Google تلقائياً؛ استخدم زر «مزامنة من Google» في صفحة المهام لاسترداد التحديثات.",
     "googleCalendar": "Google Calendar",
@@ -588,13 +589,17 @@
     "deleteItemDrive": "حذف «{{name}}»"
   },
   "layout": {
-    "appName": "لوحة الحياة",
+    "appName": "إدارة الوقت",
     "appShort": "لح",
     "logout": "تسجيل الخروج",
     "toggleSidebar": "تبديل الشريط الجانبي"
   },
   "auth": {
-    "signingIn": "جارٍ تسجيل الدخول…"
+    "signingIn": "جارٍ تسجيل الدخول…",
+    "rememberTitle": "هل تريد البقاء مسجلاً؟",
+    "rememberSubtitle": "اختر ما إذا كنت تريد الإبقاء على جلستك بعد إغلاق المتصفح.",
+    "stayLoggedIn": "ابقَ مسجلاً",
+    "notNow": "ليس الآن"
   },
   "charts": {
     "taskStatusTitle": "حالة المهام",
