@@ -13,7 +13,8 @@
     "confirm": "Confirm",
     "close": "Close",
     "or": "or",
-    "required": "required"
+    "required": "required",
+    "unsavedChanges": "You have unsaved changes. Leave anyway?"
   },
   "nav": {
     "dashboard": "Dashboard",

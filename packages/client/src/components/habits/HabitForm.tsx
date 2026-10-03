@@ -26,6 +26,12 @@ export default function HabitForm({ initial = EMPTY_HABIT_FORM, onSave, onCancel
   const { token } = useAuth();
   const [form, setForm] = useState<HabitFormState>(initial);
 
+  function handleCancel() {
+    const isDirty = JSON.stringify(form) !== JSON.stringify(initial);
+    if (isDirty && !window.confirm(t('common.unsavedChanges'))) return;
+    onCancel();
+  }
+
   return (
     <div className="mb-6 bg-white border border-gray-200 rounded-lg p-4">
       <h2 className="font-semibold text-gray-800 mb-3">{editId ? t('habits.form.editHabit') : t('habits.form.newHabit')}</h2>
@@ -55,7 +61,7 @@ export default function HabitForm({ initial = EMPTY_HABIT_FORM, onSave, onCancel
           {t('common.save')}
         </button>
         <button
-          onClick={onCancel}
+          onClick={handleCancel}
           className="px-4 py-2 rounded text-sm border border-gray-300 hover:bg-gray-50"
         >
           {t('common.cancel')}

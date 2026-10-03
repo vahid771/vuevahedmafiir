@@ -33,6 +33,11 @@ export default function BillForm({ initial = EMPTY_BILL_FORM, onSave, onCancel, 
   function set<K extends keyof BillFormState>(key: K, value: BillFormState[K]) {
     setForm(prev => ({ ...prev, [key]: value }));
   }
+  function handleCancel() {
+    const isDirty = JSON.stringify(form) !== JSON.stringify(initial);
+    if (isDirty && !window.confirm(t('common.unsavedChanges'))) return;
+    onCancel();
+  }
 
   return (
     <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-3">
@@ -86,7 +91,7 @@ export default function BillForm({ initial = EMPTY_BILL_FORM, onSave, onCancel, 
       <div className="flex gap-2 justify-end">
         <button
           type="button"
-          onClick={onCancel}
+          onClick={handleCancel}
           className="px-3 py-1.5 text-sm rounded border border-gray-300 text-gray-700 hover:bg-gray-100"
         >
           {t('common.cancel')}

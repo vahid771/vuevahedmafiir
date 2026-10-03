@@ -14,4 +14,8 @@ function handler(req, res) {
   return app(req, res);
 }
 
+// Disable Vercel's built-in body parser so multipart/form-data uploads
+// reach the handler as a raw stream that busboy can consume.
+handler.config = { api: { bodyParser: false } };
+
 module.exports = handler;

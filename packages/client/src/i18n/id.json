@@ -13,7 +13,8 @@
     "confirm": "Konfirmasi",
     "close": "Tutup",
     "or": "atau",
-    "required": "wajib diisi"
+    "required": "wajib diisi",
+    "unsavedChanges": "Ada perubahan yang belum disimpan. Tetap keluar?"
   },
   "nav": {
     "dashboard": "Dasbor",

@@ -13,7 +13,8 @@
     "confirm": "确认",
     "close": "关闭",
     "or": "或",
-    "required": "必填"
+    "required": "必填",
+    "unsavedChanges": "您有未保存的更改，确定要离开吗？"
   },
   "nav": {
     "dashboard": "仪表板",

@@ -13,7 +13,8 @@
     "confirm": "Bestätigen",
     "close": "Schließen",
     "or": "oder",
-    "required": "erforderlich"
+    "required": "erforderlich",
+    "unsavedChanges": "Ungespeicherte Änderungen vorhanden. Trotzdem verlassen?"
   },
   "nav": {
     "dashboard": "Dashboard",

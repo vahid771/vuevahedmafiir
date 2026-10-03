@@ -13,7 +13,8 @@
     "confirm": "Onayla",
     "close": "Kapat",
     "or": "veya",
-    "required": "zorunlu"
+    "required": "zorunlu",
+    "unsavedChanges": "Kaydedilmemiş değişiklikler var. Yine de ayrılmak istiyor musunuz?"
   },
   "nav": {
     "dashboard": "Pano",

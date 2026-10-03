@@ -15,23 +15,32 @@ function parseMultipart(req: Request): Promise<{
   return new Promise((resolve, reject) => {
     const fields: Record<string, string> = {};
     let file: { buffer: Buffer; originalname: string; mimetype: string; size: number } | null = null;
+    // Track pending file-stream promises so finish waits for all of them
+    const filePromises: Promise<void>[] = [];
 
     const bb = Busboy({ headers: req.headers, limits: { fileSize: 50 * 1024 * 1024 } });
 
     bb.on('file', (_fieldname, stream, info) => {
-      const chunks: Buffer[] = [];
-      stream.on('data', (chunk: Buffer) => chunks.push(chunk));
-      stream.on('end', () => {
-        const buffer = Buffer.concat(chunks);
-        file = { buffer, originalname: info.filename, mimetype: info.mimeType, size: buffer.length };
+      const filePromise = new Promise<void>((res) => {
+        const chunks: Buffer[] = [];
+        stream.on('data', (chunk: Buffer) => chunks.push(chunk));
+        stream.on('end', () => {
+          const buffer = Buffer.concat(chunks);
+          file = { buffer, originalname: info.filename, mimetype: info.mimeType, size: buffer.length };
+          res();
+        });
+        stream.on('error', () => res()); // don't block on stream error
       });
+      filePromises.push(filePromise);
     });
 
     bb.on('field', (name, val) => { fields[name] = val; });
-    bb.on('finish', () => resolve({ file, fields }));
+    bb.on('finish', () => {
+      // Wait for all file streams to fully drain before resolving
+      Promise.all(filePromises).then(() => resolve({ file, fields }));
+    });
     bb.on('error', reject);
 
-    // For multipart we skip body parsing in app.ts, so req stream is always intact
     req.pipe(bb);
   });
 }

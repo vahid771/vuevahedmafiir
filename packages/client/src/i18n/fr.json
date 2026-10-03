@@ -13,7 +13,8 @@
     "confirm": "Confirmer",
     "close": "Fermer",
     "or": "ou",
-    "required": "obligatoire"
+    "required": "obligatoire",
+    "unsavedChanges": "Vous avez des modifications non enregistrées. Quitter quand même ?"
   },
   "nav": {
     "dashboard": "Tableau de bord",

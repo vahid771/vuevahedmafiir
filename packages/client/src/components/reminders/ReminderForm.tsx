@@ -29,6 +29,12 @@ export default function ReminderForm({ initial = EMPTY_REMINDER_FORM, onSave, on
   const { token } = useAuth();
   const [form, setForm] = useState<ReminderFormState>(initial);
 
+  function handleCancel() {
+    const isDirty = JSON.stringify(form) !== JSON.stringify(initial);
+    if (isDirty && !window.confirm(t('common.unsavedChanges'))) return;
+    onCancel();
+  }
+
   return (
     <div className="mb-6 bg-white border border-gray-200 rounded-lg p-4">
       <div className="space-y-3">
@@ -61,7 +67,7 @@ export default function ReminderForm({ initial = EMPTY_REMINDER_FORM, onSave, on
           {t('common.save')}
         </button>
         <button
-          onClick={onCancel}
+          onClick={handleCancel}
           className="px-4 py-2 rounded text-sm border border-gray-300 hover:bg-gray-50"
         >
           {t('common.cancel')}
