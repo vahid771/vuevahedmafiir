@@ -50,7 +50,7 @@ router.get('/', async (req, res) => {
   }
 
   const rows = (await db.execute({
-    sql: `SELECT da.id, d.title, d.filename, d.mimetype, d.drive_file_id, d.drive_view_link
+    sql: `SELECT d.id, d.title, d.filename, d.mimetype, d.drive_file_id, d.drive_view_link
           FROM document_attachments da
           JOIN documents d ON d.id = da.document_id
           WHERE da.entity_type = ? AND da.entity_id = ?`,
