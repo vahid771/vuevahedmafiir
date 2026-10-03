@@ -536,5 +536,26 @@
     "amount": "金额",
     "noData": "无数据可显示",
     "statsTitle": "统计"
+  },
+  "attachments": {
+    "title": "附件",
+    "noAttachments": "暂无附加文件。",
+    "openInDrive": "在 Drive 中打开",
+    "detach": "移除",
+    "attachExisting": "附加已有文件",
+    "searchPlaceholder": "按标题搜索…",
+    "noMatching": "没有匹配的文件。",
+    "attach": "附加",
+    "uploadAndAttach": "上传并附加",
+    "driveNotConnected": "请在设置中连接 Google Drive 以上传文件。",
+    "goToSettings": "前往设置",
+    "uploading": "上传中…",
+    "attaching": "附加中…",
+    "failedLoad": "附件加载失败。",
+    "failedDetach": "移除文件失败。",
+    "failedAttach": "附加文件失败。",
+    "failedUpload": "上传并附加文件失败。",
+    "count_one": "{{count}} 个附件",
+    "count_other": "{{count}} 个附件"
   }
 }

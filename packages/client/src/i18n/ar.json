@@ -624,5 +624,30 @@
     "amount": "المبلغ",
     "noData": "لا توجد بيانات للعرض",
     "statsTitle": "الإحصاءات"
+  },
+  "attachments": {
+    "title": "المرفقات",
+    "noAttachments": "لا توجد مستندات مرفقة.",
+    "openInDrive": "فتح في Drive",
+    "detach": "فصل",
+    "attachExisting": "إرفاق مستند موجود",
+    "searchPlaceholder": "ابحث بالعنوان…",
+    "noMatching": "لا توجد مستندات مطابقة.",
+    "attach": "إرفاق",
+    "uploadAndAttach": "رفع وإرفاق",
+    "driveNotConnected": "يرجى ربط Google Drive من الإعدادات لرفع المستندات.",
+    "goToSettings": "الذهاب إلى الإعدادات",
+    "uploading": "جارٍ الرفع…",
+    "attaching": "جارٍ الإرفاق…",
+    "failedLoad": "فشل تحميل المرفقات.",
+    "failedDetach": "فشل فصل المستند.",
+    "failedAttach": "فشل إرفاق المستند.",
+    "failedUpload": "فشل رفع المستند وإرفاقه.",
+    "count_zero": "لا مرفقات",
+    "count_one": "مرفق واحد",
+    "count_two": "مرفقان",
+    "count_few": "{{count}} مرفقات",
+    "count_many": "{{count}} مرفقاً",
+    "count_other": "{{count}} مرفق"
   }
 }

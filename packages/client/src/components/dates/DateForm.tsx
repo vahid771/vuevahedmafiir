@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import DateInput from '../DateInput';
+import { useAuth } from '../../context/AuthContext';
+import AttachmentsSection from '../attachments/AttachmentsSection';
 
 export interface DateFormState {
   title: string;
@@ -26,6 +28,7 @@ interface DateFormProps {
 
 export default function DateForm({ initial = EMPTY_DATE_FORM, onSave, onCancel, saving, editId }: DateFormProps) {
   const { t } = useTranslation();
+  const { token } = useAuth();
   const [form, setForm] = useState<DateFormState>(initial);
 
   return (
@@ -59,6 +62,7 @@ export default function DateForm({ initial = EMPTY_DATE_FORM, onSave, onCancel, 
           onChange={e => setForm(p => ({ ...p, notes: e.target.value }))}
         />
       </div>
+      {editId && <AttachmentsSection entityType="date" entityId={editId} token={token ?? ''} />}
       <div className="flex gap-2 mt-3">
         <button
           onClick={() => onSave(form)}

@@ -18,6 +18,7 @@ import TaskForm, { type TaskFormState } from '../components/tasks/TaskForm';
 import { getGoogleTasksStatus } from '../api/googleTasks';
 import { getGoogleCalendarStatus, syncFromGoogleCalendar } from '../api/googleCalendar';
 import { useSyncQueue } from '../context/SyncQueueContext';
+import { getAttachments } from '../api/attachments';
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 
@@ -53,7 +54,7 @@ const PRIORITY_BADGE: Record<Task['priority'], string> = {
 // ─── TaskRow ──────────────────────────────────────────────────────────────────
 
 function TaskRow({
-  task, onToggle, onDelete, onEdit, editingId, onSaveEdit, onCancelEdit, saving,
+  task, onToggle, onDelete, onEdit, editingId, onSaveEdit, onCancelEdit, saving, attachmentCount,
 }: {
   task: Task;
   onToggle: (task: Task) => void;
@@ -63,6 +64,7 @@ function TaskRow({
   onSaveEdit: (task: Task, form: TaskFormState) => void;
   onCancelEdit: () => void;
   saving: boolean;
+  attachmentCount?: number;
 }) {
   const isDone = task.status === 'done';
   const { t } = useTranslation();
@@ -104,7 +106,17 @@ function TaskRow({
             <p className={`text-xs mt-0.5 ${isDone ? 'text-gray-400' : 'text-gray-500'}`}>{task.description}</p>
           )}
         </div>
-        <div className="flex gap-1 flex-shrink-0">
+        <div className="flex gap-1 flex-shrink-0 items-center">
+          {(attachmentCount ?? 0) > 0 && (
+            <button
+              type="button"
+              onClick={() => onEdit(task)}
+              className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
+              title={t('attachments.title')}
+            >
+              📎 {t('attachments.count', { count: attachmentCount })}
+            </button>
+          )}
           <button type="button" onClick={() => onEdit(task)} title={t('common.edit')}
             className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors">
             <IconEdit />
@@ -121,6 +133,7 @@ function TaskRow({
           onSave={form => onSaveEdit(task, form)}
           onCancel={onCancelEdit}
           saving={saving}
+          editId={task.id}
         />
       )}
     </motion.li>
@@ -146,6 +159,7 @@ function TaskList({
   const [addSaving, setAddSaving] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editSaving, setEditSaving] = useState(false);
+  const [attachmentCounts, setAttachmentCounts] = useState<Record<number, number>>({});
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -158,6 +172,15 @@ function TaskList({
   }, [token, groupId]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (!token || tasks.length === 0) return;
+    Promise.all(
+      tasks.map(e => getAttachments(token, 'task', e.id).then(docs => [e.id, docs.length] as [number, number]))
+    ).then(pairs => {
+      setAttachmentCounts(Object.fromEntries(pairs));
+    }).catch(() => {});
+  }, [tasks, token]);
 
   async function handleCreate(form: TaskFormState) {
     if (!token || !form.title.trim()) return;
@@ -173,11 +196,12 @@ function TaskList({
       const target = [gTasksConnected && 'Google Tasks', gcalConnected && form.due_date && 'Google Calendar'].filter(Boolean).join(' & ');
       if (target) {
         await addJob({ key: 'sync.addItem', vars: { name: form.title.trim(), target } }, () =>
-          createTask(token, data).then(created => { setTasks(prev => [created, ...prev]); setShowAddForm(false); }));
+          createTask(token, data).then(created => { setTasks(prev => [created, ...prev]); setShowAddForm(false); setEditingId(created.id); }));
       } else {
         const created = await createTask(token, data);
         setTasks(prev => [created, ...prev]);
         setShowAddForm(false);
+        setEditingId(created.id);
       }
     } catch (e) { setError((e as Error).message); }
     finally { setAddSaving(false); }
@@ -273,7 +297,8 @@ function TaskList({
                     onToggle={handleToggle} onDelete={handleDelete}
                     onEdit={t => { setEditingId(t.id); setShowAddForm(false); }}
                     editingId={editingId} onSaveEdit={handleSaveEdit}
-                    onCancelEdit={() => setEditingId(null)} saving={editSaving} />
+                    onCancelEdit={() => setEditingId(null)} saving={editSaving}
+                    attachmentCount={attachmentCounts[task.id] ?? 0} />
                 ))}
               </motion.ul>
             )}
@@ -293,7 +318,8 @@ function TaskList({
                     onToggle={handleToggle} onDelete={handleDelete}
                     onEdit={t => { setEditingId(t.id); setShowAddForm(false); }}
                     editingId={editingId} onSaveEdit={handleSaveEdit}
-                    onCancelEdit={() => setEditingId(null)} saving={editSaving} />
+                    onCancelEdit={() => setEditingId(null)} saving={editSaving}
+                    attachmentCount={attachmentCounts[task.id] ?? 0} />
                 ))}
               </motion.ul>
             </section>
@@ -568,12 +594,22 @@ function AllTasksView({ gTasksConnected, gcalConnected }: { gTasksConnected: boo
   const [addSaving, setAddSaving] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editSaving, setEditSaving] = useState(false);
+  const [attachmentCounts, setAttachmentCounts] = useState<Record<number, number>>({});
 
   useEffect(() => {
     if (!token) return;
     setLoading(true);
     getTasks(token).then(setTasks).catch(e => setError((e as Error).message)).finally(() => setLoading(false));
   }, [token]);
+
+  useEffect(() => {
+    if (!token || tasks.length === 0) return;
+    Promise.all(
+      tasks.map(e => getAttachments(token, 'task', e.id).then(docs => [e.id, docs.length] as [number, number]))
+    ).then(pairs => {
+      setAttachmentCounts(Object.fromEntries(pairs));
+    }).catch(() => {});
+  }, [tasks, token]);
 
   async function handleCreate(form: TaskFormState) {
     if (!token || !form.title.trim()) return;
@@ -588,11 +624,12 @@ function AllTasksView({ gTasksConnected, gcalConnected }: { gTasksConnected: boo
       const target = [gTasksConnected && 'Google Tasks', gcalConnected && form.due_date && 'Google Calendar'].filter(Boolean).join(' & ');
       if (target) {
         await addJob({ key: 'sync.addItem', vars: { name: form.title.trim(), target } }, () =>
-          createTask(token, data).then(c => { setTasks(prev => [c, ...prev]); setShowAddForm(false); }));
+          createTask(token, data).then(c => { setTasks(prev => [c, ...prev]); setShowAddForm(false); setEditingId(c.id); }));
       } else {
         const c = await createTask(token, data);
         setTasks(prev => [c, ...prev]);
         setShowAddForm(false);
+        setEditingId(c.id);
       }
     } catch (e) { setError((e as Error).message); }
     finally { setAddSaving(false); }
@@ -657,7 +694,8 @@ function AllTasksView({ gTasksConnected, gcalConnected }: { gTasksConnected: boo
                 {openTasks.map(task => (
                   <TaskRow key={task.id} task={task} onToggle={handleToggle} onDelete={handleDelete}
                     onEdit={t => { setEditingId(t.id); setShowAddForm(false); }}
-                    editingId={editingId} onSaveEdit={handleSaveEdit} onCancelEdit={() => setEditingId(null)} saving={editSaving} />
+                    editingId={editingId} onSaveEdit={handleSaveEdit} onCancelEdit={() => setEditingId(null)} saving={editSaving}
+                    attachmentCount={attachmentCounts[task.id] ?? 0} />
                 ))}
               </motion.ul>
             )}
@@ -673,7 +711,8 @@ function AllTasksView({ gTasksConnected, gcalConnected }: { gTasksConnected: boo
                 {doneTasks.map(task => (
                   <TaskRow key={task.id} task={task} onToggle={handleToggle} onDelete={handleDelete}
                     onEdit={t => { setEditingId(t.id); setShowAddForm(false); }}
-                    editingId={editingId} onSaveEdit={handleSaveEdit} onCancelEdit={() => setEditingId(null)} saving={editSaving} />
+                    editingId={editingId} onSaveEdit={handleSaveEdit} onCancelEdit={() => setEditingId(null)} saving={editSaving}
+                    attachmentCount={attachmentCounts[task.id] ?? 0} />
                 ))}
               </motion.ul>
             </section>

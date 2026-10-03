@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import DateInput from '../DateInput';
+import { useAuth } from '../../context/AuthContext';
+import AttachmentsSection from '../attachments/AttachmentsSection';
 
 export interface SubFormState {
   name: string;
@@ -23,10 +25,12 @@ interface SubFormProps {
   onSave: (data: SubFormState) => void;
   onCancel: () => void;
   saving: boolean;
+  editId?: number;
 }
 
-export default function SubscriptionForm({ initial = EMPTY_SUB_FORM, onSave, onCancel, saving }: SubFormProps) {
+export default function SubscriptionForm({ initial = EMPTY_SUB_FORM, onSave, onCancel, saving, editId }: SubFormProps) {
   const { t } = useTranslation();
+  const { token } = useAuth();
   const [form, setForm] = useState<SubFormState>(initial);
   function set<K extends keyof SubFormState>(key: K, value: SubFormState[K]) {
     setForm(prev => ({ ...prev, [key]: value }));
@@ -92,6 +96,7 @@ export default function SubscriptionForm({ initial = EMPTY_SUB_FORM, onSave, onC
           />
         </div>
       </div>
+      {editId && <AttachmentsSection entityType="subscription" entityId={editId} token={token ?? ''} />}
       <div className="flex gap-2 justify-end">
         <button
           type="button"

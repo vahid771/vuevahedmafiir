@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import DateInput from '../DateInput';
+import { useAuth } from '../../context/AuthContext';
+import AttachmentsSection from '../attachments/AttachmentsSection';
 
 export interface LoanFormState {
   name: string;
@@ -29,10 +31,12 @@ interface LoanFormProps {
   onSave: (data: LoanFormState) => void;
   onCancel: () => void;
   saving: boolean;
+  editId?: number;
 }
 
-export default function LoanForm({ initial = EMPTY_LOAN_FORM, onSave, onCancel, saving }: LoanFormProps) {
+export default function LoanForm({ initial = EMPTY_LOAN_FORM, onSave, onCancel, saving, editId }: LoanFormProps) {
   const { t } = useTranslation();
+  const { token } = useAuth();
   const [form, setForm] = useState<LoanFormState>(initial);
   function set<K extends keyof LoanFormState>(key: K, value: LoanFormState[K]) {
     setForm(prev => ({ ...prev, [key]: value }));
@@ -129,6 +133,7 @@ export default function LoanForm({ initial = EMPTY_LOAN_FORM, onSave, onCancel, 
           />
         </div>
       </div>
+      {editId && <AttachmentsSection entityType="loan" entityId={editId} token={token ?? ''} />}
       <div className="flex gap-2 justify-end">
         <button
           type="button"

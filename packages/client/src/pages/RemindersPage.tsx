@@ -14,6 +14,7 @@ import { formatDateTime } from '../utils/format';
 import ReminderForm, { type ReminderFormState, EMPTY_REMINDER_FORM } from '../components/reminders/ReminderForm';
 import { getGoogleCalendarStatus, syncFromGoogleCalendar } from '../api/googleCalendar';
 import { useSyncQueue } from '../context/SyncQueueContext';
+import { getAttachments } from '../api/attachments';
 
 function reminderToForm(r: Reminder): ReminderFormState {
   // datetime-local input needs YYYY-MM-DDTHH:MM
@@ -40,6 +41,7 @@ export default function RemindersPage() {
   const [gcalConnected, setGcalConnected] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncSuccess, setSyncSuccess] = useState(false);
+  const [attachmentCounts, setAttachmentCounts] = useState<Record<number, number>>({});
 
   async function load() {
     try {
@@ -53,6 +55,15 @@ export default function RemindersPage() {
   }
 
   useEffect(() => { load(); }, []);
+
+  useEffect(() => {
+    if (!token || reminders.length === 0) return;
+    Promise.all(
+      reminders.map(e => getAttachments(token, 'reminder', e.id).then(docs => [e.id, docs.length] as [number, number]))
+    ).then(pairs => {
+      setAttachmentCounts(Object.fromEntries(pairs));
+    }).catch(() => {});
+  }, [reminders, token]);
 
   useEffect(() => {
     if (!token) return;
@@ -96,13 +107,26 @@ export default function RemindersPage() {
         await (gcalConnected
           ? addJob({ key: 'sync.updateCalendar', vars: { name: form.title } }, () => updateReminder(token!, editId, payload).then(() => {}))
           : updateReminder(token!, editId, payload));
+        cancelForm();
+        await load();
       } else {
-        await (gcalConnected
-          ? addJob({ key: 'sync.addCalendar', vars: { name: form.title } }, () => createReminder(token!, payload).then(() => {}))
-          : createReminder(token!, payload));
+        let created: Reminder | undefined;
+        if (gcalConnected) {
+          await addJob({ key: 'sync.addCalendar', vars: { name: form.title } }, async () => {
+            created = await createReminder(token!, payload);
+          });
+        } else {
+          created = await createReminder(token!, payload);
+        }
+        if (created) {
+          setReminders(prev => [created!, ...prev]);
+          setEditId(created!.id);
+          setEditInitial(reminderToForm(created!));
+        } else {
+          cancelForm();
+          await load();
+        }
       }
-      cancelForm();
-      await load();
     } catch {
       setError(t('reminders.failedSave'));
     } finally {
@@ -134,6 +158,7 @@ export default function RemindersPage() {
   }
 
   function ReminderRow({ r, overdue: isOverdue }: { r: Reminder; overdue?: boolean }) {
+    const attachmentCount = attachmentCounts[r.id] ?? 0;
     return (
       <div className={`flex items-start justify-between p-3 rounded-lg border ${isOverdue ? 'border-l-4 border-l-red-500 bg-red-50' : 'bg-white border-gray-200'}`}>
         <div className="flex-1 min-w-0">
@@ -142,6 +167,15 @@ export default function RemindersPage() {
           {r.notes && <p className="text-sm text-gray-400 mt-0.5 truncate">{r.notes}</p>}
         </div>
         <div className="flex items-center gap-1 ml-3 shrink-0">
+          {attachmentCount > 0 && (
+            <button
+              onClick={() => startEdit(r)}
+              className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
+              title={t('attachments.title')}
+            >
+              📎 {t('attachments.count', { count: attachmentCount })}
+            </button>
+          )}
           <button onClick={() => toggleDone(r)} title={r.done ? t('reminders.undo') : t('reminders.markDone')} className={`p-1.5 rounded transition-colors ${r.done ? 'text-gray-400 hover:text-gray-600 hover:bg-gray-50' : 'text-gray-400 hover:text-green-600 hover:bg-green-50'}`}>
             {r.done ? (
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -217,6 +251,7 @@ export default function RemindersPage() {
             onSave={handleSave}
             onCancel={cancelForm}
             saving={saving}
+            editId={editId ?? undefined}
           />
         </>
       )}

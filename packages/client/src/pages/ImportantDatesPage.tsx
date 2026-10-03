@@ -14,6 +14,7 @@ import { formatDate } from '../utils/format';
 import DateForm, { type DateFormState, EMPTY_DATE_FORM } from '../components/dates/DateForm';
 import { getGoogleCalendarStatus, syncFromGoogleCalendar } from '../api/googleCalendar';
 import { useSyncQueue } from '../context/SyncQueueContext';
+import { getAttachments } from '../api/attachments';
 
 function daysUntil(dateStr: string): number {
   const today = new Date();
@@ -44,6 +45,7 @@ export default function ImportantDatesPage() {
   const [gcalConnected, setGcalConnected] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncSuccess, setSyncSuccess] = useState(false);
+  const [attachmentCounts, setAttachmentCounts] = useState<Record<number, number>>({});
 
   async function load() {
     try {
@@ -57,6 +59,15 @@ export default function ImportantDatesPage() {
   }
 
   useEffect(() => { load(); }, []);
+
+  useEffect(() => {
+    if (!token || dates.length === 0) return;
+    Promise.all(
+      dates.map(e => getAttachments(token, 'date', e.id).then(docs => [e.id, docs.length] as [number, number]))
+    ).then(pairs => {
+      setAttachmentCounts(Object.fromEntries(pairs));
+    }).catch(() => {});
+  }, [dates, token]);
 
   useEffect(() => {
     if (!token) return;
@@ -99,13 +110,26 @@ export default function ImportantDatesPage() {
         await (gcalConnected
           ? addJob({ key: 'sync.updateCalendar', vars: { name: form.title } }, () => updateDate(token!, editId, payload).then(() => {}))
           : updateDate(token!, editId, payload));
+        cancelForm();
+        await load();
       } else {
-        await (gcalConnected
-          ? addJob({ key: 'sync.addCalendar', vars: { name: form.title } }, () => createDate(token!, payload).then(() => {}))
-          : createDate(token!, payload));
+        let created: ImportantDate | undefined;
+        if (gcalConnected) {
+          await addJob({ key: 'sync.addCalendar', vars: { name: form.title } }, async () => {
+            created = await createDate(token!, payload);
+          });
+        } else {
+          created = await createDate(token!, payload);
+        }
+        if (created) {
+          setDates(prev => [created!, ...prev]);
+          setEditId(created!.id);
+          setEditInitial({ title: created!.title, date: created!.date, recurs_yearly: !!created!.recurs_yearly, notes: created!.notes ?? '' });
+        } else {
+          cancelForm();
+          await load();
+        }
       }
-      cancelForm();
-      await load();
     } catch {
       setError(t('dates.failedSave'));
     } finally {
@@ -205,6 +229,15 @@ export default function ImportantDatesPage() {
                   {d.notes && <p className="text-xs text-gray-400 mt-0.5 truncate">{d.notes}</p>}
                 </div>
                 <div className="flex items-center gap-1 ml-3 shrink-0">
+                  {(attachmentCounts[d.id] ?? 0) > 0 && (
+                    <button
+                      onClick={() => startEdit(d)}
+                      className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                      title={t('attachments.title')}
+                    >
+                      📎 {t('attachments.count', { count: attachmentCounts[d.id] })}
+                    </button>
+                  )}
                   <button onClick={() => startEdit(d)} title={t('common.edit')} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors">
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />

@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import DateInput from '../DateInput';
+import { useAuth } from '../../context/AuthContext';
+import AttachmentsSection from '../attachments/AttachmentsSection';
 
 export interface BillFormState {
   name: string;
@@ -21,10 +23,12 @@ interface BillFormProps {
   onSave: (data: BillFormState) => void;
   onCancel: () => void;
   saving: boolean;
+  editId?: number;
 }
 
-export default function BillForm({ initial = EMPTY_BILL_FORM, onSave, onCancel, saving }: BillFormProps) {
+export default function BillForm({ initial = EMPTY_BILL_FORM, onSave, onCancel, saving, editId }: BillFormProps) {
   const { t } = useTranslation();
+  const { token } = useAuth();
   const [form, setForm] = useState<BillFormState>(initial);
   function set<K extends keyof BillFormState>(key: K, value: BillFormState[K]) {
     setForm(prev => ({ ...prev, [key]: value }));
@@ -78,6 +82,7 @@ export default function BillForm({ initial = EMPTY_BILL_FORM, onSave, onCancel, 
           </select>
         </div>
       </div>
+      {editId && <AttachmentsSection entityType="bill" entityId={editId} token={token ?? ''} />}
       <div className="flex gap-2 justify-end">
         <button
           type="button"

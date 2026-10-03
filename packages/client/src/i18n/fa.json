@@ -624,5 +624,26 @@
     "amount": "مبلغ",
     "noData": "داده‌ای برای نمایش وجود ندارد",
     "statsTitle": "آمار"
+  },
+  "attachments": {
+    "title": "پیوست‌ها",
+    "noAttachments": "هیچ سندی پیوست نشده است.",
+    "openInDrive": "باز کردن در Drive",
+    "detach": "جدا کردن",
+    "attachExisting": "پیوست کردن سند موجود",
+    "searchPlaceholder": "جستجو بر اساس عنوان…",
+    "noMatching": "سند مطابقی یافت نشد.",
+    "attach": "پیوست کردن",
+    "uploadAndAttach": "بارگذاری و پیوست",
+    "driveNotConnected": "برای بارگذاری اسناد، Google Drive را در تنظیمات متصل کنید.",
+    "goToSettings": "رفتن به تنظیمات",
+    "uploading": "در حال بارگذاری…",
+    "attaching": "در حال پیوست کردن…",
+    "failedLoad": "بارگذاری پیوست‌ها ناموفق بود.",
+    "failedDetach": "جدا کردن سند ناموفق بود.",
+    "failedAttach": "پیوست کردن سند ناموفق بود.",
+    "failedUpload": "بارگذاری و پیوست سند ناموفق بود.",
+    "count_one": "{{count}} پیوست",
+    "count_other": "{{count}} پیوست"
   }
 }

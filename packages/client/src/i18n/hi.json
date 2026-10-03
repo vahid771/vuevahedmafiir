@@ -536,5 +536,26 @@
     "amount": "राशि",
     "noData": "प्रदर्शित करने के लिए कोई डेटा नहीं",
     "statsTitle": "आंकड़े"
+  },
+  "attachments": {
+    "title": "संलग्नक",
+    "noAttachments": "कोई दस्तावेज़ संलग्न नहीं है।",
+    "openInDrive": "Drive में खोलें",
+    "detach": "अलग करें",
+    "attachExisting": "मौजूदा दस्तावेज़ संलग्न करें",
+    "searchPlaceholder": "शीर्षक से खोजें…",
+    "noMatching": "कोई मिलते-जुलते दस्तावेज़ नहीं।",
+    "attach": "संलग्न करें",
+    "uploadAndAttach": "अपलोड करें और संलग्न करें",
+    "driveNotConnected": "दस्तावेज़ अपलोड करने के लिए सेटिंग्स में Google Drive कनेक्ट करें।",
+    "goToSettings": "सेटिंग्स पर जाएँ",
+    "uploading": "अपलोड हो रहा है…",
+    "attaching": "संलग्न हो रहा है…",
+    "failedLoad": "संलग्नक लोड करने में विफल।",
+    "failedDetach": "दस्तावेज़ अलग करने में विफल।",
+    "failedAttach": "दस्तावेज़ संलग्न करने में विफल।",
+    "failedUpload": "दस्तावेज़ अपलोड और संलग्न करने में विफल।",
+    "count_one": "{{count}} संलग्नक",
+    "count_other": "{{count}} संलग्नक"
   }
 }

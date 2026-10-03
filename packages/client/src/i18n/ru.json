@@ -536,5 +536,27 @@
     "amount": "Сумма",
     "noData": "Нет данных для отображения",
     "statsTitle": "Статистика"
+  },
+  "attachments": {
+    "title": "Вложения",
+    "noAttachments": "Нет прикреплённых документов.",
+    "openInDrive": "Открыть в Drive",
+    "detach": "Открепить",
+    "attachExisting": "Прикрепить существующий документ",
+    "searchPlaceholder": "Поиск по названию…",
+    "noMatching": "Подходящих документов не найдено.",
+    "attach": "Прикрепить",
+    "uploadAndAttach": "Загрузить и прикрепить",
+    "driveNotConnected": "Подключите Google Drive в Настройках для загрузки документов.",
+    "goToSettings": "Перейти в Настройки",
+    "uploading": "Загрузка…",
+    "attaching": "Прикрепление…",
+    "failedLoad": "Не удалось загрузить вложения.",
+    "failedDetach": "Не удалось открепить документ.",
+    "failedAttach": "Не удалось прикрепить документ.",
+    "failedUpload": "Не удалось загрузить и прикрепить документ.",
+    "count_one": "{{count}} вложение",
+    "count_few": "{{count}} вложения",
+    "count_other": "{{count}} вложений"
   }
 }

@@ -536,5 +536,26 @@
     "amount": "Valor",
     "noData": "Nenhum dado para exibir",
     "statsTitle": "Estatísticas"
+  },
+  "attachments": {
+    "title": "Anexos",
+    "noAttachments": "Nenhum documento anexado.",
+    "openInDrive": "Abrir no Drive",
+    "detach": "Desanexar",
+    "attachExisting": "Anexar documento existente",
+    "searchPlaceholder": "Pesquisar por título…",
+    "noMatching": "Nenhum documento correspondente.",
+    "attach": "Anexar",
+    "uploadAndAttach": "Carregar e Anexar",
+    "driveNotConnected": "Conecte o Google Drive nas Configurações para carregar documentos.",
+    "goToSettings": "Ir para Configurações",
+    "uploading": "Carregando…",
+    "attaching": "Anexando…",
+    "failedLoad": "Falha ao carregar anexos.",
+    "failedDetach": "Falha ao desanexar documento.",
+    "failedAttach": "Falha ao anexar documento.",
+    "failedUpload": "Falha ao carregar e anexar documento.",
+    "count_one": "{{count}} anexo",
+    "count_other": "{{count}} anexos"
   }
 }

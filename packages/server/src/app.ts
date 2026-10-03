@@ -10,6 +10,7 @@ import habitsRouter from './habits/router';
 import datesRouter from './dates/router';
 import preferencesRouter from './preferences/router';
 import aiRouter from './ai/router';
+import attachmentsRouter from './attachments/router';
 // NOTE: documents, google/*, and holidays routers are in separate Vercel
 // function bundles (api/google-handler.js, api/holidays-handler.js)
 // to keep those bundles small and cold-start fast. groq-sdk is already in
@@ -60,6 +61,7 @@ app.use('/api/habits', habitsRouter);
 app.use('/api/dates', datesRouter);
 app.use('/api/preferences', preferencesRouter);
 app.use('/api/ai', aiRouter);
+app.use('/api/attachments', attachmentsRouter);
 app.use('/api/admin', adminRouter);
 
 // 404 handler for unknown API routes

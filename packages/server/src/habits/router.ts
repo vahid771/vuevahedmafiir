@@ -176,6 +176,7 @@ router.delete('/:id', async (req, res) => {
 
   if (!await assertOwnership('habits', id, userId)) { res.status(404).json({ error: 'Habit not found' }); return; }
 
+  await db.execute({ sql: 'DELETE FROM document_attachments WHERE entity_type = ? AND entity_id = ?', args: ['habit', id] });
   await db.execute({ sql: 'DELETE FROM habits WHERE id = ? AND user_id = ?', args: [id, userId] });
   res.status(204).send();
 });

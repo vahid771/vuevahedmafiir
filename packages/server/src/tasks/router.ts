@@ -260,6 +260,7 @@ router.delete('/:id', async (req, res) => {
     })
   ).rows[0];
 
+  await db.execute({ sql: 'DELETE FROM document_attachments WHERE entity_type = ? AND entity_id = ?', args: ['task', taskId] });
   await db.execute({ sql: 'DELETE FROM tasks WHERE id = ? AND user_id = ?', args: [taskId, userId] });
 
   // Delete from Google Tasks before responding

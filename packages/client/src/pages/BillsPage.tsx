@@ -28,6 +28,7 @@ import {
   type CreateLoanData,
 } from '../api/bills';
 import { formatDate } from '../utils/format';
+import { getAttachments } from '../api/attachments';
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
@@ -62,6 +63,7 @@ function BillRow({
   onSaveEdit,
   onCancelEdit,
   saving,
+  attachmentCount,
 }: {
   bill: Bill;
   onTogglePaid: (bill: Bill) => void;
@@ -71,6 +73,7 @@ function BillRow({
   onSaveEdit: (bill: Bill, form: BillFormState) => void;
   onCancelEdit: () => void;
   saving: boolean;
+  attachmentCount?: number;
 }) {
   const days = daysFromToday(bill.due_date);
   const isOverdue = bill.paid === 0 && days !== null && days < 0;
@@ -127,7 +130,17 @@ function BillRow({
         </div>
 
         {/* Actions */}
-        <div className="flex gap-1 flex-shrink-0">
+        <div className="flex gap-1 flex-shrink-0 items-center">
+          {(attachmentCount ?? 0) > 0 && (
+            <button
+              type="button"
+              onClick={() => onEdit(bill)}
+              className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
+              title={t('attachments.title')}
+            >
+              📎 {t('attachments.count', { count: attachmentCount })}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => onEdit(bill)}
@@ -161,6 +174,7 @@ function BillRow({
           onSave={form => onSaveEdit(bill, form)}
           onCancel={onCancelEdit}
           saving={saving}
+          editId={bill.id}
         />
       )}
     </li>
@@ -184,6 +198,7 @@ function SubRow({
   onSaveEdit,
   onCancelEdit,
   saving,
+  attachmentCount,
 }: {
   sub: Subscription;
   onToggleActive: (sub: Subscription) => void;
@@ -193,6 +208,7 @@ function SubRow({
   onSaveEdit: (sub: Subscription, form: SubFormState) => void;
   onCancelEdit: () => void;
   saving: boolean;
+  attachmentCount?: number;
 }) {
   const days = daysFromToday(sub.next_billing_date);
   const isDueSoon = sub.active === 1 && days !== null && days >= 0 && days <= 7;
@@ -250,7 +266,17 @@ function SubRow({
         </div>
 
         {/* Actions */}
-        <div className="flex gap-1 flex-shrink-0">
+        <div className="flex gap-1 flex-shrink-0 items-center">
+          {(attachmentCount ?? 0) > 0 && (
+            <button
+              type="button"
+              onClick={() => onEdit(sub)}
+              className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
+              title={t('attachments.title')}
+            >
+              📎 {t('attachments.count', { count: attachmentCount })}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => onEdit(sub)}
@@ -285,6 +311,7 @@ function SubRow({
           onSave={form => onSaveEdit(sub, form)}
           onCancel={onCancelEdit}
           saving={saving}
+          editId={sub.id}
         />
       )}
     </li>
@@ -302,6 +329,7 @@ function BillsSection({ token }: { token: string }) {
   const [addSaving, setAddSaving] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editSaving, setEditSaving] = useState(false);
+  const [attachmentCounts, setAttachmentCounts] = useState<Record<number, number>>({});
 
   useEffect(() => {
     setLoading(true);
@@ -310,6 +338,15 @@ function BillsSection({ token }: { token: string }) {
       .catch(err => setError((err as Error).message))
       .finally(() => setLoading(false));
   }, [token]);
+
+  useEffect(() => {
+    if (bills.length === 0) return;
+    Promise.all(
+      bills.map(e => getAttachments(token, 'bill', e.id).then(docs => [e.id, docs.length] as [number, number]))
+    ).then(pairs => {
+      setAttachmentCounts(Object.fromEntries(pairs));
+    }).catch(() => {});
+  }, [bills, token]);
 
   async function handleCreate(form: BillFormState) {
     if (!form.name.trim()) return;
@@ -324,6 +361,7 @@ function BillsSection({ token }: { token: string }) {
       const created = await createBill(token, data);
       setBills(prev => [created, ...prev]);
       setShowAddForm(false);
+      setEditingId(created.id);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -413,6 +451,7 @@ function BillsSection({ token }: { token: string }) {
               onSaveEdit={handleSaveEdit}
               onCancelEdit={() => setEditingId(null)}
               saving={editSaving}
+              attachmentCount={attachmentCounts[bill.id] ?? 0}
             />
           ))}
         </ul>
@@ -433,6 +472,7 @@ function SubscriptionsSection({ token }: { token: string }) {
   const [addSaving, setAddSaving] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editSaving, setEditSaving] = useState(false);
+  const [attachmentCounts, setAttachmentCounts] = useState<Record<number, number>>({});
 
   useEffect(() => {
     setLoading(true);
@@ -441,6 +481,15 @@ function SubscriptionsSection({ token }: { token: string }) {
       .catch(err => setError((err as Error).message))
       .finally(() => setLoading(false));
   }, [token]);
+
+  useEffect(() => {
+    if (subs.length === 0) return;
+    Promise.all(
+      subs.map(e => getAttachments(token, 'subscription', e.id).then(docs => [e.id, docs.length] as [number, number]))
+    ).then(pairs => {
+      setAttachmentCounts(Object.fromEntries(pairs));
+    }).catch(() => {});
+  }, [subs, token]);
 
   async function handleCreate(form: SubFormState) {
     if (!form.name.trim()) return;
@@ -456,6 +505,7 @@ function SubscriptionsSection({ token }: { token: string }) {
       const created = await createSubscription(token, data);
       setSubs(prev => [created, ...prev]);
       setShowAddForm(false);
+      setEditingId(created.id);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -546,6 +596,7 @@ function SubscriptionsSection({ token }: { token: string }) {
               onSaveEdit={handleSaveEdit}
               onCancelEdit={() => setEditingId(null)}
               saving={editSaving}
+              attachmentCount={attachmentCounts[sub.id] ?? 0}
             />
           ))}
         </ul>
@@ -568,6 +619,7 @@ function LoansSection({ token }: { token: string }) {
   const [addSaving, setAddSaving] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editSaving, setEditSaving] = useState(false);
+  const [attachmentCounts, setAttachmentCounts] = useState<Record<number, number>>({});
 
   useEffect(() => {
     setLoading(true);
@@ -576,6 +628,15 @@ function LoansSection({ token }: { token: string }) {
       .catch(err => setError((err as Error).message))
       .finally(() => setLoading(false));
   }, [token]);
+
+  useEffect(() => {
+    if (loans.length === 0) return;
+    Promise.all(
+      loans.map(e => getAttachments(token, 'loan', e.id).then(docs => [e.id, docs.length] as [number, number]))
+    ).then(pairs => {
+      setAttachmentCounts(Object.fromEntries(pairs));
+    }).catch(() => {});
+  }, [loans, token]);
 
   async function handleCreate(form: LoanFormState) {
     if (!form.name.trim() || !form.total_amount || !form.remaining_amount) return;
@@ -593,6 +654,7 @@ function LoansSection({ token }: { token: string }) {
       const created = await createLoan(token, data);
       setLoans(prev => [created, ...prev]);
       setShowAddForm(false);
+      setEditingId(created.id);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -754,7 +816,17 @@ function LoansSection({ token }: { token: string }) {
                   </div>
 
                   {/* Actions */}
-                  <div className="flex gap-1 flex-shrink-0">
+                  <div className="flex gap-1 flex-shrink-0 items-center">
+                    {(attachmentCounts[loan.id] ?? 0) > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => { setEditingId(loan.id); setShowAddForm(false); }}
+                        className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                        title={t('attachments.title')}
+                      >
+                        📎 {t('attachments.count', { count: attachmentCounts[loan.id] })}
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => { setEditingId(loan.id); setShowAddForm(false); }}
@@ -792,6 +864,7 @@ function LoansSection({ token }: { token: string }) {
                     onSave={form => handleSaveEdit(loan, form)}
                     onCancel={() => setEditingId(null)}
                     saving={editSaving}
+                    editId={loan.id}
                   />
                 )}
               </li>

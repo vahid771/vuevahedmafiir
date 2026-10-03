@@ -295,6 +295,14 @@ export async function runMigrations(): Promise<void> {
       created_at  TEXT    DEFAULT (datetime('now'))
     )`,
     `CREATE INDEX IF NOT EXISTS idx_admin_image_reviews_doc ON admin_image_reviews(document_id)`,
+    `CREATE TABLE IF NOT EXISTS document_attachments (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      document_id INTEGER NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+      entity_type TEXT    NOT NULL CHECK(entity_type IN ('task','date','bill','subscription','loan','habit','reminder')),
+      entity_id   INTEGER NOT NULL,
+      created_at  TEXT    DEFAULT (datetime('now'))
+    )`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_document_attachments_unique ON document_attachments(document_id, entity_type, entity_id)`,
   ]);
 
   // ── Table-rebuild migration: drop old 2-column UNIQUE constraint ──────────

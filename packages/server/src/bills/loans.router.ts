@@ -121,6 +121,7 @@ loansRouter.delete('/:id', async (req, res) => {
     return;
   }
 
+  await db.execute({ sql: 'DELETE FROM document_attachments WHERE entity_type = ? AND entity_id = ?', args: ['loan', loanId] });
   await db.execute({ sql: 'DELETE FROM loans WHERE id = ? AND user_id = ?', args: [loanId, userId] });
   res.status(204).send();
 });

@@ -97,6 +97,7 @@ billsRouter.delete('/:id', async (req, res) => {
     return;
   }
 
+  await db.execute({ sql: 'DELETE FROM document_attachments WHERE entity_type = ? AND entity_id = ?', args: ['bill', billId] });
   await db.execute({ sql: 'DELETE FROM bills WHERE id = ? AND user_id = ?', args: [billId, userId] });
   res.status(204).send();
 });
@@ -199,6 +200,7 @@ subscriptionsRouter.delete('/:id', async (req, res) => {
     return;
   }
 
+  await db.execute({ sql: 'DELETE FROM document_attachments WHERE entity_type = ? AND entity_id = ?', args: ['subscription', subId] });
   await db.execute({ sql: 'DELETE FROM subscriptions WHERE id = ? AND user_id = ?', args: [subId, userId] });
   res.status(204).send();
 });

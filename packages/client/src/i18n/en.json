@@ -473,5 +473,26 @@
     "amount": "Amount",
     "noData": "No data to display",
     "statsTitle": "Statistics"
+  },
+  "attachments": {
+    "title": "Attachments",
+    "noAttachments": "No documents attached.",
+    "openInDrive": "Open in Drive",
+    "detach": "Detach",
+    "attachExisting": "Attach existing document",
+    "searchPlaceholder": "Search by title…",
+    "noMatching": "No matching documents.",
+    "attach": "Attach",
+    "uploadAndAttach": "Upload & Attach",
+    "driveNotConnected": "Connect Google Drive in Settings to upload documents.",
+    "goToSettings": "Go to Settings",
+    "uploading": "Uploading…",
+    "attaching": "Attaching…",
+    "failedLoad": "Failed to load attachments.",
+    "failedDetach": "Failed to detach document.",
+    "failedAttach": "Failed to attach document.",
+    "failedUpload": "Failed to upload and attach document.",
+    "count_one": "{{count}} attachment",
+    "count_other": "{{count}} attachments"
   }
 }

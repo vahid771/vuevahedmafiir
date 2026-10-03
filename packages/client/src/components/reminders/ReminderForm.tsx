@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import DateTimeInput from '../DateTimeInput';
+import { useAuth } from '../../context/AuthContext';
+import AttachmentsSection from '../attachments/AttachmentsSection';
 
 export interface ReminderFormState {
   title: string;
@@ -19,10 +21,12 @@ interface ReminderFormProps {
   onSave: (data: ReminderFormState) => void;
   onCancel: () => void;
   saving: boolean;
+  editId?: number;
 }
 
-export default function ReminderForm({ initial = EMPTY_REMINDER_FORM, onSave, onCancel, saving }: ReminderFormProps) {
+export default function ReminderForm({ initial = EMPTY_REMINDER_FORM, onSave, onCancel, saving, editId }: ReminderFormProps) {
   const { t } = useTranslation();
+  const { token } = useAuth();
   const [form, setForm] = useState<ReminderFormState>(initial);
 
   return (
@@ -47,6 +51,7 @@ export default function ReminderForm({ initial = EMPTY_REMINDER_FORM, onSave, on
           onChange={e => setForm(p => ({ ...p, notes: e.target.value }))}
         />
       </div>
+      {editId && <AttachmentsSection entityType="reminder" entityId={editId} token={token ?? ''} />}
       <div className="flex gap-2 mt-3">
         <button
           onClick={() => onSave(form)}

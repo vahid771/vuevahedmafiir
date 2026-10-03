@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useAuth } from '../../context/AuthContext';
+import AttachmentsSection from '../attachments/AttachmentsSection';
 
 export interface HabitFormState {
   name: string;
@@ -21,6 +23,7 @@ interface HabitFormProps {
 
 export default function HabitForm({ initial = EMPTY_HABIT_FORM, onSave, onCancel, saving, editId }: HabitFormProps) {
   const { t } = useTranslation();
+  const { token } = useAuth();
   const [form, setForm] = useState<HabitFormState>(initial);
 
   return (
@@ -42,6 +45,7 @@ export default function HabitForm({ initial = EMPTY_HABIT_FORM, onSave, onCancel
           <option value="weekly">{t('habits.form.weekly')}</option>
         </select>
       </div>
+      {editId && <AttachmentsSection entityType="habit" entityId={editId} token={token ?? ''} />}
       <div className="flex gap-2 mt-3">
         <button
           onClick={() => onSave(form)}

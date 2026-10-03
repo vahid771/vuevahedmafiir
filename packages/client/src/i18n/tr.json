@@ -536,5 +536,26 @@
     "amount": "Tutar",
     "noData": "Gösterilecek veri yok",
     "statsTitle": "İstatistikler"
+  },
+  "attachments": {
+    "title": "Ekler",
+    "noAttachments": "Eklenmiş belge yok.",
+    "openInDrive": "Drive'da Aç",
+    "detach": "Ayır",
+    "attachExisting": "Mevcut belge ekle",
+    "searchPlaceholder": "Başlığa göre ara…",
+    "noMatching": "Eşleşen belge bulunamadı.",
+    "attach": "Ekle",
+    "uploadAndAttach": "Yükle ve Ekle",
+    "driveNotConnected": "Belge yüklemek için Ayarlar'dan Google Drive'ı bağlayın.",
+    "goToSettings": "Ayarlara Git",
+    "uploading": "Yükleniyor…",
+    "attaching": "Ekleniyor…",
+    "failedLoad": "Ekler yüklenemedi.",
+    "failedDetach": "Belge ayırılamadı.",
+    "failedAttach": "Belge eklenemedi.",
+    "failedUpload": "Belge yüklenip eklenemedi.",
+    "count_one": "{{count}} ek",
+    "count_other": "{{count}} ek"
   }
 }

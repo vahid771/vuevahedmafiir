@@ -145,6 +145,7 @@ router.delete('/:id', async (req, res) => {
     args: [id],
   })).rows[0];
 
+  await db.execute({ sql: 'DELETE FROM document_attachments WHERE entity_type = ? AND entity_id = ?', args: ['date', id] });
   await db.execute({ sql: 'DELETE FROM important_dates WHERE id = ? AND user_id = ?', args: [id, userId] });
 
   // Delete from Google Calendar (non-fatal)

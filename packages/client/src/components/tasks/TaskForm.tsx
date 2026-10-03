@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import DateInput from '../DateInput';
+import { useAuth } from '../../context/AuthContext';
+import AttachmentsSection from '../attachments/AttachmentsSection';
 
 export interface TaskFormState {
   title: string;
@@ -21,10 +23,12 @@ interface TaskFormProps {
   onSave: (data: TaskFormState) => void;
   onCancel: () => void;
   saving: boolean;
+  editId?: number;
 }
 
-export default function TaskForm({ initial = EMPTY_TASK_FORM, onSave, onCancel, saving }: TaskFormProps) {
+export default function TaskForm({ initial = EMPTY_TASK_FORM, onSave, onCancel, saving, editId }: TaskFormProps) {
   const { t } = useTranslation();
+  const { token } = useAuth();
   const [form, setForm] = useState<TaskFormState>(initial);
 
   function set<K extends keyof TaskFormState>(key: K, value: TaskFormState[K]) {
@@ -77,6 +81,7 @@ export default function TaskForm({ initial = EMPTY_TASK_FORM, onSave, onCancel, 
           </select>
         </div>
       </div>
+      {editId && <AttachmentsSection entityType="task" entityId={editId} token={token ?? ''} />}
       <div className="flex gap-2 justify-end">
         <button
           type="button"

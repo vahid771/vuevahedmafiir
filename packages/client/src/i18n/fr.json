@@ -536,5 +536,26 @@
     "amount": "Montant",
     "noData": "Aucune donnée à afficher",
     "statsTitle": "Statistiques"
+  },
+  "attachments": {
+    "title": "Pièces jointes",
+    "noAttachments": "Aucun document joint.",
+    "openInDrive": "Ouvrir dans Drive",
+    "detach": "Détacher",
+    "attachExisting": "Joindre un document existant",
+    "searchPlaceholder": "Rechercher par titre…",
+    "noMatching": "Aucun document correspondant.",
+    "attach": "Joindre",
+    "uploadAndAttach": "Téléverser et joindre",
+    "driveNotConnected": "Connectez Google Drive dans les Paramètres pour téléverser des documents.",
+    "goToSettings": "Aller aux Paramètres",
+    "uploading": "Téléversement…",
+    "attaching": "Rattachement…",
+    "failedLoad": "Impossible de charger les pièces jointes.",
+    "failedDetach": "Impossible de détacher le document.",
+    "failedAttach": "Impossible de joindre le document.",
+    "failedUpload": "Impossible de téléverser et joindre le document.",
+    "count_one": "{{count}} pièce jointe",
+    "count_other": "{{count}} pièces jointes"
   }
 }

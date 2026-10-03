@@ -536,5 +536,26 @@
     "amount": "Jumlah",
     "noData": "Tidak ada data untuk ditampilkan",
     "statsTitle": "Statistik"
+  },
+  "attachments": {
+    "title": "Lampiran",
+    "noAttachments": "Tidak ada dokumen yang dilampirkan.",
+    "openInDrive": "Buka di Drive",
+    "detach": "Lepas",
+    "attachExisting": "Lampirkan dokumen yang sudah ada",
+    "searchPlaceholder": "Cari berdasarkan judul…",
+    "noMatching": "Tidak ada dokumen yang cocok.",
+    "attach": "Lampirkan",
+    "uploadAndAttach": "Unggah & Lampirkan",
+    "driveNotConnected": "Hubungkan Google Drive di Pengaturan untuk mengunggah dokumen.",
+    "goToSettings": "Buka Pengaturan",
+    "uploading": "Mengunggah…",
+    "attaching": "Melampirkan…",
+    "failedLoad": "Gagal memuat lampiran.",
+    "failedDetach": "Gagal melepas dokumen.",
+    "failedAttach": "Gagal melampirkan dokumen.",
+    "failedUpload": "Gagal mengunggah dan melampirkan dokumen.",
+    "count_one": "{{count}} lampiran",
+    "count_other": "{{count}} lampiran"
   }
 }
