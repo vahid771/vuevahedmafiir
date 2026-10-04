@@ -37,7 +37,7 @@ export default function HabitsCharts({ habits, daysSoFar, lang }: Props) {
   const showRadar = habits.length >= 3 && streakData.some(d => d.value > 0);
 
   return (
-    <div className={`mt-6 grid grid-cols-1 ${showRadar ? 'sm:grid-cols-2' : ''} gap-4`}>
+    <div className="space-y-4">
       {/* Bar: weekly completion % */}
       <ChartCard title={t('charts.habitCompletionTitle')}>
         <ResponsiveContainer width="100%" height={210}>

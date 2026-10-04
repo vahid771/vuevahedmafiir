@@ -32,7 +32,7 @@ export default function TasksCharts({ tasks }: Props) {
   const STATUS_COLORS = ['#6366f1', '#22c55e'];
 
   return (
-    <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+    <div className="space-y-4">
       {/* Pie: open vs done */}
       <ChartCard title={t('charts.taskStatusTitle')}>
         <ResponsiveContainer width="100%" height={200}>

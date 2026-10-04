@@ -32,7 +32,7 @@ export function BillsCharts({ bills }: BillsChartsProps) {
     new Intl.NumberFormat('fa-IR', { maximumFractionDigits: 0 }).format(v);
 
   return (
-    <div className="mt-4">
+    <div>
       <ChartCard title={t('charts.billsPaidTitle')} collapsible defaultOpen>
         <ResponsiveContainer width="100%" height={200}>
           <PieChart>
@@ -87,7 +87,7 @@ export function LoansCharts({ loans }: LoansChartsProps) {
   const remainingKey = t('charts.remaining');
 
   return (
-    <div className="mt-4">
+    <div>
       <ChartCard title={t('charts.loanProgressTitle')} collapsible defaultOpen>
         <ResponsiveContainer width="100%" height={Math.max(180, active.length * 48)}>
           <BarChart
