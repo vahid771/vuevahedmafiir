@@ -139,7 +139,7 @@ export async function deleteGoogleTask(
 export async function listGoogleTasks(
   auth: OAuth2Client,
   taskListId: string,
-): Promise<Array<{ id: string; title: string; notes?: string; due?: string; status: string }>> {
+): Promise<Array<{ id: string; title: string; notes?: string; due?: string; status: string; links?: Array<{ title?: string; link?: string }> }>> {
   const tasks = google.tasks({ version: 'v1', auth });
   const res = await tasks.tasks.list({ tasklist: taskListId, showHidden: true, showCompleted: true });
   return (res.data.items ?? [])
@@ -150,5 +150,6 @@ export async function listGoogleTasks(
       notes: item.notes ?? undefined,
       due: item.due ?? undefined,
       status: item.status ?? 'needsAction',
+      links: (item.links ?? []).map(l => ({ title: l.description ?? undefined, link: l.link ?? undefined })),
     }));
 }

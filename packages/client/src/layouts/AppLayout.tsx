@@ -99,10 +99,12 @@ export default function AppLayout() {
         </header>
 
         {/* Main content */}
-        <main className="flex-1 overflow-y-auto p-3 sm:p-6 bg-gray-50 dark:bg-gray-900">
-          <PageTransition>
-            <Outlet />
-          </PageTransition>
+        <main className="flex-1 overflow-hidden bg-gray-50 dark:bg-gray-900">
+          <div className="h-full overflow-y-auto p-3 sm:p-6" id="main-scroll">
+            <PageTransition>
+              <Outlet />
+            </PageTransition>
+          </div>
         </main>
       </div>
       <SyncQueuePanel />

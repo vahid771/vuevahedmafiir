@@ -16,6 +16,10 @@ import {
   deleteCalendarEvent,
 } from '../google/calendar.service';
 import { getGoogleCalendarConnection } from '../google/calendar.router';
+import {
+  encodeAttachmentsIntoNotes,
+  getTaskAttachmentsForSync,
+} from './attachmentSync';
 
 const router = Router();
 
@@ -87,6 +91,7 @@ router.post('/', async (req, res) => {
     priority = 'medium',
     status = 'open',
     task_group_id,
+    column_id,
   } = req.body as {
     title?: string;
     description?: string;
@@ -94,6 +99,7 @@ router.post('/', async (req, res) => {
     priority?: string;
     status?: string;
     task_group_id?: number | null;
+    column_id?: number | null;
   };
 
   if (!title) {
@@ -112,8 +118,8 @@ router.post('/', async (req, res) => {
   }
 
   const result = await db.execute({
-    sql: 'INSERT INTO tasks (user_id, title, description, due_date, priority, status, task_group_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
-    args: [userId, title, description ?? null, due_date ?? null, priority, status, resolvedGroupId],
+    sql: 'INSERT INTO tasks (user_id, title, description, due_date, priority, status, task_group_id, column_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    args: [userId, title, description ?? null, due_date ?? null, priority, status, resolvedGroupId, column_id ?? null],
   });
 
   const task = await fetchById<object>('tasks', result.lastInsertRowid!) as any;
@@ -122,9 +128,10 @@ router.post('/', async (req, res) => {
   try {
     const conn = await getGoogleTasksConnection(userId, task.task_group_id);
     if (conn) {
+      const driveAttachments = await getTaskAttachmentsForSync(task.id);
       const gtask = await createGoogleTask(conn.auth, conn.taskListId, {
         title: task.title,
-        notes: task.description ?? undefined,
+        notes: encodeAttachmentsIntoNotes(task.description ?? undefined, driveAttachments),
         due: task.due_date ? `${task.due_date}T00:00:00.000Z` : undefined,
         status: (task.status ?? 'open') as 'open' | 'done',
       });
@@ -169,12 +176,13 @@ router.patch('/:id', async (req, res) => {
     return;
   }
 
-  const { title, description, due_date, priority, status } = req.body as {
+  const { title, description, due_date, priority, status, column_id } = req.body as {
     title?: string;
     description?: string;
     due_date?: string | null;
     priority?: string;
     status?: string;
+    column_id?: number | null;
   };
 
   const { fields, values } = buildPatch({
@@ -183,6 +191,7 @@ router.patch('/:id', async (req, res) => {
     due_date: due_date !== undefined ? (due_date ?? null) : undefined,
     priority,
     status,
+    column_id: column_id !== undefined ? (column_id ?? null) : undefined,
   });
 
   if (fields.length === 0) {
@@ -201,9 +210,10 @@ router.patch('/:id', async (req, res) => {
     if (googleTaskId) {
       const conn = await getGoogleTasksConnection(userId, updated.task_group_id);
       if (conn) {
+        const driveAttachments = await getTaskAttachmentsForSync(taskId);
         await updateGoogleTask(conn.auth, conn.taskListId, googleTaskId, {
           title: updated.title,
-          notes: updated.description ?? undefined,
+          notes: encodeAttachmentsIntoNotes(updated.description ?? undefined, driveAttachments),
           due: updated.due_date ? `${updated.due_date}T00:00:00.000Z` : null,
           status: (updated.status ?? 'open') as 'open' | 'done',
         });

@@ -11,6 +11,7 @@ export interface Task {
   priority: 'low' | 'medium' | 'high';
   status: 'open' | 'done';
   created_at: string;
+  column_id?: number | null;
 }
 
 export type CreateTaskData = {
@@ -20,6 +21,7 @@ export type CreateTaskData = {
   priority?: 'low' | 'medium' | 'high';
   status?: 'open' | 'done';
   task_group_id?: number | null;
+  column_id?: number | null;
 };
 
 export type UpdateTaskData = Partial<CreateTaskData>;

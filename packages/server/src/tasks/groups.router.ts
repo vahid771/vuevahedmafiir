@@ -10,6 +10,12 @@ import {
   updateGoogleTaskList,
   deleteGoogleTaskList,
 } from '../google/tasks.service';
+import {
+  decodeAttachmentsFromNotes,
+  encodeAttachmentsIntoNotes,
+  syncInboundAttachments,
+  getTaskAttachmentsForSync,
+} from './attachmentSync';
 
 async function getGoogleTasksAuth(userId: number) {
   const row = (await db.execute({
@@ -74,9 +80,20 @@ router.post('/', async (req, res) => {
     sql: 'INSERT INTO task_groups (user_id, name, google_list_id, is_default, is_google_default) VALUES (?, ?, ?, ?, ?)',
     args: [userId, name.trim(), googleListId, isDefault, isGoogleDefault],
   });
+  const newGroupId = Number(result.lastInsertRowid!);
+
+  // Seed default columns — non-fatal
+  try {
+    await db.batch([
+      { sql: 'INSERT INTO task_columns (user_id, task_group_id, name, color, sort_order) VALUES (?, ?, ?, ?, ?)', args: [userId, newGroupId, 'To Do', '#6366f1', 0] },
+      { sql: 'INSERT INTO task_columns (user_id, task_group_id, name, color, sort_order) VALUES (?, ?, ?, ?, ?)', args: [userId, newGroupId, 'In Progress', '#f59e0b', 1] },
+      { sql: 'INSERT INTO task_columns (user_id, task_group_id, name, color, sort_order) VALUES (?, ?, ?, ?, ?)', args: [userId, newGroupId, 'Done', '#22c55e', 2] },
+    ]);
+  } catch { /* non-fatal */ }
+
   const group = (await db.execute({
     sql: 'SELECT * FROM task_groups WHERE id = ?',
-    args: [result.lastInsertRowid!],
+    args: [newGroupId],
   })).rows[0];
   res.status(201).json(group);
 });
@@ -244,22 +261,36 @@ router.post('/sync-google', async (req, res) => {
     for (const gt of googleTasks) {
       const localStatus = gt.status === 'completed' ? 'done' : 'open';
       const dueDate = gt.due ? gt.due.substring(0, 10) : null;
+
+      const { description: cleanDescription, attachments: inboundAttachments } = decodeAttachmentsFromNotes(gt.notes);
+      const nativeLinks = (gt.links ?? [])
+        .filter(l => l.link)
+        .map(l => ({ title: l.title ?? 'Link', link: l.link! }));
+      const allInbound = [...inboundAttachments, ...nativeLinks];
+
       const existingTask = (await db.execute({
         sql: 'SELECT id FROM tasks WHERE google_task_id = ? AND user_id = ?',
         args: [gt.id, userId],
       })).rows[0];
 
+      let localTaskId: number;
       if (existingTask) {
         await db.execute({
           sql: 'UPDATE tasks SET title = ?, description = ?, due_date = ?, status = ?, task_group_id = ? WHERE id = ? AND user_id = ?',
-          args: [gt.title, gt.notes ?? null, dueDate, localStatus, groupId, existingTask.id, userId],
+          args: [gt.title, cleanDescription ?? null, dueDate, localStatus, groupId, existingTask.id, userId],
         });
+        localTaskId = existingTask.id as number;
       } else {
-        await db.execute({
+        const ins = await db.execute({
           sql: `INSERT INTO tasks (user_id, title, description, due_date, priority, status, google_task_id, task_group_id)
                 VALUES (?, ?, ?, ?, 'medium', ?, ?, ?)`,
-          args: [userId, gt.title, gt.notes ?? null, dueDate, localStatus, gt.id, groupId],
+          args: [userId, gt.title, cleanDescription ?? null, dueDate, localStatus, gt.id, groupId],
         });
+        localTaskId = Number(ins.lastInsertRowid!);
+      }
+
+      if (allInbound.length > 0) {
+        await syncInboundAttachments(userId, localTaskId, allInbound);
       }
     }
   }
@@ -307,9 +338,10 @@ router.post('/sync-google', async (req, res) => {
     const targetListId = (task.task_group_id != null ? groupListMap.get(Number(task.task_group_id)) : null) ?? fallbackListId;
     if (!targetListId) continue;
     try {
+      const driveAttachments = await getTaskAttachmentsForSync(task.id);
       const gt = await createGoogleTask(auth, targetListId, {
         title: task.title,
-        notes: task.description ?? undefined,
+        notes: encodeAttachmentsIntoNotes(task.description ?? undefined, driveAttachments),
         due: task.due_date ? `${task.due_date}T00:00:00.000Z` : undefined,
         status: task.status as 'open' | 'done',
       });

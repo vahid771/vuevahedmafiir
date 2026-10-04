@@ -11,6 +11,12 @@ import {
   createGoogleTaskList,
   createGoogleTask,
 } from './tasks.service';
+import {
+  decodeAttachmentsFromNotes,
+  encodeAttachmentsIntoNotes,
+  syncInboundAttachments,
+  getTaskAttachmentsForSync,
+} from '../tasks/attachmentSync';
 
 /**
  * Full bidirectional sync between Google Tasks and local DB for a given user.
@@ -67,22 +73,40 @@ async function performFullSync(userId: number, auth: OAuth2Client): Promise<void
     for (const gt of googleTasks) {
       const localStatus = gt.status === 'completed' ? 'done' : 'open';
       const dueDate = gt.due ? gt.due.substring(0, 10) : null;
+
+      // Decode attachment block from notes so we store clean description locally
+      const { description: cleanDescription, attachments: inboundAttachments } = decodeAttachmentsFromNotes(gt.notes);
+
+      // Also pick up any Google-native links (read-only links added by Google Workspace)
+      const nativeLinks = (gt.links ?? [])
+        .filter(l => l.link)
+        .map(l => ({ title: l.title ?? 'Link', link: l.link! }));
+      const allInbound = [...inboundAttachments, ...nativeLinks];
+
       const existingTask = (await db.execute({
         sql: 'SELECT id FROM tasks WHERE google_task_id = ? AND user_id = ?',
         args: [gt.id, userId],
       })).rows[0];
 
+      let localTaskId: number;
       if (existingTask) {
         await db.execute({
           sql: 'UPDATE tasks SET title = ?, description = ?, due_date = ?, status = ?, task_group_id = ? WHERE id = ? AND user_id = ?',
-          args: [gt.title, gt.notes ?? null, dueDate, localStatus, groupId, existingTask.id, userId],
+          args: [gt.title, cleanDescription ?? null, dueDate, localStatus, groupId, existingTask.id, userId],
         });
+        localTaskId = existingTask.id as number;
       } else {
-        await db.execute({
+        const ins = await db.execute({
           sql: `INSERT INTO tasks (user_id, title, description, due_date, priority, status, google_task_id, task_group_id)
                 VALUES (?, ?, ?, ?, 'medium', ?, ?, ?)`,
-          args: [userId, gt.title, gt.notes ?? null, dueDate, localStatus, gt.id, groupId],
+          args: [userId, gt.title, cleanDescription ?? null, dueDate, localStatus, gt.id, groupId],
         });
+        localTaskId = Number(ins.lastInsertRowid!);
+      }
+
+      // Reconcile inbound attachments (drive links embedded in notes or native links)
+      if (allInbound.length > 0) {
+        await syncInboundAttachments(userId, localTaskId, allInbound);
       }
     }
   }
@@ -132,9 +156,10 @@ async function performFullSync(userId: number, auth: OAuth2Client): Promise<void
     const targetListId = (task.task_group_id != null ? groupListMap.get(Number(task.task_group_id)) : null) ?? fallbackListId;
     if (!targetListId) continue;
     try {
+      const driveAttachments = await getTaskAttachmentsForSync(task.id);
       const gt = await createGoogleTask(auth, targetListId, {
         title: task.title,
-        notes: task.description ?? undefined,
+        notes: encodeAttachmentsIntoNotes(task.description ?? undefined, driveAttachments),
         due: task.due_date ? `${task.due_date}T00:00:00.000Z` : undefined,
         status: (task.status as 'open' | 'done'),
       });

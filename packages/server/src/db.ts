@@ -303,6 +303,17 @@ export async function runMigrations(): Promise<void> {
       created_at  TEXT    DEFAULT (datetime('now'))
     )`,
     `CREATE UNIQUE INDEX IF NOT EXISTS idx_document_attachments_unique ON document_attachments(document_id, entity_type, entity_id)`,
+    `CREATE TABLE IF NOT EXISTS task_columns (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id       INTEGER NOT NULL REFERENCES users(id),
+      task_group_id INTEGER NOT NULL REFERENCES task_groups(id) ON DELETE CASCADE,
+      name          TEXT    NOT NULL,
+      color         TEXT    NOT NULL DEFAULT '#6366f1',
+      sort_order    INTEGER DEFAULT 0,
+      created_at    TEXT    DEFAULT (datetime('now'))
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_task_columns_group ON task_columns(task_group_id)`,
+    `ALTER TABLE tasks ADD COLUMN column_id INTEGER REFERENCES task_columns(id) ON DELETE SET NULL`,
   ]);
 
   // ── Table-rebuild migration: drop old 2-column UNIQUE constraint ──────────

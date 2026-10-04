@@ -3,6 +3,7 @@ import adminRouter from './admin/router';
 import authRouter from './auth/router';
 import tasksRouter from './tasks/router';
 import taskGroupsRouter from './tasks/groups.router';
+import columnsRouter from './tasks/columns.router';
 import { billsRouter, subscriptionsRouter } from './bills/router';
 import { loansRouter } from './bills/loans.router';
 import remindersRouter from './reminders/router';
@@ -53,6 +54,7 @@ app.get('/api/health', (_req, res) => {
 app.use('/api/auth', authRouter);
 app.use('/api/tasks', tasksRouter);
 app.use('/api/task-groups', taskGroupsRouter);
+app.use('/api/task-columns', columnsRouter);
 app.use('/api/bills', billsRouter);
 app.use('/api/subscriptions', subscriptionsRouter);
 app.use('/api/loans', loansRouter);

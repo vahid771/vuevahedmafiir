@@ -20,6 +20,7 @@ import { getGoogleTasksStatus } from '../api/googleTasks';
 import { getGoogleCalendarStatus, syncFromGoogleCalendar } from '../api/googleCalendar';
 import { useSyncQueue } from '../context/SyncQueueContext';
 import { getAttachments } from '../api/attachments';
+import KanbanBoard from '../components/tasks/KanbanBoard';
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 
@@ -342,6 +343,12 @@ export default function TasksPage() {
   const [calSyncSuccess, setCalSyncSuccess] = useState(false);
   const [error, setError] = useState('');
 
+  // View mode (list | board) per group tab, persisted in localStorage
+  const [viewMode, setViewMode] = useState<'list' | 'board'>('list');
+
+  // Incremented after any Google sync to force child components to reload their tasks
+  const [syncKey, setSyncKey] = useState(0);
+
   // New group input state
   const [addingGroup, setAddingGroup] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
@@ -350,6 +357,23 @@ export default function TasksPage() {
   // Rename state
   const [renamingId, setRenamingId] = useState<number | -1>(-1);
   const [renameValue, setRenameValue] = useState('');
+
+  // Restore view mode from localStorage whenever the active tab changes
+  useEffect(() => {
+    if (typeof activeGroupId === 'number') {
+      const saved = localStorage.getItem(`taskView_${activeGroupId}`) as 'list' | 'board' | null;
+      setViewMode(saved ?? 'list');
+    } else {
+      setViewMode('list');
+    }
+  }, [activeGroupId]);
+
+  function handleSetViewMode(mode: 'list' | 'board') {
+    setViewMode(mode);
+    if (typeof activeGroupId === 'number') {
+      localStorage.setItem(`taskView_${activeGroupId}`, mode);
+    }
+  }
 
   useEffect(() => {
     if (!token) return;
@@ -410,6 +434,7 @@ export default function TasksPage() {
       await addJob({ key: 'sync.syncGoogleTasks' }, async () => {
         const updated = await syncGoogleTaskGroups(token);
         setGroups(updated);
+        setSyncKey(k => k + 1);
         setSyncSuccess(true);
         setTimeout(() => setSyncSuccess(false), 2500);
       });
@@ -422,6 +447,7 @@ export default function TasksPage() {
     setCalSyncing(true); setCalSyncSuccess(false); setError('');
     try {
       await syncFromGoogleCalendar(token);
+      setSyncKey(k => k + 1);
       setCalSyncSuccess(true);
       setTimeout(() => setCalSyncSuccess(false), 2500);
     } catch (e) { setError((e as Error).message); }
@@ -437,9 +463,9 @@ export default function TasksPage() {
   const activeTab = tabs.find(t => t.id === activeGroupId) ?? tabs[0];
 
   return (
-    <div className="max-w-6xl mx-auto space-y-4 px-4 py-4">
+    <div className="h-full flex flex-col gap-4 px-4 py-4">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 flex-shrink-0">
         <h1 className="text-2xl font-bold text-gray-800">{t('tasks.title')}</h1>
         <div className="flex items-center gap-2">
           {gTasksConnected && (
@@ -462,14 +488,14 @@ export default function TasksPage() {
       </div>
 
       {error && (
-        <div className="flex items-center justify-between bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
+        <div className="flex items-center justify-between bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700 flex-shrink-0">
           <span>{error}</span>
           <button onClick={() => setError('')} className="ml-4 text-red-500 hover:text-red-700">✕</button>
         </div>
       )}
 
       {/* Tab bar */}
-      <div className="flex items-center gap-1 border-b border-gray-200 overflow-x-auto pb-px">
+      <div className="flex items-center gap-1 border-b border-gray-200 overflow-x-auto pb-px flex-shrink-0">
         {tabs.map(tab => {
           const isActive = tab.id === activeGroupId;
           const isGroup = typeof tab.id === 'number';
@@ -563,14 +589,67 @@ export default function TasksPage() {
       {/* Tab content */}
       {activeTab.id === 'all' ? (
         // "All" tab — show tasks across all groups (no group filter)
-        <AllTasksView gTasksConnected={gTasksConnected} gcalConnected={gcalConnected} />
+        <div className="flex-1 min-h-0 overflow-y-auto">
+          <AllTasksView key={syncKey} gTasksConnected={gTasksConnected} gcalConnected={gcalConnected} />
+        </div>
       ) : (
-        <TaskList
-          key={String(activeGroupId)}
-          groupId={activeGroupId as number | null}
-          gTasksConnected={gTasksConnected}
-          gcalConnected={gcalConnected}
-        />
+        <div className={`flex-1 min-h-0 flex flex-col ${viewMode === 'board' ? 'overflow-hidden' : 'overflow-y-auto'}`}>
+          {/* View toggle — only for group tabs */}
+          <div className="flex justify-end mb-2 flex-shrink-0">
+            <div className="inline-flex border border-gray-200 rounded-lg overflow-hidden">
+              <button
+                type="button"
+                onClick={() => handleSetViewMode('list')}
+                title={t('tasks.listView')}
+                className={`px-3 py-1.5 flex items-center gap-1.5 text-sm transition-colors ${
+                  viewMode === 'list'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-white text-gray-500 hover:bg-gray-50'
+                }`}
+              >
+                {/* List icon */}
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+                {t('tasks.listView')}
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSetViewMode('board')}
+                title={t('tasks.boardView')}
+                className={`px-3 py-1.5 flex items-center gap-1.5 text-sm border-l border-gray-200 transition-colors ${
+                  viewMode === 'board'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-white text-gray-500 hover:bg-gray-50'
+                }`}
+              >
+                {/* Kanban columns icon */}
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
+                </svg>
+                {t('tasks.boardView')}
+              </button>
+            </div>
+          </div>
+
+          {viewMode === 'board' ? (
+            <div className="flex-1 min-h-0 overflow-hidden">
+              <KanbanBoard
+                key={`${activeGroupId}-${syncKey}`}
+                groupId={activeGroupId as number}
+                gTasksConnected={gTasksConnected}
+                gcalConnected={gcalConnected}
+              />
+            </div>
+          ) : (
+            <TaskList
+              key={`${activeGroupId}-${syncKey}`}
+              groupId={activeGroupId as number | null}
+              gTasksConnected={gTasksConnected}
+              gcalConnected={gcalConnected}
+            />
+          )}
+        </div>
       )}
     </div>
   );

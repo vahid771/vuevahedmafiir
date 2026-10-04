@@ -87,6 +87,16 @@
     "renameGroup": "إعادة تسمية المجموعة",
     "deleteGroup": "حذف المجموعة",
     "all": "الكل",
+    "boardView": "Board",
+    "listView": "List",
+    "addColumn": "Add column",
+    "columnName": "Column name",
+    "renameColumn": "Rename column",
+    "deleteColumn": "Delete column",
+    "deleteColumnConfirm": "Delete this column? Tasks will be moved to the first column.",
+    "noTasksInColumn": "No tasks",
+    "addTaskToColumn": "+ Add Task",
+
     "form": {
       "title": "العنوان",
       "titlePlaceholder": "عنوان المهمة",
