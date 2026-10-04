@@ -556,6 +556,7 @@
     "failedDetach": "Error al desadjuntar el documento.",
     "failedAttach": "Error al adjuntar el documento.",
     "failedUpload": "Error al subir y adjuntar el documento.",
+    "uploadTitle": "Título del documento",
     "count_one": "{{count}} adjunto",
     "count_other": "{{count}} adjuntos"
   }

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { getAttachments, addAttachment, removeAttachment, type AttachedDocument, type EntityType } from '../../api/attachments';
 import { getDocuments, uploadDocument, type Document } from '../../api/documents';
 import { getGoogleDriveStatus } from '../../api/google';
+import { useSyncQueue } from '../../context/SyncQueueContext';
 
 function fileTypeIcon(mimetype: string): string {
   if (mimetype === 'application/pdf') return '📄';
@@ -19,6 +20,7 @@ interface Props {
 
 export default function AttachmentsSection({ entityType, entityId, token }: Props) {
   const { t } = useTranslation();
+  const { addJob } = useSyncQueue();
   const [attachedDocs, setAttachedDocs] = useState<AttachedDocument[]>([]);
   const [allDocs, setAllDocs] = useState<Document[]>([]);
   const [driveConnected, setDriveConnected] = useState(false);
@@ -36,7 +38,6 @@ export default function AttachmentsSection({ entityType, entityId, token }: Prop
   // Upload & attach
   const [uploadTitle, setUploadTitle] = useState('');
   const [uploadFile, setUploadFile] = useState<File | null>(null);
-  const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -89,8 +90,8 @@ export default function AttachmentsSection({ entityType, entityId, token }: Prop
         title: selectedDoc.title,
         filename: selectedDoc.filename,
         mimetype: selectedDoc.mimetype,
-        drive_file_id: null,
-        drive_view_link: null,
+        drive_file_id: selectedDoc.drive_file_id ?? null,
+        drive_view_link: selectedDoc.drive_view_link ?? null,
       };
       setAttachedDocs(prev => [...prev, attached]);
       setSelectedDoc(null);
@@ -105,28 +106,27 @@ export default function AttachmentsSection({ entityType, entityId, token }: Prop
   async function handleUpload(e: React.FormEvent) {
     e.preventDefault();
     if (!uploadFile || !uploadTitle.trim()) return;
-    setUploading(true);
     setError('');
     try {
-      const newDoc = await uploadDocument(token, uploadFile, uploadTitle.trim(), []);
-      await addAttachment(token, entityType, entityId, newDoc.id);
-      const attached: AttachedDocument = {
-        id: newDoc.id,
-        title: newDoc.title,
-        filename: newDoc.filename,
-        mimetype: newDoc.mimetype,
-        drive_file_id: null,
-        drive_view_link: null,
-      };
-      setAttachedDocs(prev => [...prev, attached]);
-      setAllDocs(prev => [...prev, newDoc]);
-      setUploadTitle('');
-      setUploadFile(null);
-      if (fileInputRef.current) fileInputRef.current.value = '';
+      await addJob({ key: 'sync.uploadItem', vars: { name: uploadTitle.trim() } }, async () => {
+        const newDoc = await uploadDocument(token, uploadFile!, uploadTitle.trim(), []);
+        await addAttachment(token, entityType, entityId, newDoc.id);
+        const attached: AttachedDocument = {
+          id: newDoc.id,
+          title: newDoc.title,
+          filename: newDoc.filename,
+          mimetype: newDoc.mimetype,
+          drive_file_id: newDoc.drive_file_id ?? null,
+          drive_view_link: newDoc.drive_view_link ?? null,
+        };
+        setAttachedDocs(prev => [...prev, attached]);
+        setAllDocs(prev => [...prev, newDoc]);
+        setUploadTitle('');
+        setUploadFile(null);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+      });
     } catch {
       setError(t('attachments.failedUpload'));
-    } finally {
-      setUploading(false);
     }
   }
 
@@ -249,7 +249,7 @@ export default function AttachmentsSection({ entityType, entityId, token }: Prop
               type="text"
               value={uploadTitle}
               onChange={e => setUploadTitle(e.target.value)}
-              placeholder="Document title"
+              placeholder={t('attachments.uploadTitle')}
               className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <input
@@ -260,10 +260,10 @@ export default function AttachmentsSection({ entityType, entityId, token }: Prop
             />
             <button
               type="submit"
-              disabled={uploading || !uploadFile || !uploadTitle.trim()}
+              disabled={!uploadFile || !uploadTitle.trim()}
               className="px-3 py-1.5 text-sm rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
             >
-              {uploading ? t('attachments.uploading') : t('attachments.uploadAndAttach')}
+              {t('attachments.uploadAndAttach')}
             </button>
           </form>
         )}

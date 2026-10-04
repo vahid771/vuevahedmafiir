@@ -556,6 +556,7 @@
     "failedDetach": "Belge ayırılamadı.",
     "failedAttach": "Belge eklenemedi.",
     "failedUpload": "Belge yüklenip eklenemedi.",
+    "uploadTitle": "Belge başlığı",
     "count_one": "{{count}} ek",
     "count_other": "{{count}} ek"
   }

@@ -493,6 +493,7 @@
     "failedDetach": "Failed to detach document.",
     "failedAttach": "Failed to attach document.",
     "failedUpload": "Failed to upload and attach document.",
+    "uploadTitle": "Document title",
     "count_one": "{{count}} attachment",
     "count_other": "{{count}} attachments"
   }

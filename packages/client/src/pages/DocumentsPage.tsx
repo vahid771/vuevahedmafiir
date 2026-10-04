@@ -107,7 +107,7 @@ export default function DocumentsPage() {
         async () => { await uploadDocument(token!, uploadFile!, uploadTitle, tags); reset(); await load(); }
       );
     } catch {
-      setError('Failed to upload document');
+      setError(t('documents.failedUpload'));
     } finally {
       setUploading(false);
     }
@@ -122,7 +122,7 @@ export default function DocumentsPage() {
         async () => { await deleteDocument(token!, id); await load(activeTag ?? undefined); }
       );
     } catch {
-      setError('Failed to delete document');
+      setError(t('documents.failedDelete'));
     }
   }
 

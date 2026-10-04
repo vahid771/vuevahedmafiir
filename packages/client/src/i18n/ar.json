@@ -644,6 +644,7 @@
     "failedDetach": "فشل فصل المستند.",
     "failedAttach": "فشل إرفاق المستند.",
     "failedUpload": "فشل رفع المستند وإرفاقه.",
+    "uploadTitle": "عنوان المستند",
     "count_zero": "لا مرفقات",
     "count_one": "مرفق واحد",
     "count_two": "مرفقان",

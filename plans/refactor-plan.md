@@ -8,7 +8,7 @@ A broad structural refactor covering all identified duplication and quality issu
 
 ## Sub-Task 1 — Client API Resource Factory
 
-**Status:** `[ ] pending`
+**Status:** `[x] done`
 
 **Intent**  
 Replace the ~50 lines of repeated `fetch / authHeaders / apiUrl / error-throw` boilerplate in every API module with a single `createResource(basePath)` factory that generates typed `getAll`, `getById`, `create`, `update`, `remove` functions. Each existing API module keeps its named exports but delegates to the factory.

@@ -556,6 +556,7 @@
     "failedDetach": "Impossible de détacher le document.",
     "failedAttach": "Impossible de joindre le document.",
     "failedUpload": "Impossible de téléverser et joindre le document.",
+    "uploadTitle": "Titre du document",
     "count_one": "{{count}} pièce jointe",
     "count_other": "{{count}} pièces jointes"
   }

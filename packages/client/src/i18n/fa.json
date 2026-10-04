@@ -644,6 +644,7 @@
     "failedDetach": "جدا کردن سند ناموفق بود.",
     "failedAttach": "پیوست کردن سند ناموفق بود.",
     "failedUpload": "بارگذاری و پیوست سند ناموفق بود.",
+    "uploadTitle": "عنوان سند",
     "count_one": "{{count}} پیوست",
     "count_other": "{{count}} پیوست"
   }

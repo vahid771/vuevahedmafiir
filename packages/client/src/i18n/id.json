@@ -556,6 +556,7 @@
     "failedDetach": "Gagal melepas dokumen.",
     "failedAttach": "Gagal melampirkan dokumen.",
     "failedUpload": "Gagal mengunggah dan melampirkan dokumen.",
+    "uploadTitle": "Judul dokumen",
     "count_one": "{{count}} lampiran",
     "count_other": "{{count}} lampiran"
   }

@@ -556,6 +556,7 @@
     "failedDetach": "Dokument konnte nicht getrennt werden.",
     "failedAttach": "Dokument konnte nicht angehängt werden.",
     "failedUpload": "Dokument konnte nicht hochgeladen und angehängt werden.",
+    "uploadTitle": "Dokumenttitel",
     "count_one": "{{count}} Anhang",
     "count_other": "{{count}} Anhänge"
   }

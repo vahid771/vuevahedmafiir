@@ -556,6 +556,7 @@
     "failedDetach": "移除文件失败。",
     "failedAttach": "附加文件失败。",
     "failedUpload": "上传并附加文件失败。",
+    "uploadTitle": "文档标题",
     "count_one": "{{count}} 个附件",
     "count_other": "{{count}} 个附件"
   }
