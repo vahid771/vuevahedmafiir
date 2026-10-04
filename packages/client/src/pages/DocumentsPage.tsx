@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { SkeletonList } from '../components/ui/Skeleton';
 import { useAuth } from '../context/AuthContext';
 import { useTranslation } from 'react-i18next';
@@ -13,6 +13,7 @@ import {
 import { getGoogleDriveStatus } from '../api/google';
 import { formatDate } from '../utils/format';
 import { useSyncQueue } from '../context/SyncQueueContext';
+import { useAsyncState } from '../hooks/useAsyncState';
 
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -35,9 +36,7 @@ export default function DocumentsPage() {
   const { token } = useAuth();
   const { t } = useTranslation();
   const { addJob } = useSyncQueue();
-  const [docs, setDocs] = useState<Document[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const { data: docs, setData: setDocs, loading, error, setError, run } = useAsyncState<Document[]>([]);
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const [showUpload, setShowUpload] = useState(false);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
@@ -49,18 +48,9 @@ export default function DocumentsPage() {
   const [syncing, setSyncing] = useState(false);
   const [syncSuccess, setSyncSuccess] = useState(false);
 
-  async function load(tag?: string) {
-    try {
-      setLoading(true);
-      setDocs(await getDocuments(token!, tag ?? undefined));
-    } catch {
-      setError(t('documents.failedLoad'));
-    } finally {
-      setLoading(false);
-    }
-  }
+  const load = useCallback((tag?: string) => run(() => getDocuments(token!, tag ?? undefined)), [token, run]);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
 
   useEffect(() => {
     if (!token) return;

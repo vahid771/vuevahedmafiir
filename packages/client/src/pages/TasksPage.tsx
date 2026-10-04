@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { useAsyncState } from '../hooks/useAsyncState';
 import { SkeletonList } from '../components/ui/Skeleton';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
@@ -152,24 +153,18 @@ function TaskList({
   const { token } = useAuth();
   const { t } = useTranslation();
   const { addJob } = useSyncQueue();
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data: tasks, setData: setTasks, loading, error, setError, run } = useAsyncState<Task[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [addSaving, setAddSaving] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editSaving, setEditSaving] = useState(false);
   const [attachmentCounts, setAttachmentCounts] = useState<Record<number, number>>({});
 
-  const load = useCallback(async () => {
-    if (!token) return;
-    setLoading(true);
-    try {
-      const opts = groupId === null ? { group_id: 'null' as const } : { group_id: groupId };
-      setTasks(await getTasks(token, opts));
-    } catch (e) { setError((e as Error).message); }
-    finally { setLoading(false); }
-  }, [token, groupId]);
+  const load = useCallback(() => {
+    if (!token) return Promise.resolve();
+    const opts = groupId === null ? { group_id: 'null' as const } : { group_id: groupId };
+    return run(() => getTasks(token, opts));
+  }, [token, groupId, run]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -260,7 +255,7 @@ function TaskList({
       {error && (
         <div className="flex items-center justify-between bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
           <span>{error}</span>
-          <button onClick={() => setError(null)} className="ml-4 text-red-500 hover:text-red-700">✕</button>
+          <button onClick={() => setError('')} className="ml-4 text-red-500 hover:text-red-700">✕</button>
         </div>
       )}
 
@@ -345,7 +340,7 @@ export default function TasksPage() {
   const [syncSuccess, setSyncSuccess] = useState(false);
   const [calSyncing, setCalSyncing] = useState(false);
   const [calSyncSuccess, setCalSyncSuccess] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState('');
 
   // New group input state
   const [addingGroup, setAddingGroup] = useState(false);
@@ -410,7 +405,7 @@ export default function TasksPage() {
 
   async function handleGoogleSync() {
     if (!token) return;
-    setSyncing(true); setSyncSuccess(false); setError(null);
+    setSyncing(true); setSyncSuccess(false); setError('');
     try {
       await addJob({ key: 'sync.syncGoogleTasks' }, async () => {
         const updated = await syncGoogleTaskGroups(token);
@@ -424,7 +419,7 @@ export default function TasksPage() {
 
   async function handleCalendarSync() {
     if (!token) return;
-    setCalSyncing(true); setCalSyncSuccess(false); setError(null);
+    setCalSyncing(true); setCalSyncSuccess(false); setError('');
     try {
       await syncFromGoogleCalendar(token);
       setCalSyncSuccess(true);
@@ -469,7 +464,7 @@ export default function TasksPage() {
       {error && (
         <div className="flex items-center justify-between bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
           <span>{error}</span>
-          <button onClick={() => setError(null)} className="ml-4 text-red-500 hover:text-red-700">✕</button>
+          <button onClick={() => setError('')} className="ml-4 text-red-500 hover:text-red-700">✕</button>
         </div>
       )}
 
@@ -587,9 +582,7 @@ function AllTasksView({ gTasksConnected, gcalConnected }: { gTasksConnected: boo
   const { token } = useAuth();
   const { t } = useTranslation();
   const { addJob } = useSyncQueue();
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data: tasks, setData: setTasks, loading, error, setError, run } = useAsyncState<Task[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [addSaving, setAddSaving] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -598,9 +591,8 @@ function AllTasksView({ gTasksConnected, gcalConnected }: { gTasksConnected: boo
 
   useEffect(() => {
     if (!token) return;
-    setLoading(true);
-    getTasks(token).then(setTasks).catch(e => setError((e as Error).message)).finally(() => setLoading(false));
-  }, [token]);
+    void run(() => getTasks(token));
+  }, [token, run]);
 
   useEffect(() => {
     if (!token || tasks.length === 0) return;
@@ -671,7 +663,7 @@ function AllTasksView({ gTasksConnected, gcalConnected }: { gTasksConnected: boo
       {error && (
         <div className="flex items-center justify-between bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
           <span>{error}</span>
-          <button onClick={() => setError(null)} className="ml-4 text-red-500 hover:text-red-700">✕</button>
+          <button onClick={() => setError('')} className="ml-4 text-red-500 hover:text-red-700">✕</button>
         </div>
       )}
       <div className="flex justify-end">

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { SkeletonList } from '../components/ui/Skeleton';
 import { useAuth } from '../context/AuthContext';
 import { useCalendar } from '../context/CalendarContext';
@@ -15,6 +15,7 @@ import ReminderForm, { type ReminderFormState, EMPTY_REMINDER_FORM } from '../co
 import { getGoogleCalendarStatus, syncFromGoogleCalendar } from '../api/googleCalendar';
 import { useSyncQueue } from '../context/SyncQueueContext';
 import { getAttachments } from '../api/attachments';
+import { useAsyncState } from '../hooks/useAsyncState';
 
 function reminderToForm(r: Reminder): ReminderFormState {
   // datetime-local input needs YYYY-MM-DDTHH:MM
@@ -30,9 +31,7 @@ export default function RemindersPage() {
   const { calendar } = useCalendar();
   const { t } = useTranslation();
   const { addJob } = useSyncQueue();
-  const [reminders, setReminders] = useState<Reminder[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const { data: reminders, setData: setReminders, loading, error, setError, run } = useAsyncState<Reminder[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [editInitial, setEditInitial] = useState<ReminderFormState>(EMPTY_REMINDER_FORM);
@@ -43,18 +42,9 @@ export default function RemindersPage() {
   const [syncSuccess, setSyncSuccess] = useState(false);
   const [attachmentCounts, setAttachmentCounts] = useState<Record<number, number>>({});
 
-  async function load() {
-    try {
-      setLoading(true);
-      setReminders(await getReminders(token!));
-    } catch {
-      setError(t('reminders.failedLoad'));
-    } finally {
-      setLoading(false);
-    }
-  }
+  const load = useCallback(() => run(() => getReminders(token!)), [token, run]);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
 
   useEffect(() => {
     if (!token || reminders.length === 0) return;

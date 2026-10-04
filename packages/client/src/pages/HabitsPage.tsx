@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useCallback, useState } from 'react';
+import { useAsyncState } from '../hooks/useAsyncState';
 import { SkeletonList } from '../components/ui/Skeleton';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
@@ -31,9 +32,7 @@ export default function HabitsPage() {
   const daysSoFar = isShamsi
     ? (() => { const d = new Date().getDay(); return d === 6 ? 1 : d + 2; })()
     : (() => { const d = new Date().getDay(); return d === 0 ? 7 : d; })();
-  const [habits, setHabits] = useState<Habit[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const { data: habits, loading, error, setError, run } = useAsyncState<Habit[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [editInitial, setEditInitial] = useState<HabitFormState>(EMPTY_HABIT_FORM);
@@ -47,18 +46,9 @@ export default function HabitsPage() {
 
   const weekDates = isShamsi ? getShamsiWeekDates() : getWeekDates();
 
-  async function load() {
-    try {
-      setLoading(true);
-      setHabits(await getHabits(token!));
-    } catch {
-      setError(t('habits.failedLoad'));
-    } finally {
-      setLoading(false);
-    }
-  }
+  const load = useCallback(() => run(() => getHabits(token!)), [token, run]);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
 
   function startAdd() { setEditId(null); setEditInitial(EMPTY_HABIT_FORM); setShowForm(true); }
   function startEdit(h: Habit) { setEditId(h.id); setEditInitial({ name: h.name, frequency: h.frequency }); setShowForm(true); }

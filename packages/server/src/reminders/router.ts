@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import { db } from '../db';
-import { authenticateToken } from '../middleware/authenticate';
-import { assertOwnership, buildPatch, fetchById } from '../utils/db';
+import { createCrudRouter } from '../utils/crudRouter';
 import {
   createCalendarEvent,
   updateCalendarEvent,
@@ -9,152 +8,79 @@ import {
 } from '../google/calendar.service';
 import { getGoogleCalendarConnection } from '../google/calendar.router';
 
-const router = Router();
-router.use(authenticateToken);
+type ReminderRow = {
+  id: number;
+  user_id: number;
+  title: string;
+  remind_at: string;
+  notes: string | null;
+  done: number;
+  google_calendar_event_id: string | null;
+  created_at: string;
+};
 
-// GET /api/reminders
-router.get('/', async (req, res) => {
-  const userId = req.user!.id;
-  const reminders = (await db.execute({
-    sql: 'SELECT * FROM reminders WHERE user_id = ? ORDER BY remind_at ASC',
-    args: [userId],
-  })).rows;
-  res.json(reminders);
-});
+const crudRouter = createCrudRouter<ReminderRow>({
+  table: 'reminders',
+  entityType: 'reminder',
+  orderBy: 'remind_at ASC',
 
-// POST /api/reminders
-router.post('/', async (req, res) => {
-  const userId = req.user!.id;
-  const { title, remind_at, notes } = req.body as {
-    title?: string;
-    remind_at?: string;
-    notes?: string;
-  };
+  validateCreate: (body) => {
+    if (!body['title'] || !body['remind_at']) return 'title and remind_at are required';
+    return null;
+  },
 
-  if (!title || !remind_at) {
-    res.status(400).json({ error: 'title and remind_at are required' });
-    return;
-  }
-
-  const result = await db.execute({
+  insertSql: (userId, body) => ({
     sql: 'INSERT INTO reminders (user_id, title, remind_at, notes) VALUES (?, ?, ?, ?)',
-    args: [userId, title, remind_at, notes ?? null],
-  });
+    args: [userId, body['title'] as string, body['remind_at'] as string, (body['notes'] as string | undefined) ?? null],
+  }),
 
-  const reminder = await fetchById<object>('reminders', result.lastInsertRowid!) as any;
+  extractPatch: (body) => ({
+    title: body['title'] as string | undefined,
+    remind_at: body['remind_at'] as string | undefined,
+    notes: body['notes'] !== undefined ? ((body['notes'] as string | null) ?? null) : undefined,
+    done: body['done'] as number | undefined,
+  }),
 
-  // Push to Google Calendar (non-fatal)
-  try {
+  onAfterCreate: async (row, userId) => {
     const conn = await getGoogleCalendarConnection(userId);
-    if (conn) {
-      // Google Calendar requires full ISO 8601 with seconds; datetime-local inputs omit them
-      const remindAtFull = /T\d{2}:\d{2}$/.test(reminder.remind_at)
-        ? reminder.remind_at + ':00'
-        : reminder.remind_at;
-      const gcEvent = await createCalendarEvent(conn.auth, conn.calendarId, {
-        summary: reminder.title,
-        description: reminder.notes ?? undefined,
-        start: { dateTime: remindAtFull, timeZone: 'UTC' },
-        end: { dateTime: remindAtFull, timeZone: 'UTC' },
-      });
-      await db.execute({
-        sql: 'UPDATE reminders SET google_calendar_event_id = ? WHERE id = ?',
-        args: [gcEvent.id, reminder.id],
-      });
-      reminder.google_calendar_event_id = gcEvent.id;
-    }
-  } catch { /* non-fatal */ }
+    if (!conn) return;
+    const remindAtFull = /T\d{2}:\d{2}$/.test(row.remind_at) ? row.remind_at + ':00' : row.remind_at;
+    const gcEvent = await createCalendarEvent(conn.auth, conn.calendarId, {
+      summary: row.title,
+      description: row.notes ?? undefined,
+      start: { dateTime: remindAtFull, timeZone: 'UTC' },
+      end: { dateTime: remindAtFull, timeZone: 'UTC' },
+    });
+    await db.execute({
+      sql: 'UPDATE reminders SET google_calendar_event_id = ? WHERE id = ?',
+      args: [gcEvent.id, row.id],
+    });
+  },
 
-  res.status(201).json(reminder);
+  onAfterUpdate: async (row, userId) => {
+    const eventId = row.google_calendar_event_id;
+    if (!eventId) return;
+    const conn = await getGoogleCalendarConnection(userId);
+    if (!conn) return;
+    const remindAtFull = /T\d{2}:\d{2}$/.test(row.remind_at) ? row.remind_at + ':00' : row.remind_at;
+    await updateCalendarEvent(conn.auth, conn.calendarId, eventId, {
+      summary: row.title,
+      description: row.notes ?? undefined,
+      start: { dateTime: remindAtFull, timeZone: 'UTC' },
+      end: { dateTime: remindAtFull, timeZone: 'UTC' },
+    });
+  },
+
+  onBeforeDelete: async (row, userId) => {
+    const eventId = row.google_calendar_event_id;
+    if (!eventId) return;
+    const conn = await getGoogleCalendarConnection(userId);
+    if (!conn) return;
+    await deleteCalendarEvent(conn.auth, conn.calendarId, eventId);
+  },
 });
 
-// PATCH /api/reminders/:id
-router.patch('/:id', async (req, res) => {
-  const userId = req.user!.id;
-  const id = Number(req.params.id);
-
-  if (!await assertOwnership('reminders', id, userId)) {
-    res.status(404).json({ error: 'Reminder not found' });
-    return;
-  }
-
-  const { title, remind_at, notes, done } = req.body as {
-    title?: string;
-    remind_at?: string;
-    notes?: string | null;
-    done?: number;
-  };
-
-  const { fields, values } = buildPatch({
-    title,
-    remind_at,
-    notes: notes !== undefined ? (notes ?? null) : undefined,
-    done,
-  });
-
-  if (fields.length === 0) {
-    res.status(400).json({ error: 'No fields to update' });
-    return;
-  }
-
-  values.push(id, userId);
-  await db.execute({ sql: `UPDATE reminders SET ${fields.join(', ')} WHERE id = ? AND user_id = ?`, args: values });
-
-  const updated = await fetchById<object>('reminders', id) as any;
-
-  // Push update to Google Calendar (non-fatal)
-  try {
-    const eventId = updated.google_calendar_event_id as string | null;
-    if (eventId) {
-      const conn = await getGoogleCalendarConnection(userId);
-      if (conn) {
-        const remindAtFull = /T\d{2}:\d{2}$/.test(updated.remind_at)
-          ? updated.remind_at + ':00'
-          : updated.remind_at;
-        await updateCalendarEvent(conn.auth, conn.calendarId, eventId, {
-          summary: updated.title,
-          description: updated.notes ?? undefined,
-          start: { dateTime: remindAtFull, timeZone: 'UTC' },
-          end: { dateTime: remindAtFull, timeZone: 'UTC' },
-        });
-      }
-    }
-  } catch { /* non-fatal */ }
-
-  res.json(updated);
-});
-
-// DELETE /api/reminders/:id
-router.delete('/:id', async (req, res) => {
-  const userId = req.user!.id;
-  const id = Number(req.params.id);
-
-  if (!await assertOwnership('reminders', id, userId)) {
-    res.status(404).json({ error: 'Reminder not found' });
-    return;
-  }
-
-  // Fetch google_calendar_event_id before deleting
-  const reminderRow = (await db.execute({
-    sql: 'SELECT google_calendar_event_id FROM reminders WHERE id = ?',
-    args: [id],
-  })).rows[0];
-
-  await db.execute({ sql: 'DELETE FROM document_attachments WHERE entity_type = ? AND entity_id = ?', args: ['reminder', id] });
-  await db.execute({ sql: 'DELETE FROM reminders WHERE id = ? AND user_id = ?', args: [id, userId] });
-
-  // Delete from Google Calendar (non-fatal)
-  try {
-    const eventId = reminderRow?.google_calendar_event_id as string | null;
-    if (eventId) {
-      const conn = await getGoogleCalendarConnection(userId);
-      if (conn) {
-        await deleteCalendarEvent(conn.auth, conn.calendarId, eventId);
-      }
-    }
-  } catch { /* non-fatal */ }
-
-  res.status(204).send();
-});
+const router = Router();
+router.use('/', crudRouter);
 
 export default router;

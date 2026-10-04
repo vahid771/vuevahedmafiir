@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { SkeletonList } from '../components/ui/Skeleton';
 import { useAuth } from '../context/AuthContext';
 import { useCalendar } from '../context/CalendarContext';
@@ -15,6 +15,7 @@ import DateForm, { type DateFormState, EMPTY_DATE_FORM } from '../components/dat
 import { getGoogleCalendarStatus, syncFromGoogleCalendar } from '../api/googleCalendar';
 import { useSyncQueue } from '../context/SyncQueueContext';
 import { getAttachments } from '../api/attachments';
+import { useAsyncState } from '../hooks/useAsyncState';
 
 function daysUntil(dateStr: string): number {
   const today = new Date();
@@ -35,9 +36,7 @@ export default function ImportantDatesPage() {
     if (n < 0) return t('dates.daysAgo', { count: Math.abs(n) });
     return t('dates.inDays', { count: n });
   }
-  const [dates, setDates] = useState<ImportantDate[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const { data: dates, setData: setDates, loading, error, setError, run } = useAsyncState<ImportantDate[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [editInitial, setEditInitial] = useState<DateFormState>(EMPTY_DATE_FORM);
@@ -47,18 +46,9 @@ export default function ImportantDatesPage() {
   const [syncSuccess, setSyncSuccess] = useState(false);
   const [attachmentCounts, setAttachmentCounts] = useState<Record<number, number>>({});
 
-  async function load() {
-    try {
-      setLoading(true);
-      setDates(await getDates(token!));
-    } catch {
-      setError(t('dates.failedLoad'));
-    } finally {
-      setLoading(false);
-    }
-  }
+  const load = useCallback(() => run(() => getDates(token!)), [token, run]);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
 
   useEffect(() => {
     if (!token || dates.length === 0) return;

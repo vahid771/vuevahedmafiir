@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useAsyncState } from '../hooks/useAsyncState';
 import { SkeletonList } from '../components/ui/Skeleton';
 import { useAuth } from '../context/AuthContext';
 import { useCalendar } from '../context/CalendarContext';
@@ -322,22 +323,14 @@ function SubRow({
 
 function BillsSection({ token }: { token: string }) {
   const { t } = useTranslation();
-  const [bills, setBills] = useState<Bill[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data: bills, setData: setBills, loading, error, setError, run } = useAsyncState<Bill[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [addSaving, setAddSaving] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editSaving, setEditSaving] = useState(false);
   const [attachmentCounts, setAttachmentCounts] = useState<Record<number, number>>({});
 
-  useEffect(() => {
-    setLoading(true);
-    getBills(token)
-      .then(setBills)
-      .catch(err => setError((err as Error).message))
-      .finally(() => setLoading(false));
-  }, [token]);
+  useEffect(() => { run(() => getBills(token)); }, [token, run]);
 
   useEffect(() => {
     if (bills.length === 0) return;
@@ -422,7 +415,7 @@ function BillsSection({ token }: { token: string }) {
       {error && (
         <div className="flex items-center justify-between bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
           <span>{error}</span>
-          <button onClick={() => setError(null)} className="ml-4 text-red-500 hover:text-red-700">✕</button>
+          <button onClick={() => setError('')} className="ml-4 text-red-500 hover:text-red-700">✕</button>
         </div>
       )}
 
@@ -473,22 +466,14 @@ function BillsSection({ token }: { token: string }) {
 
 function SubscriptionsSection({ token }: { token: string }) {
   const { t } = useTranslation();
-  const [subs, setSubs] = useState<Subscription[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data: subs, setData: setSubs, loading, error, setError, run: runSubs } = useAsyncState<Subscription[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [addSaving, setAddSaving] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editSaving, setEditSaving] = useState(false);
   const [attachmentCounts, setAttachmentCounts] = useState<Record<number, number>>({});
 
-  useEffect(() => {
-    setLoading(true);
-    getSubscriptions(token)
-      .then(setSubs)
-      .catch(err => setError((err as Error).message))
-      .finally(() => setLoading(false));
-  }, [token]);
+  useEffect(() => { runSubs(() => getSubscriptions(token)); }, [token, runSubs]);
 
   useEffect(() => {
     if (subs.length === 0) return;
@@ -575,7 +560,7 @@ function SubscriptionsSection({ token }: { token: string }) {
       {error && (
         <div className="flex items-center justify-between bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
           <span>{error}</span>
-          <button onClick={() => setError(null)} className="ml-4 text-red-500 hover:text-red-700">✕</button>
+          <button onClick={() => setError('')} className="ml-4 text-red-500 hover:text-red-700">✕</button>
         </div>
       )}
 
@@ -620,22 +605,14 @@ function SubscriptionsSection({ token }: { token: string }) {
 function LoansSection({ token }: { token: string }) {
   const { t } = useTranslation();
   const { calendar } = useCalendar();
-  const [loans, setLoans] = useState<Loan[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data: loans, setData: setLoans, loading, error, setError, run: runLoans } = useAsyncState<Loan[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [addSaving, setAddSaving] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editSaving, setEditSaving] = useState(false);
   const [attachmentCounts, setAttachmentCounts] = useState<Record<number, number>>({});
 
-  useEffect(() => {
-    setLoading(true);
-    getLoans(token)
-      .then(setLoans)
-      .catch(err => setError((err as Error).message))
-      .finally(() => setLoading(false));
-  }, [token]);
+  useEffect(() => { runLoans(() => getLoans(token)); }, [token, runLoans]);
 
   useEffect(() => {
     if (loans.length === 0) return;
@@ -732,7 +709,7 @@ function LoansSection({ token }: { token: string }) {
       {error && (
         <div className="flex items-center justify-between bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
           <span>{error}</span>
-          <button onClick={() => setError(null)} className="ms-4 text-red-500 hover:text-red-700">✕</button>
+          <button onClick={() => setError('')} className="ms-4 text-red-500 hover:text-red-700">✕</button>
         </div>
       )}
 
