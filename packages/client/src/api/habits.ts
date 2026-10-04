@@ -11,30 +11,16 @@ export interface Habit {
   current_streak: number;
 }
 
-import { apiUrl, authHeaders } from './base';
+import { apiUrl, authHeaders, createResource } from './base';
 
-export async function getHabits(token: string): Promise<Habit[]> {
-  const res = await fetch(apiUrl('/api/habits'), { headers: authHeaders(token) });
-  if (!res.ok) throw new Error('Failed to fetch habits');
-  return res.json();
-}
+type CreateHabitData = { name: string; frequency: string };
 
-export async function createHabit(token: string, data: { name: string; frequency: string }): Promise<Habit> {
-  const res = await fetch(apiUrl('/api/habits'), { method: 'POST', headers: authHeaders(token), body: JSON.stringify(data) });
-  if (!res.ok) throw new Error('Failed to create habit');
-  return res.json();
-}
+const _habits = createResource<Habit, CreateHabitData>('/api/habits');
 
-export async function updateHabit(token: string, id: number, data: Partial<Habit>): Promise<Habit> {
-  const res = await fetch(apiUrl(`/api/habits/${id}`), { method: 'PATCH', headers: authHeaders(token), body: JSON.stringify(data) });
-  if (!res.ok) throw new Error('Failed to update habit');
-  return res.json();
-}
-
-export async function deleteHabit(token: string, id: number): Promise<void> {
-  const res = await fetch(apiUrl(`/api/habits/${id}`), { method: 'DELETE', headers: authHeaders(token) });
-  if (!res.ok) throw new Error('Failed to delete habit');
-}
+export const getHabits    = (token: string)                                     => _habits.getAll(token);
+export const createHabit  = (token: string, data: CreateHabitData)              => _habits.create(token, data);
+export const updateHabit  = (token: string, id: number, data: Partial<Habit>)   => _habits.update(token, id, data);
+export const deleteHabit  = (token: string, id: number)                         => _habits.remove(token, id);
 
 export async function logHabit(token: string, id: number): Promise<void> {
   const res = await fetch(apiUrl(`/api/habits/${id}/log`), { method: 'POST', headers: authHeaders(token) });

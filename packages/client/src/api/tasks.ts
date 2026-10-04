@@ -1,4 +1,4 @@
-import { apiUrl, authHeaders } from './base';
+import { createResource } from './base';
 
 const BASE = '/api/tasks';
 
@@ -24,40 +24,15 @@ export type CreateTaskData = {
 
 export type UpdateTaskData = Partial<CreateTaskData>;
 
+const _tasks = createResource<Task, CreateTaskData>(BASE);
+
 export async function getTasks(token: string, opts?: { status?: 'open' | 'done'; group_id?: number | 'null' }): Promise<Task[]> {
   const params = new URLSearchParams();
   if (opts?.status) params.set('status', opts.status);
   if (opts?.group_id !== undefined) params.set('group_id', String(opts.group_id));
-  const url = params.toString() ? `${BASE}?${params}` : BASE;
-  const res = await fetch(apiUrl(url), { headers: authHeaders(token) });
-  if (!res.ok) throw new Error('Failed to fetch tasks');
-  return res.json() as Promise<Task[]>;
+  return _tasks.getAll(token, params.toString() ? params : undefined);
 }
 
-export async function createTask(token: string, data: CreateTaskData): Promise<Task> {
-  const res = await fetch(apiUrl(BASE), {
-    method: 'POST',
-    headers: authHeaders(token),
-    body: JSON.stringify(data),
-  });
-  if (!res.ok) throw new Error('Failed to create task');
-  return res.json() as Promise<Task>;
-}
-
-export async function updateTask(token: string, id: number, data: UpdateTaskData): Promise<Task> {
-  const res = await fetch(apiUrl(`${BASE}/${id}`), {
-    method: 'PATCH',
-    headers: authHeaders(token),
-    body: JSON.stringify(data),
-  });
-  if (!res.ok) throw new Error('Failed to update task');
-  return res.json() as Promise<Task>;
-}
-
-export async function deleteTask(token: string, id: number): Promise<void> {
-  const res = await fetch(apiUrl(`${BASE}/${id}`), {
-    method: 'DELETE',
-    headers: authHeaders(token),
-  });
-  if (!res.ok) throw new Error('Failed to delete task');
-}
+export const createTask  = (token: string, data: CreateTaskData)            => _tasks.create(token, data);
+export const updateTask  = (token: string, id: number, data: UpdateTaskData) => _tasks.update(token, id, data);
+export const deleteTask  = (token: string, id: number)                        => _tasks.remove(token, id);

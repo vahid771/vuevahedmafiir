@@ -78,119 +78,31 @@ export type UpdateSubscriptionData = Partial<CreateSubscriptionData>;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-import { apiUrl, authHeaders } from './base';
+import { createResource } from './base';
 
 // ─── Bills ────────────────────────────────────────────────────────────────────
 
-export async function getBills(token: string): Promise<Bill[]> {
-  const res = await fetch(apiUrl('/api/bills'), { headers: authHeaders(token) });
-  if (!res.ok) throw new Error('Failed to fetch bills');
-  return res.json() as Promise<Bill[]>;
-}
+const _bills = createResource<Bill, CreateBillData>('/api/bills');
 
-export async function createBill(token: string, data: CreateBillData): Promise<Bill> {
-  const res = await fetch(apiUrl('/api/bills'), {
-    method: 'POST',
-    headers: authHeaders(token),
-    body: JSON.stringify(data),
-  });
-  if (!res.ok) throw new Error('Failed to create bill');
-  return res.json() as Promise<Bill>;
-}
-
-export async function updateBill(token: string, id: number, data: UpdateBillData): Promise<Bill> {
-  const res = await fetch(apiUrl(`/api/bills/${id}`), {
-    method: 'PATCH',
-    headers: authHeaders(token),
-    body: JSON.stringify(data),
-  });
-  if (!res.ok) throw new Error('Failed to update bill');
-  return res.json() as Promise<Bill>;
-}
-
-export async function deleteBill(token: string, id: number): Promise<void> {
-  const res = await fetch(apiUrl(`/api/bills/${id}`), {
-    method: 'DELETE',
-    headers: authHeaders(token),
-  });
-  if (!res.ok) throw new Error('Failed to delete bill');
-}
+export const getBills    = (token: string)                                          => _bills.getAll(token);
+export const createBill  = (token: string, data: CreateBillData)                    => _bills.create(token, data);
+export const updateBill  = (token: string, id: number, data: UpdateBillData)        => _bills.update(token, id, data);
+export const deleteBill  = (token: string, id: number)                              => _bills.remove(token, id);
 
 // ─── Subscriptions ────────────────────────────────────────────────────────────
 
-export async function getSubscriptions(token: string): Promise<Subscription[]> {
-  const res = await fetch(apiUrl('/api/subscriptions'), { headers: authHeaders(token) });
-  if (!res.ok) throw new Error('Failed to fetch subscriptions');
-  return res.json() as Promise<Subscription[]>;
-}
+const _subs = createResource<Subscription, CreateSubscriptionData>('/api/subscriptions');
 
-export async function createSubscription(
-  token: string,
-  data: CreateSubscriptionData
-): Promise<Subscription> {
-  const res = await fetch(apiUrl('/api/subscriptions'), {
-    method: 'POST',
-    headers: authHeaders(token),
-    body: JSON.stringify(data),
-  });
-  if (!res.ok) throw new Error('Failed to create subscription');
-  return res.json() as Promise<Subscription>;
-}
-
-export async function updateSubscription(
-  token: string,
-  id: number,
-  data: UpdateSubscriptionData
-): Promise<Subscription> {
-  const res = await fetch(apiUrl(`/api/subscriptions/${id}`), {
-    method: 'PATCH',
-    headers: authHeaders(token),
-    body: JSON.stringify(data),
-  });
-  if (!res.ok) throw new Error('Failed to update subscription');
-  return res.json() as Promise<Subscription>;
-}
-
-export async function deleteSubscription(token: string, id: number): Promise<void> {
-  const res = await fetch(apiUrl(`/api/subscriptions/${id}`), {
-    method: 'DELETE',
-    headers: authHeaders(token),
-  });
-  if (!res.ok) throw new Error('Failed to delete subscription');
-}
+export const getSubscriptions    = (token: string)                                                  => _subs.getAll(token);
+export const createSubscription  = (token: string, data: CreateSubscriptionData)                    => _subs.create(token, data);
+export const updateSubscription  = (token: string, id: number, data: UpdateSubscriptionData)        => _subs.update(token, id, data);
+export const deleteSubscription  = (token: string, id: number)                                      => _subs.remove(token, id);
 
 // ─── Loans ────────────────────────────────────────────────────────────────────
 
-export async function getLoans(token: string): Promise<Loan[]> {
-  const res = await fetch(apiUrl('/api/loans'), { headers: authHeaders(token) });
-  if (!res.ok) throw new Error('Failed to fetch loans');
-  return res.json() as Promise<Loan[]>;
-}
+const _loans = createResource<Loan, CreateLoanData>('/api/loans');
 
-export async function createLoan(token: string, data: CreateLoanData): Promise<Loan> {
-  const res = await fetch(apiUrl('/api/loans'), {
-    method: 'POST',
-    headers: authHeaders(token),
-    body: JSON.stringify(data),
-  });
-  if (!res.ok) throw new Error('Failed to create loan');
-  return res.json() as Promise<Loan>;
-}
-
-export async function updateLoan(token: string, id: number, data: UpdateLoanData): Promise<Loan> {
-  const res = await fetch(apiUrl(`/api/loans/${id}`), {
-    method: 'PATCH',
-    headers: authHeaders(token),
-    body: JSON.stringify(data),
-  });
-  if (!res.ok) throw new Error('Failed to update loan');
-  return res.json() as Promise<Loan>;
-}
-
-export async function deleteLoan(token: string, id: number): Promise<void> {
-  const res = await fetch(apiUrl(`/api/loans/${id}`), {
-    method: 'DELETE',
-    headers: authHeaders(token),
-  });
-  if (!res.ok) throw new Error('Failed to delete loan');
-}
+export const getLoans    = (token: string)                                          => _loans.getAll(token);
+export const createLoan  = (token: string, data: CreateLoanData)                    => _loans.create(token, data);
+export const updateLoan  = (token: string, id: number, data: UpdateLoanData)        => _loans.update(token, id, data);
+export const deleteLoan  = (token: string, id: number)                              => _loans.remove(token, id);
