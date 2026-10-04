@@ -33,7 +33,7 @@ Replace the ~50 lines of repeated `fetch / authHeaders / apiUrl / error-throw` b
 
 ## Sub-Task 2 — Fix Document Type & Attachment Optimistic UI
 
-**Status:** `[ ] pending`
+**Status:** `[x] done`
 
 **Intent**  
 Close the type gap where the `Document` interface is missing `drive_file_id` / `drive_view_link`, and fix `AttachmentsSection` so that the optimistic AttachedDocument after attach/upload carries the real drive link instead of `null`. This makes the "Open in Drive" link appear immediately after upload without a page reload.
@@ -59,7 +59,7 @@ Close the type gap where the `Document` interface is missing `drive_file_id` / `
 
 ## Sub-Task 3 — Wire AttachmentsSection to Sync Queue
 
-**Status:** `[ ] pending`
+**Status:** `[x] done`
 
 **Intent**  
 `AttachmentsSection` currently uploads documents with no sync-queue notification, while every other write operation in the app shows progress/result in the `SyncQueuePanel`. This sub-task adds `useSyncQueue` to `AttachmentsSection` so upload operations appear in the panel.
@@ -83,7 +83,7 @@ Close the type gap where the `Document` interface is missing `drive_file_id` / `
 
 ## Sub-Task 4 — Fix i18n Gaps
 
-**Status:** `[ ] pending`
+**Status:** `[x] done`
 
 **Intent**  
 Two hardcoded English strings bypass the i18n system: the upload title placeholder in `AttachmentsSection` and two error messages in `DocumentsPage`. This sub-task adds the missing keys and replaces the hardcoded strings.
@@ -107,7 +107,7 @@ Two hardcoded English strings bypass the i18n system: the upload title placehold
 
 ## Sub-Task 5 — Shared Form Utilities
 
-**Status:** `[ ] pending`
+**Status:** `[x] done`
 
 **Intent**  
 The `handleCancel` dirty-check and the save/cancel button row are byte-for-byte identical across all 7 form components. Extract them into a shared `useFormGuard` hook and a `FormActions` component so future forms get the behaviour for free.
@@ -134,7 +134,7 @@ The `handleCancel` dirty-check and the save/cancel button row are byte-for-byte 
 
 ## Sub-Task 6 — Chart Layout Agnosticism
 
-**Status:** `[ ] pending`
+**Status:** `[x] done`
 
 **Intent**  
 `TasksCharts`, `HabitsCharts`, and `BillsCharts`/`LoansCharts` hardcode a `sm:grid-cols-2` layout inside themselves. When placed in the narrow 360px sticky column (added in the previous session), the `sm` breakpoint kicks in at 640px and produces a 2-column grid inside a 360px container, causing visual breakage. Charts should be layout-agnostic — the page decides the column grid, the chart component renders a single column flow.
@@ -162,7 +162,7 @@ The `handleCancel` dirty-check and the save/cancel button row are byte-for-byte 
 
 ## Sub-Task 7 — Page-Level State Hook
 
-**Status:** `[ ] pending`
+**Status:** `[x] done`
 
 **Intent**  
 Every page duplicates the same `loading / error / saving` state trio plus the async load-with-error-catch pattern. Extract a `useAsyncState` hook that encapsulates this trio and provides a `run(fn)` executor that sets loading, catches errors, and always clears loading. This removes ~20 lines of repeated boilerplate per page.
@@ -190,7 +190,7 @@ Every page duplicates the same `loading / error / saving` state trio plus the as
 
 ## Sub-Task 8 — Server Router CRUD Factory
 
-**Status:** `[ ] pending`
+**Status:** `[x] done`
 
 **Intent**  
 All five domain routers (`tasks`, `bills`, `habits`, `reminders`, `dates`) share the same structure: `router.use(authenticateToken)`, ownership check, GET all, POST create, PATCH update, DELETE remove. Create a `createCrudRouter(config)` factory that generates this scaffolding from a config object, with optional override hooks for domain-specific logic (Google sync, validation, computed fields).
