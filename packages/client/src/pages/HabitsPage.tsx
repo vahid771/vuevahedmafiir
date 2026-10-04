@@ -130,7 +130,7 @@ export default function HabitsPage() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto py-6 px-4">
+    <div className="max-w-6xl mx-auto py-6 px-4">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-900">{t('habits.title')}</h1>
         <button onClick={startAdd} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700">{t('habits.addHabit')}</button>
@@ -153,78 +153,84 @@ export default function HabitsPage() {
         />
       )}
 
-      {loading ? (
-        <SkeletonList count={3} />
-      ) : habits.length === 0 ? (
-        <div className="text-center py-12 text-gray-400">
-          <p className="text-lg">{t('habits.noHabits')}</p>
-          <p className="text-sm mt-1">{t('habits.noHabitsHint')}</p>
-        </div>
-      ) : (
-        <motion.ul
-          className="space-y-4 list-none p-0"
-          initial="hidden"
-          animate="visible"
-          variants={{ visible: { transition: { staggerChildren: 0.06 } } }}
-        >
-          {habits.map(habit => (
-            <motion.li
-              key={habit.id}
-              variants={{ hidden: { opacity: 0, y: 12 }, visible: { opacity: 1, y: 0, transition: { duration: 0.2, ease: 'easeOut' } } }}
-              className="bg-white border border-gray-200 rounded-lg p-4"
+      <div className="lg:grid lg:grid-cols-[1fr_360px] lg:gap-6 lg:items-start">
+        <div>
+          {loading ? (
+            <SkeletonList count={3} />
+          ) : habits.length === 0 ? (
+            <div className="text-center py-12 text-gray-400">
+              <p className="text-lg">{t('habits.noHabits')}</p>
+              <p className="text-sm mt-1">{t('habits.noHabitsHint')}</p>
+            </div>
+          ) : (
+            <motion.ul
+              className="space-y-4 list-none p-0"
+              initial="hidden"
+              animate="visible"
+              variants={{ visible: { transition: { staggerChildren: 0.06 } } }}
             >
-              <div className="flex items-center justify-between mb-3">
-                <div>
-                  <span className="font-semibold text-gray-900" dir="auto">
-                    {(lang === 'fa' ? habit.name_fa : habit.name_en) || habit.name}
-                  </span>
-                  <span className="ms-2 text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full" dir="auto">
-                    {habit.frequency === 'daily' ? t('habits.form.daily') : t('habits.form.weekly')}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-orange-500 font-medium" dir="auto">{habit.current_streak} {t('habits.dayStreak')}</span>
-                  <button onClick={() => startEdit(habit)} title={t('common.edit')} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors">
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                    </svg>
-                  </button>
-                  <button onClick={() => handleDelete(habit.id)} title={t('common.delete')} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors">
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-              <div className="flex gap-1.5">
-                {weekDates.map((date, i) => {
-                  const logged = habit.logs_this_week.includes(date);
-                  const isToday = date === new Date().toISOString().slice(0, 10);
-                  return (
-                    <div key={date} className="flex flex-col items-center gap-1 flex-1 min-w-0" title={`${DAYS[i]} — ${date}`}>
-                      <span className={`text-xs font-medium ${isToday ? 'text-blue-600' : 'text-gray-400'}`}>
-                        {DAYS_SHORT[i]}
+              {habits.map(habit => (
+                <motion.li
+                  key={habit.id}
+                  variants={{ hidden: { opacity: 0, y: 12 }, visible: { opacity: 1, y: 0, transition: { duration: 0.2, ease: 'easeOut' } } }}
+                  className="bg-white border border-gray-200 rounded-lg p-4"
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <span className="font-semibold text-gray-900" dir="auto">
+                        {(lang === 'fa' ? habit.name_fa : habit.name_en) || habit.name}
                       </span>
-                      <button
-                        onClick={() => toggleLog(habit, date)}
-                        className={`w-8 h-8 rounded-full border-2 transition-colors ${logged ? 'bg-green-500 border-green-500' : 'border-gray-300 hover:border-green-400'}`}
-                        title={`${DAYS[i]} — ${date}`}
-                      >
-                        {logged && <span className="text-white text-xs">✓</span>}
+                      <span className="ms-2 text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full" dir="auto">
+                        {habit.frequency === 'daily' ? t('habits.form.daily') : t('habits.form.weekly')}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-orange-500 font-medium" dir="auto">{habit.current_streak} {t('habits.dayStreak')}</span>
+                      <button onClick={() => startEdit(habit)} title={t('common.edit')} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                      </button>
+                      <button onClick={() => handleDelete(habit.id)} title={t('common.delete')} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
                       </button>
                     </div>
-                  );
-                })}
-              </div>
-            </motion.li>
-          ))}
-        </motion.ul>
-      )}
+                  </div>
+                  <div className="flex gap-1.5">
+                    {weekDates.map((date, i) => {
+                      const logged = habit.logs_this_week.includes(date);
+                      const isToday = date === new Date().toISOString().slice(0, 10);
+                      return (
+                        <div key={date} className="flex flex-col items-center gap-1 flex-1 min-w-0" title={`${DAYS[i]} — ${date}`}>
+                          <span className={`text-xs font-medium ${isToday ? 'text-blue-600' : 'text-gray-400'}`}>
+                            {DAYS_SHORT[i]}
+                          </span>
+                          <button
+                            onClick={() => toggleLog(habit, date)}
+                            className={`w-8 h-8 rounded-full border-2 transition-colors ${logged ? 'bg-green-500 border-green-500' : 'border-gray-300 hover:border-green-400'}`}
+                            title={`${DAYS[i]} — ${date}`}
+                          >
+                            {logged && <span className="text-white text-xs">✓</span>}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </motion.li>
+              ))}
+            </motion.ul>
+          )}
+        </div>
 
-      {/* Charts */}
-      {!loading && habits.length > 0 && (
-        <HabitsCharts habits={habits} daysSoFar={daysSoFar} lang={lang} />
-      )}
+        {/* Charts column */}
+        {!loading && habits.length > 0 && (
+          <div className="mt-6 lg:mt-0 lg:sticky lg:top-4">
+            <HabitsCharts habits={habits} daysSoFar={daysSoFar} lang={lang} />
+          </div>
+        )}
+      </div>
 
       {/* AI Suggested Habits */}
       <div className="mt-6 border border-gray-200 rounded-lg bg-white overflow-hidden">

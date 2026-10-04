@@ -6,6 +6,8 @@ export interface Document {
   mimetype: string;
   size: number;
   tags: string; // JSON array string
+  drive_file_id: string | null;
+  drive_view_link: string | null;
   uploaded_at: string;
 }
 

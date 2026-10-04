@@ -442,7 +442,7 @@ export default function TasksPage() {
   const activeTab = tabs.find(t => t.id === activeGroupId) ?? tabs[0];
 
   return (
-    <div className="max-w-2xl mx-auto space-y-4 px-4 py-4">
+    <div className="max-w-6xl mx-auto space-y-4 px-4 py-4">
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-2xl font-bold text-gray-800">{t('tasks.title')}</h1>
@@ -681,45 +681,53 @@ function AllTasksView({ gTasksConnected, gcalConnected }: { gTasksConnected: boo
         </button>
       </div>
       {showAddForm && <TaskForm onSave={handleCreate} onCancel={() => setShowAddForm(false)} saving={addSaving} />}
-      {loading ? <SkeletonList count={4} /> : (
-        <div className="space-y-6">
-          <section>
-            <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">{t('tasks.open')} <span className="font-normal">({openTasks.length})</span></h2>
-            {openTasks.length === 0 ? <p className="text-sm text-gray-400 italic px-4">{t('tasks.noOpenTasks')}</p> : (
-              <motion.ul
-                className="space-y-2"
-                initial="hidden" animate="visible"
-                variants={{ visible: { transition: { staggerChildren: 0.05 } } }}
-              >
-                {openTasks.map(task => (
-                  <TaskRow key={task.id} task={task} onToggle={handleToggle} onDelete={handleDelete}
-                    onEdit={t => { setEditingId(t.id); setShowAddForm(false); }}
-                    editingId={editingId} onSaveEdit={handleSaveEdit} onCancelEdit={() => setEditingId(null)} saving={editSaving}
-                    attachmentCount={attachmentCounts[task.id] ?? 0} />
-                ))}
-              </motion.ul>
-            )}
-          </section>
-          {doneTasks.length > 0 && (
-            <section>
-              <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">{t('tasks.done')} <span className="font-normal">({doneTasks.length})</span></h2>
-              <motion.ul
-                className="space-y-2"
-                initial="hidden" animate="visible"
-                variants={{ visible: { transition: { staggerChildren: 0.05 } } }}
-              >
-                {doneTasks.map(task => (
-                  <TaskRow key={task.id} task={task} onToggle={handleToggle} onDelete={handleDelete}
-                    onEdit={t => { setEditingId(t.id); setShowAddForm(false); }}
-                    editingId={editingId} onSaveEdit={handleSaveEdit} onCancelEdit={() => setEditingId(null)} saving={editSaving}
-                    attachmentCount={attachmentCounts[task.id] ?? 0} />
-                ))}
-              </motion.ul>
-            </section>
+      <div className="lg:grid lg:grid-cols-[1fr_360px] lg:gap-6 lg:items-start">
+        <div>
+          {loading ? <SkeletonList count={4} /> : (
+            <div className="space-y-6">
+              <section>
+                <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">{t('tasks.open')} <span className="font-normal">({openTasks.length})</span></h2>
+                {openTasks.length === 0 ? <p className="text-sm text-gray-400 italic px-4">{t('tasks.noOpenTasks')}</p> : (
+                  <motion.ul
+                    className="space-y-2"
+                    initial="hidden" animate="visible"
+                    variants={{ visible: { transition: { staggerChildren: 0.05 } } }}
+                  >
+                    {openTasks.map(task => (
+                      <TaskRow key={task.id} task={task} onToggle={handleToggle} onDelete={handleDelete}
+                        onEdit={t => { setEditingId(t.id); setShowAddForm(false); }}
+                        editingId={editingId} onSaveEdit={handleSaveEdit} onCancelEdit={() => setEditingId(null)} saving={editSaving}
+                        attachmentCount={attachmentCounts[task.id] ?? 0} />
+                    ))}
+                  </motion.ul>
+                )}
+              </section>
+              {doneTasks.length > 0 && (
+                <section>
+                  <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">{t('tasks.done')} <span className="font-normal">({doneTasks.length})</span></h2>
+                  <motion.ul
+                    className="space-y-2"
+                    initial="hidden" animate="visible"
+                    variants={{ visible: { transition: { staggerChildren: 0.05 } } }}
+                  >
+                    {doneTasks.map(task => (
+                      <TaskRow key={task.id} task={task} onToggle={handleToggle} onDelete={handleDelete}
+                        onEdit={t => { setEditingId(t.id); setShowAddForm(false); }}
+                        editingId={editingId} onSaveEdit={handleSaveEdit} onCancelEdit={() => setEditingId(null)} saving={editSaving}
+                        attachmentCount={attachmentCounts[task.id] ?? 0} />
+                    ))}
+                  </motion.ul>
+                </section>
+              )}
+            </div>
           )}
         </div>
-      )}
-      {!loading && tasks.length > 0 && <TasksCharts tasks={tasks} />}
+        {!loading && tasks.length > 0 && (
+          <div className="mt-6 lg:mt-0 lg:sticky lg:top-4">
+            <TasksCharts tasks={tasks} />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

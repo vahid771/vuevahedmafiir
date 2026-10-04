@@ -434,29 +434,37 @@ function BillsSection({ token }: { token: string }) {
         />
       )}
 
-      {loading ? (
-        <SkeletonList count={4} />
-      ) : bills.length === 0 ? (
-        <p className="text-sm text-gray-400 italic px-4 py-8 text-center">{t('bills.noBills')}</p>
-      ) : (
-        <ul className="space-y-2">
-          {bills.map(bill => (
-            <BillRow
-              key={bill.id}
-              bill={bill}
-              onTogglePaid={handleTogglePaid}
-              onDelete={handleDelete}
-              onEdit={b => { setEditingId(b.id); setShowAddForm(false); }}
-              editingId={editingId}
-              onSaveEdit={handleSaveEdit}
-              onCancelEdit={() => setEditingId(null)}
-              saving={editSaving}
-              attachmentCount={attachmentCounts[bill.id] ?? 0}
-            />
-          ))}
-        </ul>
-      )}
-      {!loading && bills.length > 0 && <BillsCharts bills={bills} />}
+      <div className="lg:grid lg:grid-cols-[1fr_360px] lg:gap-6 lg:items-start">
+        <div>
+          {loading ? (
+            <SkeletonList count={4} />
+          ) : bills.length === 0 ? (
+            <p className="text-sm text-gray-400 italic px-4 py-8 text-center">{t('bills.noBills')}</p>
+          ) : (
+            <ul className="space-y-2">
+              {bills.map(bill => (
+                <BillRow
+                  key={bill.id}
+                  bill={bill}
+                  onTogglePaid={handleTogglePaid}
+                  onDelete={handleDelete}
+                  onEdit={b => { setEditingId(b.id); setShowAddForm(false); }}
+                  editingId={editingId}
+                  onSaveEdit={handleSaveEdit}
+                  onCancelEdit={() => setEditingId(null)}
+                  saving={editSaving}
+                  attachmentCount={attachmentCounts[bill.id] ?? 0}
+                />
+              ))}
+            </ul>
+          )}
+        </div>
+        {!loading && bills.length > 0 && (
+          <div className="mt-4 lg:mt-0 lg:sticky lg:top-4">
+            <BillsCharts bills={bills} />
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -732,6 +740,8 @@ function LoansSection({ token }: { token: string }) {
         <LoanForm onSave={handleCreate} onCancel={() => setShowAddForm(false)} saving={addSaving} />
       )}
 
+      <div className="lg:grid lg:grid-cols-[1fr_360px] lg:gap-6 lg:items-start">
+      <div>
       {loading ? (
         <SkeletonList count={3} />
       ) : loans.length === 0 ? (
@@ -872,7 +882,13 @@ function LoansSection({ token }: { token: string }) {
           })}
         </ul>
       )}
-      {!loading && loans.length > 0 && <LoansCharts loans={loans} />}
+      </div>
+      {!loading && loans.length > 0 && (
+        <div className="mt-4 lg:mt-0 lg:sticky lg:top-4">
+          <LoansCharts loans={loans} />
+        </div>
+      )}
+      </div>
     </div>
   );
 }
@@ -895,7 +911,7 @@ export default function BillsPage() {
   };
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6 px-4 py-4">
+    <div className="max-w-6xl mx-auto space-y-6 px-4 py-4">
       {/* Header */}
       <h1 className="text-2xl font-bold text-gray-800">{t('bills.title')}</h1>
 
