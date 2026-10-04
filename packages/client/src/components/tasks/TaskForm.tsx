@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next';
 import DateInput from '../DateInput';
 import { useAuth } from '../../context/AuthContext';
 import AttachmentsSection from '../attachments/AttachmentsSection';
+import { useFormGuard } from '../../hooks/useFormGuard';
+import FormActions from '../ui/FormActions';
 
 export interface TaskFormState {
   title: string;
@@ -30,15 +32,10 @@ export default function TaskForm({ initial = EMPTY_TASK_FORM, onSave, onCancel, 
   const { t } = useTranslation();
   const { token } = useAuth();
   const [form, setForm] = useState<TaskFormState>(initial);
+  const { handleCancel } = useFormGuard(form, initial, onCancel);
 
   function set<K extends keyof TaskFormState>(key: K, value: TaskFormState[K]) {
     setForm(prev => ({ ...prev, [key]: value }));
-  }
-
-  function handleCancel() {
-    const isDirty = JSON.stringify(form) !== JSON.stringify(initial);
-    if (isDirty && !window.confirm(t('common.unsavedChanges'))) return;
-    onCancel();
   }
 
   return (
@@ -88,23 +85,13 @@ export default function TaskForm({ initial = EMPTY_TASK_FORM, onSave, onCancel, 
         </div>
       </div>
       {editId && <AttachmentsSection entityType="task" entityId={editId} token={token ?? ''} />}
-      <div className="flex gap-2 justify-end">
-        <button
-          type="button"
-          onClick={handleCancel}
-          className="px-3 py-1.5 text-sm rounded border border-gray-300 text-gray-700 hover:bg-gray-100"
-        >
-          {t('common.cancel')}
-        </button>
-        <button
-          type="button"
-          onClick={() => onSave(form)}
-          disabled={saving || !form.title.trim()}
-          className="px-3 py-1.5 text-sm rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
-        >
-          {saving ? t('common.saving') : t('common.save')}
-        </button>
-      </div>
+      <FormActions
+        onCancel={handleCancel}
+        onSave={() => onSave(form)}
+        saving={saving}
+        disabled={saving || !form.title.trim()}
+        justify="end"
+      />
     </div>
   );
 }

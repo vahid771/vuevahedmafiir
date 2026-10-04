@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next';
 import DateInput from '../DateInput';
 import { useAuth } from '../../context/AuthContext';
 import AttachmentsSection from '../attachments/AttachmentsSection';
+import { useFormGuard } from '../../hooks/useFormGuard';
+import FormActions from '../ui/FormActions';
 
 export interface LoanFormState {
   name: string;
@@ -38,13 +40,9 @@ export default function LoanForm({ initial = EMPTY_LOAN_FORM, onSave, onCancel, 
   const { t } = useTranslation();
   const { token } = useAuth();
   const [form, setForm] = useState<LoanFormState>(initial);
+  const { handleCancel } = useFormGuard(form, initial, onCancel);
   function set<K extends keyof LoanFormState>(key: K, value: LoanFormState[K]) {
     setForm(prev => ({ ...prev, [key]: value }));
-  }
-  function handleCancel() {
-    const isDirty = JSON.stringify(form) !== JSON.stringify(initial);
-    if (isDirty && !window.confirm(t('common.unsavedChanges'))) return;
-    onCancel();
   }
 
   return (
@@ -139,23 +137,13 @@ export default function LoanForm({ initial = EMPTY_LOAN_FORM, onSave, onCancel, 
         </div>
       </div>
       {editId && <AttachmentsSection entityType="loan" entityId={editId} token={token ?? ''} />}
-      <div className="flex gap-2 justify-end">
-        <button
-          type="button"
-          onClick={handleCancel}
-          className="px-3 py-1.5 text-sm rounded border border-gray-300 text-gray-700 hover:bg-gray-100"
-        >
-          {t('common.cancel')}
-        </button>
-        <button
-          type="button"
-          onClick={() => onSave(form)}
-          disabled={saving || !form.name.trim() || !form.total_amount || !form.remaining_amount}
-          className="px-3 py-1.5 text-sm rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
-        >
-          {saving ? t('common.saving') : t('common.save')}
-        </button>
-      </div>
+      <FormActions
+        onCancel={handleCancel}
+        onSave={() => onSave(form)}
+        saving={saving}
+        disabled={saving || !form.name.trim() || !form.total_amount || !form.remaining_amount}
+        justify="end"
+      />
     </div>
   );
 }

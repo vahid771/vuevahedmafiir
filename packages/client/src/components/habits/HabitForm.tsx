@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
 import AttachmentsSection from '../attachments/AttachmentsSection';
+import { useFormGuard } from '../../hooks/useFormGuard';
+import FormActions from '../ui/FormActions';
 
 export interface HabitFormState {
   name: string;
@@ -25,12 +27,7 @@ export default function HabitForm({ initial = EMPTY_HABIT_FORM, onSave, onCancel
   const { t } = useTranslation();
   const { token } = useAuth();
   const [form, setForm] = useState<HabitFormState>(initial);
-
-  function handleCancel() {
-    const isDirty = JSON.stringify(form) !== JSON.stringify(initial);
-    if (isDirty && !window.confirm(t('common.unsavedChanges'))) return;
-    onCancel();
-  }
+  const { handleCancel } = useFormGuard(form, initial, onCancel);
 
   return (
     <div className="mb-6 bg-white border border-gray-200 rounded-lg p-4">
@@ -52,21 +49,12 @@ export default function HabitForm({ initial = EMPTY_HABIT_FORM, onSave, onCancel
         </select>
       </div>
       {editId && <AttachmentsSection entityType="habit" entityId={editId} token={token ?? ''} />}
-      <div className="flex gap-2 mt-3">
-        <button
-          onClick={() => onSave(form)}
-          disabled={saving}
-          className="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700 disabled:opacity-50"
-        >
-          {t('common.save')}
-        </button>
-        <button
-          onClick={handleCancel}
-          className="px-4 py-2 rounded text-sm border border-gray-300 hover:bg-gray-50"
-        >
-          {t('common.cancel')}
-        </button>
-      </div>
+      <FormActions
+        onCancel={handleCancel}
+        onSave={() => onSave(form)}
+        saving={saving}
+        disabled={saving}
+      />
     </div>
   );
 }
